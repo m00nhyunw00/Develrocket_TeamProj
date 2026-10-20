@@ -1,0 +1,3 @@
+interface:
+  display_name: "원격 Windows 안전 종료"
+  short_description: "Rider·Unreal 저장, 커밋·push, 프로그램 정상 종료 후 Windows 종료"

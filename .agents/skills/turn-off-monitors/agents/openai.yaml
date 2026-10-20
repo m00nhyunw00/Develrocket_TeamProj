@@ -1,0 +1,3 @@
+interface:
+  display_name: "모니터 화면만 끄기"
+  short_description: "Windows와 실행 중인 작업을 유지하며 모든 모니터 화면 끄기"
