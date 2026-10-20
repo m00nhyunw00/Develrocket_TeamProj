@@ -6,3 +6,12 @@
 
   [mcp_servers.notion]
     url = "https://mcp.notion.com/mcp"
+
+  [mcp_servers.blender]
+  command = 'C:\Users\user\.local\bin\uvx.exe'
+  args = ["--python", 'C:\Users\user\AppData\Roaming\uv\python\cpython-3.11.16-windows-x86_64-none\python.exe', "blender-mcp"]
+
+  [mcp_servers.blender.env]
+  BLENDER_HOST = "localhost"
+  BLENDER_PORT = "9876"
+  DISABLE_TELEMETRY = "true"
