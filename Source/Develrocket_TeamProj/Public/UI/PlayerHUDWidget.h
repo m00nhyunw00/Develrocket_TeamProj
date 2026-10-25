@@ -6,6 +6,9 @@
 #include "Blueprint/UserWidget.h"
 #include "PlayerHUDWidget.generated.h"
 
+class UProgressBar;
+class UTextBlock;
+
 /**
  * 
  */
@@ -17,4 +20,8 @@ class DEVELROCKET_TEAMPROJ_API UPlayerHUDWidget : public UUserWidget
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UTextBlock> AmmoText;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UProgressBar> HealthBar;
 };

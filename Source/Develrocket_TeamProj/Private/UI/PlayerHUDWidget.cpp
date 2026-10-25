@@ -2,6 +2,8 @@
 
 
 #include "UI/PlayerHUDWidget.h"
+#include "Components/ProgressBar.h"
+#include "Components/TextBlock.h"
 
 void UPlayerHUDWidget::NativeConstruct()
 {
