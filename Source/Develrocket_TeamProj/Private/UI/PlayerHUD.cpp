@@ -6,7 +6,25 @@
 #include "Blueprint/UserWidget.h"
 #include "UI/PlayerHUDWidget.h"
 
+void APlayerHUD::TestDamage(float Amount)
+{
+	TestHealth = FMath::Clamp(TestHealth - Amount, 0.f, TestMaxHealth);
+	
+	if (HUDWidget)
+	{
+		HUDWidget->SetHealth(TestHealth, TestMaxHealth);
+	}
+}
 
+void APlayerHUD::TestHeal(float Amount)
+{
+	TestHealth = FMath::Clamp(TestHealth + Amount, 0.f, TestMaxHealth);
+	
+	if (HUDWidget)
+	{
+		HUDWidget->SetHealth(TestHealth, TestMaxHealth);
+	}
+}
 
 void APlayerHUD::BeginPlay()
 {
@@ -21,5 +39,7 @@ void APlayerHUD::BeginPlay()
 	if (HUDWidget)
 	{
 		HUDWidget->AddToViewport();
+		HUDWidget->SetHealth(TestHealth, TestMaxHealth);
+		HUDWidget->SetAmmo(TestAmmo, TestReserveAmmo);
 	}
 }

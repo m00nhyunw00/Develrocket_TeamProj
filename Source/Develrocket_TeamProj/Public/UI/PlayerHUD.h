@@ -15,6 +15,12 @@ UCLASS()
 class DEVELROCKET_TEAMPROJ_API APlayerHUD : public AHUD
 {
 	GENERATED_BODY()
+
+public:
+	UFUNCTION(Exec) 
+	void TestDamage(float Amount); //Test Only : 체력 탄약 시스템 연결시 삭제
+	UFUNCTION(Exec) 
+	void TestHeal(float Amount); //Test Only : 체력 탄약 시스템 연결시 삭제
 	
 protected:
 	virtual void BeginPlay() override;
@@ -24,4 +30,10 @@ protected:
 	
 	UPROPERTY()
 	TObjectPtr<UPlayerHUDWidget> HUDWidget;
+	
+	// HUD 테스트 용 변수
+	float TestHealth = 100.f;
+	float TestMaxHealth = 100.f;
+	int32 TestAmmo = 30;
+	int32 TestReserveAmmo = 90;
 };
