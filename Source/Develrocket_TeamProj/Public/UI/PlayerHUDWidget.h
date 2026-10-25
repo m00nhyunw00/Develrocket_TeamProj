@@ -10,6 +10,7 @@ class UProgressBar;
 class UTextBlock;
 class UImage;
 class UWidgetAnimation;
+class UTexture2D;
 
 /**
  * 
@@ -41,4 +42,9 @@ protected:
 	
 	//HUD 저체력일때 심장박동을 위한 함수
 	void UpdateLowHealthEffect(float HealthPercent);
+	
+	//HUD 저체력시 핓빛 애니메이션을 위한 텍스처 배열
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	TArray<TObjectPtr<UTexture2D>> BloodStageTextures;
+	int32 CurrentBloodStage = INDEX_NONE;
 };

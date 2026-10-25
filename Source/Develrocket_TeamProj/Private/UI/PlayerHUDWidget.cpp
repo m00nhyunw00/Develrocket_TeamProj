@@ -6,6 +6,7 @@
 #include "Components/TextBlock.h"
 #include "Components/Image.h"
 #include "Animation/WidgetAnimation.h"
+#include "Engine/Texture2D.h"
 
 void UPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {
@@ -56,17 +57,31 @@ void UPlayerHUDWidget::UpdateLowHealthEffect(float HealthPercent)
 		{
 			StopAnimation(HeartbeatAnim);
 		}
+		CurrentBloodStage = INDEX_NONE;
 		return;
 	}
 	
 	// 위험할 때 : 위험도 계산
 	const float Danger = 1.f - (HealthPercent / LowHealthThreshold);
 	
+	if (BloodStageTextures.Num() > 0)
+	{
+		const int32 LastIndex = BloodStageTextures.Num() - 1;
+		const int32 Stage = FMath::Clamp(FMath::FloorToInt(Danger * BloodStageTextures.Num()), 0, LastIndex);
+		
+		if (Stage != CurrentBloodStage && BloodStageTextures[Stage])
+		{
+			BloodOverlay->SetBrushFromTexture(BloodStageTextures[Stage]);
+			
+			CurrentBloodStage = Stage;
+		}
+	}
+	
 	BloodOverlay->SetVisibility(ESlateVisibility::HitTestInvisible);
 	
 	// 진하기 : 위험도 0이면 0.2, 위험도 1이면 0.7
 	FLinearColor Color = BloodOverlay->GetColorAndOpacity();
-	Color.A = FMath::Lerp(0.2f, 0.7f, Danger);
+	Color.A = FMath::Lerp(0.6f, 1.0f, Danger);
 	BloodOverlay->SetColorAndOpacity(Color);
 	
 	// 박동 속도: 위험도 0이면 1배, 1이면 2.5배
