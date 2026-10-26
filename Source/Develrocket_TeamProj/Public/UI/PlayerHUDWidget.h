@@ -68,4 +68,12 @@ protected:
 	float CrosshairMinGap = 8.f;
 	UPROPERTY(EditDefaultsOnly, Category="UI")
 	float CrosshairMaxGap = 40.f;
+	
+	//조준선의 이동을 위한 값
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	void ApplyCrosshairSpread(float Spread);
+	float TargetSpread = 0.f;
+	float CurrentSpread = 0.f;
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	float CrosshairInterpSpeed = 12.f;
 };
