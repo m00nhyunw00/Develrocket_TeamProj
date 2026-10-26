@@ -8,6 +8,10 @@
       "Name": "Develrocket_TeamProj",
       "Type": "Runtime",
       "LoadingPhase": "Default"
+      "AdditionalDependencies": [
+				"UMG",
+				"Engine"
+			]
     }
   ],
   "Plugins": [
