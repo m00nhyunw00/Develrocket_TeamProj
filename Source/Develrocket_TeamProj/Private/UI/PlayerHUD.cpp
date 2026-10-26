@@ -26,6 +26,22 @@ void APlayerHUD::TestHeal(float Amount)
 	}
 }
 
+void APlayerHUD::TestSpread(float Spread)
+{
+	if (HUDWidget)
+	{
+		HUDWidget->SetCrosshairSpread(Spread);
+	}
+}
+
+void APlayerHUD::TestAim(bool bIsAiming)
+{
+	if (HUDWidget)
+	{
+		HUDWidget->SetAiming(bIsAiming);
+	}
+}
+
 void APlayerHUD::BeginPlay()
 {
 	Super::BeginPlay();

@@ -7,6 +7,7 @@
 #include "Components/Image.h"
 #include "Animation/WidgetAnimation.h"
 #include "Engine/Texture2D.h"
+#include "Components/Overlay.h"
 
 void UPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {
@@ -32,9 +33,43 @@ void UPlayerHUDWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo)
 	AmmoText->SetText(FText::FromString(AmmoString));
 }
 
+void UPlayerHUDWidget::SetCrosshairSpread(float Spread)
+{
+	if (!CrosshairTop || !CrosshairBottom || !CrosshairLeft || !CrosshairRight)
+	{
+		return;
+	}
+	
+	const float Gap = FMath::Lerp(CrosshairMinGap, CrosshairMaxGap, FMath::Clamp(Spread, 0.f, 1.f));
+	const float HalfBlade = CrosshairTop->GetBrush().ImageSize.Y*0.5f;
+	const float Offset = Gap + HalfBlade;
+	
+	CrosshairTop->SetRenderTranslation(FVector2D(0.f, -Offset));
+	CrosshairBottom->SetRenderTranslation(FVector2D(0.f, Offset));
+	CrosshairLeft->SetRenderTranslation(FVector2D(-Offset, 0.f));
+	CrosshairRight->SetRenderTranslation(FVector2D(Offset, 0.f));
+}
+
+void UPlayerHUDWidget::SetAiming(bool bIsAiming)
+{
+	if (!Crosshair)
+	{
+		return;
+	}
+	if (bIsAiming == true)
+	{
+		Crosshair->SetRenderOpacity(0);
+	}
+	else
+	{
+		Crosshair->SetRenderOpacity(1);
+	}
+}
+
 void UPlayerHUDWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	SetCrosshairSpread(0.f);
 }
 
 void UPlayerHUDWidget::NativeDestruct()
@@ -79,7 +114,7 @@ void UPlayerHUDWidget::UpdateLowHealthEffect(float HealthPercent)
 	
 	BloodOverlay->SetVisibility(ESlateVisibility::HitTestInvisible);
 	
-	// 진하기 : 위험도 0이면 0.2, 위험도 1이면 0.7
+	// 진하기 : 위험도 0이면 0.6, 위험도 1이면 1.0
 	FLinearColor Color = BloodOverlay->GetColorAndOpacity();
 	Color.A = FMath::Lerp(0.6f, 1.0f, Danger);
 	BloodOverlay->SetColorAndOpacity(Color);

@@ -11,9 +11,10 @@ class UTextBlock;
 class UImage;
 class UWidgetAnimation;
 class UTexture2D;
+class UOverlay;
 
 /**
- * 
+ *
  */
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API UPlayerHUDWidget : public UUserWidget
@@ -23,6 +24,8 @@ class DEVELROCKET_TEAMPROJ_API UPlayerHUDWidget : public UUserWidget
 public:
 	void SetHealth(float CurrentHealth, float MaxHealth);
 	void SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo);
+	void SetCrosshairSpread(float Spread);
+	void SetAiming(bool bIsAiming);
 	
 protected:
 	virtual void NativeConstruct() override;
@@ -43,8 +46,26 @@ protected:
 	//HUD 저체력일때 심장박동을 위한 함수
 	void UpdateLowHealthEffect(float HealthPercent);
 	
-	//HUD 저체력시 핓빛 애니메이션을 위한 텍스처 배열
+	//HUD 저체력시 핏빛 애니메이션을 위한 텍스처 배열
 	UPROPERTY(EditDefaultsOnly, Category="UI")
 	TArray<TObjectPtr<UTexture2D>> BloodStageTextures;
 	int32 CurrentBloodStage = INDEX_NONE;
+	
+	//조준선 : 위젯과 간격 설정
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UOverlay> Crosshair;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UImage> CrosshairCenter;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UImage> CrosshairTop;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UImage> CrosshairBottom;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UImage> CrosshairLeft;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UImage> CrosshairRight;
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	float CrosshairMinGap = 8.f;
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	float CrosshairMaxGap = 40.f;
 };
