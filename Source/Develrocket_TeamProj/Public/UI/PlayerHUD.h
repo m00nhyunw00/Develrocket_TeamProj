@@ -25,6 +25,8 @@ public:
 	void TestSpread(float Spread); //Test Only : 탄 퍼짐 시스템 연결시 삭제
 	UFUNCTION(Exec)
 	void TestAim(bool bIsAiming); // Test Only : 조준 시스템 연결시 삭제
+	UFUNCTION(Exec)
+	void TestHit(bool bIsKill); // Test Only : 타격 시스템 연결시 삭제
 	
 protected:
 	virtual void BeginPlay() override;

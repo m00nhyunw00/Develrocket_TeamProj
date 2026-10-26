@@ -54,6 +54,20 @@ void UPlayerHUDWidget::SetAiming(bool bIsAiming)
 	}
 }
 
+void UPlayerHUDWidget::SetShowHitMarker(bool bIsKill)
+{
+	if (!HitMarker || !HitMarkerAnim)
+	{
+		return;
+	}
+	
+	// 처치면 KillColor, 아니면 HitColor
+	HitMarker->SetColorAndOpacity(bIsKill ? KillColor : HitColor);
+	
+	// 재생 중이어도 처음부터 다시
+	PlayAnimation(HitMarkerAnim, 0.f, 1);
+}
+
 void UPlayerHUDWidget::NativeConstruct()
 {
 	Super::NativeConstruct();

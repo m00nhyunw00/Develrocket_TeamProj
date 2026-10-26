@@ -42,6 +42,14 @@ void APlayerHUD::TestAim(bool bIsAiming)
 	}
 }
 
+void APlayerHUD::TestHit(bool bIsKill)
+{
+	if (HUDWidget)
+	{
+		HUDWidget->SetShowHitMarker(bIsKill);
+	}
+}
+
 void APlayerHUD::BeginPlay()
 {
 	Super::BeginPlay();
