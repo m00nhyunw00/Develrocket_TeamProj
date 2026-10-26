@@ -1,0 +1,6 @@
+interface:
+  display_name: "개발자용 기술 문서"
+  short_description: "기술의 장점·사용 기준·제약을 공식 근거와 함께 노션용 문서로 정리"
+  default_prompt: "$tech-doc-brief를 사용해 이 기술의 개념, 장점, 사용 사례, 제약과 실무 적용 기준을 개발자용 문서로 정리해 줘."
+policy:
+  allow_implicit_invocation: true
