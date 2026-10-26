@@ -22,15 +22,30 @@ void UPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 	UpdateLowHealthEffect(Percent);
 }
 
-void UPlayerHUDWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo)
+void UPlayerHUDWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize)
 {
-	if (!AmmoText)
+	if (!AmmoText || !ReloadText)
 	{
 		return;
 	}
 	
 	const FString AmmoString = FString::Printf(TEXT("%d / %d"), CurrentAmmo, ReserveAmmo);
 	AmmoText->SetText(FText::FromString(AmmoString));
+	
+	// 부족 판단 (탄창 크기가 0 이하면 나눌 수 없으니 부족 아님)
+	const bool bLow = MagazineSize > 0 && (float)CurrentAmmo / MagazineSize <= LowAmmoRatio;
+	AmmoText->SetColorAndOpacity(bLow ? AmmoLowColor : AmmoNormalColor);
+	
+	// 0발일 때만 문구 표시
+	if (CurrentAmmo == 0)
+	{
+		ReloadText->SetText(FText::FromString(ReserveAmmo > 0 ? TEXT("RELOAD") : TEXT("NO AMMO")));
+		ReloadText->SetVisibility(ESlateVisibility::HitTestInvisible);
+	}
+	else
+	{
+		ReloadText->SetVisibility(ESlateVisibility::Collapsed);
+	}
 }
 
 void UPlayerHUDWidget::SetCrosshairSpread(float Spread)
@@ -52,6 +67,20 @@ void UPlayerHUDWidget::SetAiming(bool bIsAiming)
 	{
 		Crosshair->SetRenderOpacity(1);
 	}
+}
+
+void UPlayerHUDWidget::SetShowHitMarker(bool bIsKill)
+{
+	if (!HitMarker || !HitMarkerAnim)
+	{
+		return;
+	}
+	
+	// 처치면 KillColor, 아니면 HitColor
+	HitMarker->SetColorAndOpacity(bIsKill ? KillColor : HitColor);
+	
+	// 재생 중이어도 처음부터 다시
+	PlayAnimation(HitMarkerAnim, 0.f, 1);
 }
 
 void UPlayerHUDWidget::NativeConstruct()

@@ -23,9 +23,10 @@ class DEVELROCKET_TEAMPROJ_API UPlayerHUDWidget : public UUserWidget
 	
 public:
 	void SetHealth(float CurrentHealth, float MaxHealth);
-	void SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo);
+	void SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize);
 	void SetCrosshairSpread(float Spread);
 	void SetAiming(bool bIsAiming);
+	void SetShowHitMarker(bool bIsKill);
 	
 protected:
 	virtual void NativeConstruct() override;
@@ -76,4 +77,24 @@ protected:
 	float CurrentSpread = 0.f;
 	UPROPERTY(EditDefaultsOnly, Category="UI")
 	float CrosshairInterpSpeed = 12.f;
+	
+	//타격 피드백을 위한 값
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UImage> HitMarker;
+	UPROPERTY(Transient, meta=(BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> HitMarkerAnim;
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	FLinearColor HitColor = FLinearColor(0.85f, 0.81f, 0.75f, 1.f);
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	FLinearColor KillColor = FLinearColor(0.7f, 0.13f, 0.23f, 1.f);
+	
+	//재장전 피드백을 위한 값
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UTextBlock> ReloadText;
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	float LowAmmoRatio = 0.3f;
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	FLinearColor AmmoNormalColor = FLinearColor(0.85f, 0.81f, 0.75f, 1.f);
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	FLinearColor AmmoLowColor = FLinearColor(0.70f, 0.13f, 0.23f, 1.f);
 };

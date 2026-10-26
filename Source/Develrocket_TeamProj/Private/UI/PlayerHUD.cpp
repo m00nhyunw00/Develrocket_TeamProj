@@ -42,6 +42,25 @@ void APlayerHUD::TestAim(bool bIsAiming)
 	}
 }
 
+void APlayerHUD::TestHit(bool bIsKill)
+{
+	if (HUDWidget)
+	{
+		HUDWidget->SetShowHitMarker(bIsKill);
+	}
+}
+
+void APlayerHUD::TestSetAmmo(int32 Current, int32 Reserve)
+{
+	TestAmmo = Current;
+	TestReserveAmmo = Reserve;
+	
+	if (HUDWidget)
+	{
+		HUDWidget->SetAmmo(TestAmmo, TestReserveAmmo, TestMagazineSize);
+	}
+}
+
 void APlayerHUD::BeginPlay()
 {
 	Super::BeginPlay();
@@ -56,6 +75,6 @@ void APlayerHUD::BeginPlay()
 	{
 		HUDWidget->AddToViewport();
 		HUDWidget->SetHealth(TestHealth, TestMaxHealth);
-		HUDWidget->SetAmmo(TestAmmo, TestReserveAmmo);
+		HUDWidget->SetAmmo(TestAmmo, TestReserveAmmo, TestMagazineSize);
 	}
 }

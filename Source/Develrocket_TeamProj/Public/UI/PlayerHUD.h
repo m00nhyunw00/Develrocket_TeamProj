@@ -25,6 +25,10 @@ public:
 	void TestSpread(float Spread); //Test Only : 탄 퍼짐 시스템 연결시 삭제
 	UFUNCTION(Exec)
 	void TestAim(bool bIsAiming); // Test Only : 조준 시스템 연결시 삭제
+	UFUNCTION(Exec)
+	void TestHit(bool bIsKill); // Test Only : 타격 시스템 연결시 삭제
+	UFUNCTION(Exec)
+	void TestSetAmmo(int32 Current, int32 Reserve); // Test Only : 재장전 시스템 연결시 삭제
 	
 protected:
 	virtual void BeginPlay() override;
@@ -40,4 +44,5 @@ protected:
 	float TestMaxHealth = 100.f;
 	int32 TestAmmo = 30;
 	int32 TestReserveAmmo = 90;
+	int32 TestMagazineSize = 30;
 };
