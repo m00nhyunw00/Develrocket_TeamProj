@@ -6,12 +6,12 @@
 #include "Blueprint/UserWidget.h"
 #include "PlayerHUDWidget.generated.h"
 
-class UProgressBar;
 class UImage;
 class UWidgetAnimation;
 class UTexture2D;
 class UOverlay;
 class UAmmoWidget;
+class UHealthBarWidget;
 
 /**
  *
@@ -31,8 +31,6 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
-	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<UProgressBar> HealthBar;
 	
 	//HUD의 심장박동을 위한 변수 값
 	UPROPERTY(meta=(BindWidget))
@@ -89,4 +87,7 @@ protected:
 	//부품 조립을 위한 값
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UAmmoWidget> AmmoWidget;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UHealthBarWidget> HealthBarWidget;
+	
 };

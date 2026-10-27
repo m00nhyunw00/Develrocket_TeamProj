@@ -2,7 +2,7 @@
 
 
 #include "UI/PlayerHUDWidget.h"
-#include "Components/ProgressBar.h"
+#include "UI/HealthBarWidget.h"
 #include "Components/Image.h"
 #include "Animation/WidgetAnimation.h"
 #include "Engine/Texture2D.h"
@@ -11,14 +11,16 @@
 
 void UPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {
-	if (!HealthBar || MaxHealth <= 0.f)
+	if (HealthBarWidget)
+	{
+		HealthBarWidget->SetHealth(CurrentHealth, MaxHealth);
+	}
+	
+	if (MaxHealth <= 0.f)
 	{
 		return;
 	}
-	
 	const float Percent = FMath::Clamp(CurrentHealth / MaxHealth, 0.f, 1.f);
-	HealthBar->SetPercent(Percent);
-	
 	UpdateLowHealthEffect(Percent);
 }
 
