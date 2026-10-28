@@ -5,10 +5,11 @@
 
 #include "UI/CrosshairWidget.h"
 #include "UI/HealthBarWidget.h"
+#include "UI/AmmoWidget.h"
+#include "UI/HitMarkerWidget.h"
 #include "Components/Image.h"
 #include "Animation/WidgetAnimation.h"
 #include "Engine/Texture2D.h"
-#include "UI/AmmoWidget.h"
 
 void UPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {
@@ -45,16 +46,11 @@ void UPlayerHUDWidget::SetAiming(bool bIsAiming)
 
 void UPlayerHUDWidget::SetShowHitMarker(bool bIsKill)
 {
-	if (!HitMarker || !HitMarkerAnim)
+	if (!HitMarkerWidget)
 	{
 		return;
 	}
-	
-	// 처치면 KillColor, 아니면 HitColor
-	HitMarker->SetColorAndOpacity(bIsKill ? KillColor : HitColor);
-	
-	// 재생 중이어도 처음부터 다시
-	PlayAnimation(HitMarkerAnim, 0.f, 1);
+	HitMarkerWidget->SetShowHitMarker(bIsKill);
 }
 
 void UPlayerHUDWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize)

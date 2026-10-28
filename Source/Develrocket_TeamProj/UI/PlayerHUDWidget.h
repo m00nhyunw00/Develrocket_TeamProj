@@ -12,6 +12,7 @@ class UTexture2D;
 class UAmmoWidget;
 class UHealthBarWidget;
 class UCrosshairWidget;
+class UHitMarkerWidget;
 
 /**
  *
@@ -45,16 +46,6 @@ protected:
 	TArray<TObjectPtr<UTexture2D>> BloodStageTextures;
 	int32 CurrentBloodStage = INDEX_NONE;
 	
-	//타격 피드백을 위한 값
-	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<UImage> HitMarker;
-	UPROPERTY(Transient, meta=(BindWidgetAnim))
-	TObjectPtr<UWidgetAnimation> HitMarkerAnim;
-	UPROPERTY(EditDefaultsOnly, Category="UI")
-	FLinearColor HitColor = FLinearColor(0.85f, 0.81f, 0.75f, 1.f);
-	UPROPERTY(EditDefaultsOnly, Category="UI")
-	FLinearColor KillColor = FLinearColor(0.7f, 0.13f, 0.23f, 1.f);
-	
 	//부품 조립을 위한 값
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UAmmoWidget> AmmoWidget;
@@ -62,5 +53,7 @@ protected:
 	TObjectPtr<UHealthBarWidget> HealthBarWidget;
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UCrosshairWidget> CrosshairWidget;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UHitMarkerWidget> HitMarkerWidget;
 	
 };
