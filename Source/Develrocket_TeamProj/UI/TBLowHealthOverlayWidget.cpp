@@ -1,9 +1,9 @@
-﻿#include "UI/LowHealthOverlayWidget.h"
+﻿#include "UI/TBLowHealthOverlayWidget.h"
 #include "Animation/WidgetAnimation.h"
 #include "Engine/Texture2D.h"
 #include "Components/Image.h"
 
-void ULowHealthOverlayWidget::SetHealth(float CurrentHealth, float MaxHealth)
+void UTBLowHealthOverlayWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {
 	if (MaxHealth <= 0.f)
 	{
@@ -13,7 +13,7 @@ void ULowHealthOverlayWidget::SetHealth(float CurrentHealth, float MaxHealth)
 	UpdateLowHealthEffect(Percent);
 }
 
-void ULowHealthOverlayWidget::UpdateLowHealthEffect(float HealthPercent)
+void UTBLowHealthOverlayWidget::UpdateLowHealthEffect(float HealthPercent)
 {
 	if (!BloodOverlay)
 	{

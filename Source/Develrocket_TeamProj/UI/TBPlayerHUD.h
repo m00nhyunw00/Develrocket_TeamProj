@@ -4,15 +4,15 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
-#include "PlayerHUD.generated.h"
+#include "TBPlayerHUD.generated.h"
 
-class UPlayerHUDWidget;
+class UTBPlayerHUDWidget;
 
 /**
  * 
  */
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API APlayerHUD : public AHUD
+class DEVELROCKET_TEAMPROJ_API ATBPlayerHUD : public AHUD
 {
 	GENERATED_BODY()
 
@@ -34,10 +34,10 @@ protected:
 	virtual void BeginPlay() override;
 	
 	UPROPERTY(EditDefaultsOnly, Category="UI")
-	TSubclassOf<UPlayerHUDWidget> HUDWidgetClass;
+	TSubclassOf<UTBPlayerHUDWidget> HUDWidgetClass;
 	
 	UPROPERTY()
-	TObjectPtr<UPlayerHUDWidget> HUDWidget;
+	TObjectPtr<UTBPlayerHUDWidget> HUDWidget;
 	
 	// Test Only : HUD 테스트 용 변수
 	float TestHealth = 100.f;

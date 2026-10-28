@@ -1,7 +1,7 @@
-﻿#include "UI/HitMarkerWidget.h"
+﻿#include "UI/TBHitMarkerWidget.h"
 #include "Components/Image.h"
 
-void UHitMarkerWidget::SetShowHitMarker(bool bIsKill)
+void UTBHitMarkerWidget::SetShowHitMarker(bool bIsKill)
 {
 	if (!HitMarker || !HitMarkerAnim)
 	{

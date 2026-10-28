@@ -1,12 +1,12 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "UI/QuickSlotWidget.h"
+#include "UI/TBQuickSlotWidget.h"
 #include "Components/TextBlock.h"
 #include "Components/Image.h"
 #include "Engine/Texture2D.h"
 
-void UQuickSlotWidget::SetItem(UTexture2D* Icon, int32 Count)
+void UTBQuickSlotWidget::SetItem(UTexture2D* Icon, int32 Count)
 {
 	if (!ItemIcon || !CountText)
 	{
@@ -29,7 +29,7 @@ void UQuickSlotWidget::SetItem(UTexture2D* Icon, int32 Count)
 	CountText->SetRenderOpacity(Opacity);
 }
 
-void UQuickSlotWidget::SetSelected(bool bIsSelected)
+void UTBQuickSlotWidget::SetSelected(bool bIsSelected)
 {
 	if (!SlotFrame)
 	{

@@ -2,12 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "HealthBarWidget.generated.h"
+#include "TBHealthBarWidget.generated.h"
 
 class UProgressBar;
 UCLASS()
 
-class DEVELROCKET_TEAMPROJ_API UHealthBarWidget : public UUserWidget
+class DEVELROCKET_TEAMPROJ_API UTBHealthBarWidget : public UUserWidget
 {
 	GENERATED_BODY()
 	

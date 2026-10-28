@@ -2,12 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "AmmoWidget.generated.h"
+#include "TBAmmoWidget.generated.h"
 
 class UTextBlock;
 
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API UAmmoWidget : public UUserWidget
+class DEVELROCKET_TEAMPROJ_API UTBAmmoWidget : public UUserWidget
 {
 	GENERATED_BODY()
 	
