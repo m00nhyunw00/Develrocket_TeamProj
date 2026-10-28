@@ -2,59 +2,55 @@
 
 
 #include "UI/PlayerHUDWidget.h"
-#include "Components/ProgressBar.h"
+
+#include "UI/CrosshairWidget.h"
+#include "UI/HealthBarWidget.h"
+#include "UI/AmmoWidget.h"
+#include "UI/HitMarkerWidget.h"
 #include "Components/Image.h"
 #include "Animation/WidgetAnimation.h"
 #include "Engine/Texture2D.h"
-#include "UI/AmmoWidget.h"
-#include "Components/Overlay.h"
 
 void UPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {
-	if (!HealthBar || MaxHealth <= 0.f)
+	if (HealthBarWidget)
+	{
+		HealthBarWidget->SetHealth(CurrentHealth, MaxHealth);
+	}
+	
+	if (MaxHealth <= 0.f)
 	{
 		return;
 	}
-	
 	const float Percent = FMath::Clamp(CurrentHealth / MaxHealth, 0.f, 1.f);
-	HealthBar->SetPercent(Percent);
-	
 	UpdateLowHealthEffect(Percent);
 }
 
 void UPlayerHUDWidget::SetCrosshairSpread(float Spread)
 {
-	TargetSpread = FMath::Clamp(Spread, 0.f, 1.f);
+	if (!CrosshairWidget)
+	{
+		return;
+	}
+	CrosshairWidget->SetCrosshairSpread(Spread);		
 }
 
 void UPlayerHUDWidget::SetAiming(bool bIsAiming)
 {
-	if (!Crosshair)
+	if (!CrosshairWidget)
 	{
 		return;
 	}
-	if (bIsAiming == true)
-	{
-		Crosshair->SetRenderOpacity(0);
-	}
-	else
-	{
-		Crosshair->SetRenderOpacity(1);
-	}
+	CrosshairWidget->SetAiming(bIsAiming);
 }
 
 void UPlayerHUDWidget::SetShowHitMarker(bool bIsKill)
 {
-	if (!HitMarker || !HitMarkerAnim)
+	if (!HitMarkerWidget)
 	{
 		return;
 	}
-	
-	// 처치면 KillColor, 아니면 HitColor
-	HitMarker->SetColorAndOpacity(bIsKill ? KillColor : HitColor);
-	
-	// 재생 중이어도 처음부터 다시
-	PlayAnimation(HitMarkerAnim, 0.f, 1);
+	HitMarkerWidget->SetShowHitMarker(bIsKill);
 }
 
 void UPlayerHUDWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize)
@@ -65,17 +61,6 @@ void UPlayerHUDWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 Magaz
 	}
 	
 	AmmoWidget->SetAmmo(CurrentAmmo, ReserveAmmo, MagazineSize);
-}
-
-void UPlayerHUDWidget::NativeConstruct()
-{
-	Super::NativeConstruct();
-	ApplyCrosshairSpread(CurrentSpread);
-}
-
-void UPlayerHUDWidget::NativeDestruct()
-{
-	Super::NativeDestruct();
 }
 
 void UPlayerHUDWidget::UpdateLowHealthEffect(float HealthPercent)
@@ -135,35 +120,4 @@ void UPlayerHUDWidget::UpdateLowHealthEffect(float HealthPercent)
 		}
 	}
 
-}
-
-void UPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
-{
-	Super::NativeTick(MyGeometry, InDeltaTime);
-	
-	// 이미 목표에 거의 도착했으면 아무것도 안 함(매 프레임 배치하면 낭비)
-	if (FMath::IsNearlyEqual(TargetSpread, CurrentSpread, 0.001f))
-	{
-		return;
-	}
-	
-	CurrentSpread = FMath::FInterpTo(CurrentSpread, TargetSpread, InDeltaTime, CrosshairInterpSpeed);
-	ApplyCrosshairSpread(CurrentSpread);
-}
-
-void UPlayerHUDWidget::ApplyCrosshairSpread(float Spread)
-{
-	if (!CrosshairTop || !CrosshairBottom || !CrosshairLeft || !CrosshairRight)
-	{
-		return;
-	}
-	
-	const float Gap = FMath::Lerp(CrosshairMinGap, CrosshairMaxGap, FMath::Clamp(Spread, 0.f, 1.f));
-	const float HalfBlade = CrosshairTop->GetBrush().ImageSize.Y*0.5f;
-	const float Offset = Gap + HalfBlade;
-	
-	CrosshairTop->SetRenderTranslation(FVector2D(0.f, -Offset));
-	CrosshairBottom->SetRenderTranslation(FVector2D(0.f, Offset));
-	CrosshairLeft->SetRenderTranslation(FVector2D(-Offset, 0.f));
-	CrosshairRight->SetRenderTranslation(FVector2D(Offset, 0.f));
 }
