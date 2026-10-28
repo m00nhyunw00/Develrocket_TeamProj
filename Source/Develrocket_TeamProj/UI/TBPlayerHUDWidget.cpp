@@ -1,15 +1,15 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "UI/PlayerHUDWidget.h"
+#include "UI/TBPlayerHUDWidget.h"
 
-#include "UI/LowHealthOverlayWidget.h"
-#include "UI/CrosshairWidget.h"
-#include "UI/HealthBarWidget.h"
-#include "UI/AmmoWidget.h"
-#include "UI/HitMarkerWidget.h"
+#include "UI/TBLowHealthOverlayWidget.h"
+#include "UI/TBCrosshairWidget.h"
+#include "UI/TBHealthBarWidget.h"
+#include "UI/TBAmmoWidget.h"
+#include "UI/TBHitMarkerWidget.h"
 
-void UPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
+void UTBPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {
 	if (HealthBarWidget)
 	{
@@ -22,7 +22,7 @@ void UPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 	}	
 }
 
-void UPlayerHUDWidget::SetCrosshairSpread(float Spread)
+void UTBPlayerHUDWidget::SetCrosshairSpread(float Spread)
 {
 	if (!CrosshairWidget)
 	{
@@ -31,7 +31,7 @@ void UPlayerHUDWidget::SetCrosshairSpread(float Spread)
 	CrosshairWidget->SetCrosshairSpread(Spread);		
 }
 
-void UPlayerHUDWidget::SetAiming(bool bIsAiming)
+void UTBPlayerHUDWidget::SetAiming(bool bIsAiming)
 {
 	if (!CrosshairWidget)
 	{
@@ -40,7 +40,7 @@ void UPlayerHUDWidget::SetAiming(bool bIsAiming)
 	CrosshairWidget->SetAiming(bIsAiming);
 }
 
-void UPlayerHUDWidget::SetShowHitMarker(bool bIsKill)
+void UTBPlayerHUDWidget::SetShowHitMarker(bool bIsKill)
 {
 	if (!HitMarkerWidget)
 	{
@@ -49,7 +49,7 @@ void UPlayerHUDWidget::SetShowHitMarker(bool bIsKill)
 	HitMarkerWidget->SetShowHitMarker(bIsKill);
 }
 
-void UPlayerHUDWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize)
+void UTBPlayerHUDWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize)
 {
 	if (!AmmoWidget)
 	{

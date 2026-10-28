@@ -4,19 +4,19 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "PlayerHUDWidget.generated.h"
+#include "TBPlayerHUDWidget.generated.h"
 
-class UAmmoWidget;
-class UHealthBarWidget;
-class UCrosshairWidget;
-class UHitMarkerWidget;
-class ULowHealthOverlayWidget;
+class UTBAmmoWidget;
+class UTBHealthBarWidget;
+class UTBCrosshairWidget;
+class UTBHitMarkerWidget;
+class UTBLowHealthOverlayWidget;
 
 /**
  *
  */
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API UPlayerHUDWidget : public UUserWidget
+class DEVELROCKET_TEAMPROJ_API UTBPlayerHUDWidget : public UUserWidget
 {
 	GENERATED_BODY()
 	
@@ -30,14 +30,14 @@ public:
 protected:
 	//부품 조립을 위한 값
 	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<UAmmoWidget> AmmoWidget;
+	TObjectPtr<UTBAmmoWidget> AmmoWidget;
 	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<UHealthBarWidget> HealthBarWidget;
+	TObjectPtr<UTBHealthBarWidget> HealthBarWidget;
 	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<UCrosshairWidget> CrosshairWidget;
+	TObjectPtr<UTBCrosshairWidget> CrosshairWidget;
 	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<UHitMarkerWidget> HitMarkerWidget;
+	TObjectPtr<UTBHitMarkerWidget> HitMarkerWidget;
 	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<ULowHealthOverlayWidget> LowHealthOverlayWidget;
+	TObjectPtr<UTBLowHealthOverlayWidget> LowHealthOverlayWidget;
 	
 };

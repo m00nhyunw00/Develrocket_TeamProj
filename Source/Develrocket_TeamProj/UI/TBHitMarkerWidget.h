@@ -2,13 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "HitMarkerWidget.generated.h"
+#include "TBHitMarkerWidget.generated.h"
 
 class UImage;
 class UWidgetAnimation;
 UCLASS()
 
-class DEVELROCKET_TEAMPROJ_API UHitMarkerWidget : public UUserWidget
+class DEVELROCKET_TEAMPROJ_API UTBHitMarkerWidget : public UUserWidget
 {
 	GENERATED_BODY()
 	

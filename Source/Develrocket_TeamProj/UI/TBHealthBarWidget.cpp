@@ -1,7 +1,7 @@
-﻿#include "UI/HealthBarWidget.h"
+﻿#include "UI/TBHealthBarWidget.h"
 #include "Components/ProgressBar.h"
 
-void UHealthBarWidget::SetHealth(float CurrentHealth, float MaxHealth)
+void UTBHealthBarWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {
 	if (!HealthBar || MaxHealth <= 0.f)
 	{

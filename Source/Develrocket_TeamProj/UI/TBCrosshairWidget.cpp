@@ -1,12 +1,12 @@
-﻿#include "UI/CrosshairWidget.h"
+﻿#include "UI/TBCrosshairWidget.h"
 #include "Components/Image.h"
 
-void UCrosshairWidget::SetCrosshairSpread(float Spread)
+void UTBCrosshairWidget::SetCrosshairSpread(float Spread)
 {
 	TargetSpread = FMath::Clamp(Spread, 0.f, 1.f);
 }
 
-void UCrosshairWidget::SetAiming(bool bIsAiming)
+void UTBCrosshairWidget::SetAiming(bool bIsAiming)
 {
 	if (bIsAiming == true)
 	{
@@ -18,13 +18,13 @@ void UCrosshairWidget::SetAiming(bool bIsAiming)
 	}
 }
 
-void UCrosshairWidget::NativeConstruct()
+void UTBCrosshairWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 	ApplyCrosshairSpread(CurrentSpread);
 }
 
-void UCrosshairWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+void UTBCrosshairWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
 	
@@ -38,7 +38,7 @@ void UCrosshairWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime
 	ApplyCrosshairSpread(CurrentSpread);
 }
 
-void UCrosshairWidget::ApplyCrosshairSpread(float Spread)
+void UTBCrosshairWidget::ApplyCrosshairSpread(float Spread)
 {
 	if (!CrosshairTop || !CrosshairBottom || !CrosshairLeft || !CrosshairRight)
 	{

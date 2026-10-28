@@ -2,11 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "CrosshairWidget.generated.h"
+#include "TBCrosshairWidget.generated.h"
 
 class UImage;
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API UCrosshairWidget : public UUserWidget
+class DEVELROCKET_TEAMPROJ_API UTBCrosshairWidget : public UUserWidget
 {
 	GENERATED_BODY()
 	
