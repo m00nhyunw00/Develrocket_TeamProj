@@ -10,7 +10,18 @@ public class Develrocket_TeamProj : ModuleRules
 		
 		PublicIncludePaths.AddRange(new string[] {"Develrocket_TeamProj"});
 		
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG" });
+		PublicDependencyModuleNames.AddRange(new string[]
+		{
+			"Core", 
+			"CoreUObject", 
+			"Engine", 
+			"InputCore", 
+			"EnhancedInput", 
+			"UMG",
+			"GameplayAbilities",
+			"GameplayTags",
+			"GameplayTasks",
+		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
