@@ -4,16 +4,16 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "CharacterBase.generated.h"
+#include "TBCharacterBase.generated.h"
 
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API ACharacterBase : public ACharacter
+class DEVELROCKET_TEAMPROJ_API ATBCharacterBase : public ACharacter
 {
 	GENERATED_BODY()
 
 public:
 	// Sets default values for this character's properties
-	ACharacterBase();
+	ATBCharacterBase();
 
 protected:
 	// Called when the game starts or when spawned

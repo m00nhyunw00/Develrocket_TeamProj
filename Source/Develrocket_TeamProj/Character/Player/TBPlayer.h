@@ -3,14 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Character/CharacterBase.h"
-#include "PlayerBase.generated.h"
+#include "Character/TBCharacterBase.h"
+#include "TBPlayer.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API APlayerBase : public ACharacterBase
+class DEVELROCKET_TEAMPROJ_API ATBPlayer : public ATBCharacterBase
 {
 	GENERATED_BODY()
 	
