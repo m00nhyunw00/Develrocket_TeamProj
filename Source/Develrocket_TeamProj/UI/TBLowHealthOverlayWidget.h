@@ -2,14 +2,14 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "LowHealthOverlayWidget.generated.h"
+#include "TBLowHealthOverlayWidget.generated.h"
 
 class UImage;
 class UWidgetAnimation;
 class UTexture2D;
 UCLASS()
 
-class DEVELROCKET_TEAMPROJ_API ULowHealthOverlayWidget : public UUserWidget
+class DEVELROCKET_TEAMPROJ_API UTBLowHealthOverlayWidget : public UUserWidget
 {
 	GENERATED_BODY()
 	

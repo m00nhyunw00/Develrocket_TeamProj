@@ -1,7 +1,7 @@
-﻿#include "UI/AmmoWidget.h"
+﻿#include "UI/TBAmmoWidget.h"
 #include "Components/TextBlock.h"
 
-void UAmmoWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize)
+void UTBAmmoWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize)
 {
 	if (!AmmoText || !ReloadText)
 	{
