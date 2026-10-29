@@ -31,6 +31,7 @@ ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
     CharacterMovementComp->GetNavAgentPropertiesRef().bCanCrouch = true;
     CharacterMovementComp->SetCrouchedHalfHeight(44.0f);
 
+    // 앉기·일어서기 높이 설정
     BaseEyeHeight = 64.0f;
     CrouchedEyeHeight = 32.0f;
 }
