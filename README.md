@@ -8,6 +8,16 @@ The Blood는 **디벨로켓 언리얼 11기 팀 프로젝트**입니다. Unreal 
 
 [프로젝트 Notion](https://app.notion.com/p/The-Blood-75ff82d634ba8385ab03010aa848e28c) · [게임 기획서](https://app.notion.com/p/1caf82d634ba82a59baf81d11b9829d5) · [개발 로드맵](https://app.notion.com/p/bb6f82d634ba82938184817794cf4e34)
 
+## 팀원 소개
+
+아래 담당 분야는 프로젝트 Notion에 등록된 현재 작업을 기준으로 정리했습니다.
+
+| 이름 | 역할 | 담당 분야 | GitHub |
+| --- | --- | --- | --- |
+| 문현우 | 팀장 | 플레이어 로코모션 및 카메라, 협업 환경 구성 | [m00nhyunw00](https://github.com/m00nhyunw00) |
+| 최형규 | 팀원 | 기본 HUD, 캐릭터 에셋 확보·리타겟팅 및 폴리싱 | [seoulprison](https://github.com/seoulprison) |
+| 서상혁 | 팀원 | 프로토타이핑, 맵 동적 생성, 협업 환경 구성 | [NaniOwner](https://github.com/NaniOwner) |
+
 ## 게임 개요
 
 | 항목 | 내용 |
@@ -53,16 +63,6 @@ The Blood는 **디벨로켓 언리얼 11기 팀 프로젝트**입니다. Unreal 
 | 보수파 뱀파이어 | 근접 공격과 혈액을 활용한 특수 기술 |
 
 플레이어 간 전투에 더해, 도주하는 인간을 사냥하거나 플레이어를 추적하는 몬스터를 상대합니다. 몬스터 처치 보상으로 혈액 회복, 흡혈 강화, 혈액 소모량 감소, 햇빛 피해 완화, 무기 강화 등을 검토합니다.
-
-## 팀원 소개
-
-아래 담당 분야는 프로젝트 Notion에 등록된 현재 작업을 기준으로 정리했습니다.
-
-| 이름 | 역할 | 담당 분야 | GitHub |
-| --- | --- | --- | --- |
-| 문현우 | 팀장 | 플레이어 로코모션 및 카메라, 협업 환경 구성 | [m00nhyunw00](https://github.com/m00nhyunw00) |
-| 최형규 | 팀원 | 기본 HUD, 캐릭터 에셋 확보·리타겟팅 및 폴리싱 | [seoulprison](https://github.com/seoulprison) |
-| 서상혁 | 팀원 | 프로토타이핑, 맵 동적 생성, 협업 환경 구성 | [NaniOwner](https://github.com/NaniOwner) |
 
 ## 기술 구성
 
