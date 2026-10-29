@@ -18,18 +18,18 @@ ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
 
     GetCapsuleComponent()->InitCapsuleSize(34.0f, 88.0f);
 
-    UCharacterMovementComponent* CharacterMovement = GetCharacterMovement();
+    UCharacterMovementComponent* CharacterMovementComp = GetCharacterMovement();
 
     // 걷기·앉기 속도와 점프 중 이동 제어 설정
-    CharacterMovement->MaxWalkSpeed = 450.0f;
-    CharacterMovement->MaxWalkSpeedCrouched = 200.0f;
+    CharacterMovementComp->MaxWalkSpeed = 450.0f;
+    CharacterMovementComp->MaxWalkSpeedCrouched = 200.0f;
 
-    CharacterMovement->JumpZVelocity = 420.0f;
-    CharacterMovement->AirControl = 0.25f;
+    CharacterMovementComp->JumpZVelocity = 420.0f;
+    CharacterMovementComp->AirControl = 0.25f;
 
     // 앉기 허용과 자세별 캡슐·눈높이 설정
-    CharacterMovement->GetNavAgentPropertiesRef().bCanCrouch = true;
-    CharacterMovement->SetCrouchedHalfHeight(44.0f);
+    CharacterMovementComp->GetNavAgentPropertiesRef().bCanCrouch = true;
+    CharacterMovementComp->SetCrouchedHalfHeight(44.0f);
 
     BaseEyeHeight = 64.0f;
     CrouchedEyeHeight = 32.0f;
