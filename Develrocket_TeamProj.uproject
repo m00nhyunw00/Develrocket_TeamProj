@@ -16,6 +16,14 @@
   ],
   "Plugins": [
     {
+      "Name": "Fab",
+      "Enabled": false
+    },
+    {
+      "Name": "PCG",
+      "Enabled": true
+    },
+    {
       "Name": "ModelingToolsEditorMode",
       "Enabled": true,
       "TargetAllowList": [

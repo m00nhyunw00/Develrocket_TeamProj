@@ -1,0 +1,243 @@
+#include "PCG/CityPacking.h"
+
+#include "PCGComponent.h"
+#include "PCGContext.h"
+#include "PCGElement.h"
+#include "Data/PCGPointData.h"
+#include "Metadata/PCGMetadata.h"
+#include "Metadata/PCGMetadataAttributeTpl.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/BoxComponent.h"
+#include "Engine/StaticMesh.h"
+
+ACityPackingActor::ACityPackingActor()
+{
+    RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+    UBoxComponent* Bounds = CreateDefaultSubobject<UBoxComponent>(TEXT("CityBounds"));
+    Bounds->SetupAttachment(RootComponent);
+    Bounds->SetBoxExtent(FVector(10000,10000,5000));
+    Bounds->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Bounds->SetGenerateOverlapEvents(false);
+    Bounds->SetHiddenInGame(true);
+    PCGComponent = CreateDefaultSubobject<UPCGComponent>(TEXT("PCGComponent"));
+    PCGComponent->GenerationTrigger = EPCGComponentGenerationTrigger::GenerateOnDemand;
+    PrimaryActorTick.bCanEverTick = false;
+}
+
+void ACityPackingActor::NewLayout()
+{
+    if (!PCGComponent || PCGComponent->IsGenerating()) return;
+    Modify();
+    LayoutSeed = static_cast<int32>(GetTypeHash(FGuid::NewGuid()) & 0x7fffffff);
+    RebuildSameSeed();
+}
+
+void ACityPackingActor::RebuildSameSeed()
+{
+    if (!PCGComponent || PCGComponent->IsGenerating()) return;
+    if (Floor)
+    {
+        FVector Center, Extent;
+        Floor->GetActorBounds(false,Center,Extent);
+        if (UBoxComponent* Bounds = Cast<UBoxComponent>(GetDefaultSubobjectByName(TEXT("CityBounds"))))
+        {
+            Bounds->SetWorldLocationAndRotation(Center,FQuat::Identity);
+            Bounds->SetBoxExtent(FVector(Extent.X,Extent.Y,FMath::Max(Extent.Z,5000.0)));
+        }
+    }
+    bReuseSeedNextGeneration = true;
+    PCGComponent->CleanupLocalImmediate(true);
+    PCGComponent->Seed = LayoutSeed;
+    PCGComponent->GenerateLocal(true);
+}
+
+void ACityPackingActor::BeginPlay()
+{
+    Super::BeginPlay();
+    if (bRandomizeOnPlay) NewLayout();
+}
+
+namespace CityPacking
+{
+    struct FRect
+    {
+        double X, Y, W, H;
+        bool Contains(const FRect& B) const { return B.X>=X-0.001 && B.Y>=Y-0.001 && B.X+B.W<=X+W+0.001 && B.Y+B.H<=Y+H+0.001; }
+        bool Intersects(const FRect& B) const { return X<B.X+B.W-0.001 && X+W>B.X+0.001 && Y<B.Y+B.H-0.001 && Y+H>B.Y+0.001; }
+    };
+    struct FPlacement { FRect Rect; int32 Type; int32 Quarter; };
+
+    // MaxRects: preserve both horizontal and vertical residual spaces, then remove contained rectangles.
+    void Occupy(TArray<FRect>& Free, const FRect& Used)
+    {
+        TArray<FRect> Next;
+        for (const FRect& R : Free)
+        {
+            if (!R.Intersects(Used)) { Next.Add(R); continue; }
+            if (Used.X>R.X) Next.Add({R.X,R.Y,Used.X-R.X,R.H});
+            if (Used.X+Used.W<R.X+R.W) Next.Add({Used.X+Used.W,R.Y,R.X+R.W-Used.X-Used.W,R.H});
+            if (Used.Y>R.Y) Next.Add({R.X,R.Y,R.W,Used.Y-R.Y});
+            if (Used.Y+Used.H<R.Y+R.H) Next.Add({R.X,Used.Y+Used.H,R.W,R.Y+R.H-Used.Y-Used.H});
+        }
+        for (int32 I=Next.Num()-1; I>=0; --I)
+        {
+            bool Remove=Next[I].W<1 || Next[I].H<1;
+            for (int32 J=0; !Remove && J<Next.Num(); ++J)
+                if (I!=J && Next[J].Contains(Next[I])) Remove=true;
+            if (Remove) Next.RemoveAt(I);
+        }
+        Free=MoveTemp(Next);
+    }
+
+    TArray<FPlacement> Pack(const TArray<FCityBuildingFootprint>& Types, double W, double H, double Gap, int32 Limit, FRandomStream& Random)
+    {
+        TArray<FRect> Free; Free.Add({0,0,W+Gap,H+Gap});
+        TArray<FPlacement> Result;
+        TArray<int32> Counts; Counts.Init(0,Types.Num());
+        for (int32 Step=0; Step<Limit; ++Step)
+        {
+            struct FCandidate { FPlacement P; double Score; };
+            TArray<FCandidate> Candidates;
+            int32 LeastCount=MAX_int32;
+            for (int32 T=0; T<Types.Num(); ++T)
+            {
+                const FVector Size=Types[T].BoundsMax-Types[T].BoundsMin;
+                if (!Types[T].BuildingClass || Size.X<=0 || Size.Y<=0) continue;
+                for (int32 Q=0; Q<2; ++Q)
+                {
+                    const double BW=(Q?Size.Y:Size.X)+Gap, BH=(Q?Size.X:Size.Y)+Gap;
+                    for (const FRect& R : Free)
+                    {
+                        if (BW>R.W+0.001 || BH>R.H+0.001) continue;
+                        LeastCount=FMath::Min(LeastCount,Counts[T]);
+                        const double Short=FMath::Min(R.W-BW,R.H-BH);
+                        Candidates.Add({{{R.X,R.Y,BW,BH},T,Q},Short+Random.FRandRange(0,800)});
+                    }
+                }
+            }
+            if (Candidates.IsEmpty()) break;
+            // Keep the six types represented, while still fitting smaller buildings into residual spaces.
+            for (FCandidate& C : Candidates) C.Score+=FMath::Max(0,Counts[C.P.Type]-LeastCount)*2500;
+            Candidates.Sort([](const FCandidate& A,const FCandidate& B){return A.Score<B.Score;});
+            FPlacement P=Candidates[0].P;
+            P.Quarter+=Random.RandRange(0,1)*2;
+            Result.Add(P); ++Counts[P.Type]; Occupy(Free,P.Rect);
+        }
+        return Result;
+    }
+}
+
+class FCityPackingElement : public IPCGElement
+{
+public:
+    virtual bool IsCacheable(const UPCGSettings*) const override { return false; }
+    virtual bool CanExecuteOnlyOnMainThread(FPCGContext*) const override { return true; }
+protected:
+    virtual bool ExecuteInternal(FPCGContext* Context) const override
+    {
+        const UCityPackingSettings* Settings=Context->GetInputSettings<UCityPackingSettings>();
+        UPCGComponent* Component=Cast<UPCGComponent>(Context->ExecutionSource.GetObject());
+        ACityPackingActor* Owner=Component?Cast<ACityPackingActor>(Component->GetOwner()):nullptr;
+        if (!Owner || !Owner->Floor || Settings->Buildings.IsEmpty())
+        {
+            UE_LOG(LogTemp,Error,TEXT("City packing requires a CityPackingActor with Floor and building footprints."));
+            return true;
+        }
+        UStaticMeshComponent* FloorMesh=Owner->Floor->FindComponentByClass<UStaticMeshComponent>();
+        if (!FloorMesh || !FloorMesh->GetStaticMesh()) return true;
+        const FTransform FT=FloorMesh->GetComponentTransform();
+        const FVector Scale=FT.GetScale3D();
+        const FRotator Rotation=FT.Rotator();
+        if (!FMath::IsNearlyZero(Rotation.Pitch,0.01) || !FMath::IsNearlyZero(Rotation.Roll,0.01) || Scale.GetMin()<=0)
+        {
+            UE_LOG(LogTemp,Error,TEXT("City Floor must be horizontal with positive scale; yaw rotation is supported."));
+            return true;
+        }
+        const FBox Local=FloorMesh->GetStaticMesh()->GetBoundingBox();
+        const double Margin=FMath::Max(0.0,Owner->EdgeMargin), Gap=FMath::Max(0.0,Owner->BuildingGap);
+        const double W=Local.GetSize().X*Scale.X-2*Margin, H=Local.GetSize().Y*Scale.Y-2*Margin;
+        if (W<=0 || H<=0) return true;
+        const FVector Corner=FT.TransformPosition(FVector(Local.Min.X,Local.Min.Y,Local.Max.Z));
+        const FQuat FloorRotation=FT.GetRotation();
+        if (!Owner->bReuseSeedNextGeneration)
+            Owner->LayoutSeed = static_cast<int32>(GetTypeHash(FGuid::NewGuid()) & 0x7fffffff);
+        Owner->bReuseSeedNextGeneration = false;
+        FRandomStream Random(Owner->LayoutSeed);
+        TArray<CityPacking::FPlacement> Best;
+        double BestArea=-1;
+        for (int32 Attempt=0; Attempt<24; ++Attempt)
+        {
+            auto Trial=CityPacking::Pack(Settings->Buildings,W,H,Gap,FMath::Clamp(Owner->MaxBuildings,1,256),Random);
+            double Area=0;
+            for (const auto& P:Trial) Area+=(P.Rect.W-Gap)*(P.Rect.H-Gap);
+            if (Area>BestArea) { BestArea=Area; Best=MoveTemp(Trial); }
+        }
+        UPCGPointData* Data=NewObject<UPCGPointData>();
+        auto* ClassAttribute=Data->Metadata->CreateAttribute<FString>(TEXT("BuildingClass"),TEXT(""),false,true);
+        auto* TypeAttribute=Data->Metadata->CreateAttribute<int32>(TEXT("BuildingType"),0,false,true);
+        TArray<FPCGPoint>& Points=Data->GetMutablePoints();
+        const bool FlipX=Random.RandRange(0,1)!=0, FlipY=Random.RandRange(0,1)!=0;
+        for (const auto& P:Best)
+        {
+            const auto& Type=Settings->Buildings[P.Type];
+            const double BW=P.Rect.W-Gap, BH=P.Rect.H-Gap;
+            const double X=FlipX?W-P.Rect.X-BW:P.Rect.X;
+            const double Y=FlipY?H-P.Rect.Y-BH:P.Rect.Y;
+            const FQuat Yaw(FVector::UpVector,FMath::DegreesToRadians(P.Quarter*90.0));
+            const FVector Center=(Type.BoundsMin+Type.BoundsMax)*0.5;
+            const FVector RotatedCenter=Yaw.RotateVector(FVector(Center.X,Center.Y,0));
+            const FVector Pivot=FVector(Margin+X+BW*0.5,Margin+Y+BH*0.5,-Type.BoundsMin.Z)-RotatedCenter;
+            FPCGPoint& Point=Points.AddDefaulted_GetRef();
+            Point.Transform=FTransform(FloorRotation*Yaw,Corner+FloorRotation.RotateVector(Pivot),FVector::OneVector);
+            Point.BoundsMin=Type.BoundsMin; Point.BoundsMax=Type.BoundsMax;
+            Point.Density=1; Point.Seed=Random.RandHelper(MAX_int32);
+            Point.MetadataEntry=Data->Metadata->AddEntry();
+            ClassAttribute->SetValue(Point.MetadataEntry,Type.BuildingClass->GetPathName());
+            TypeAttribute->SetValue(Point.MetadataEntry,P.Type);
+        }
+        Owner->LastBuildingCount=Points.Num(); Owner->LastLayoutSeed=Owner->LayoutSeed;
+        Owner->LastCoveragePercent=100*BestArea/(W*H);
+        FPCGTaggedData& Out=Context->OutputData.TaggedData.Emplace_GetRef();
+        Out.Data=Data; Out.Pin=PCGPinConstants::DefaultOutputLabel;
+        UE_LOG(LogTemp,Display,TEXT("CityPacking seed=%d buildings=%d gap=%.1f coverage=%.1f%%"),Owner->LayoutSeed,Points.Num(),Gap,Owner->LastCoveragePercent);
+        return true;
+    }
+};
+
+FPCGElementPtr UCityPackingSettings::CreateElement() const { return MakeShared<FCityPackingElement>(); }
+
+#if WITH_DEV_AUTOMATION_TESTS
+#include "Misc/AutomationTest.h"
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCityPackingGeometryTest,"Project.PCG.CityPacking.ClearanceAndBounds",EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FCityPackingGeometryTest::RunTest(const FString& Parameters)
+{
+    TArray<FCityBuildingFootprint> Types;
+    const FVector2D Sizes[]={{3976,3199},{2199,2374},{3270,1710},{1655,3340},{6232,2834},{1216,3655}};
+    for (const FVector2D& S:Sizes)
+    {
+        FCityBuildingFootprint T;
+        T.BuildingClass=AActor::StaticClass(); T.BoundsMax=FVector(S.X,S.Y,2500); Types.Add(T);
+    }
+    for (int32 Seed=0; Seed<100; ++Seed)
+    {
+        FRandomStream Random(Seed);
+        const auto Packed=CityPacking::Pack(Types,19500,19500,250,96,Random);
+        TestTrue(TEXT("Dense non-empty result"),Packed.Num()>18);
+        TSet<int32> Kinds;
+        for (int32 I=0; I<Packed.Num(); ++I)
+        {
+            const auto& A=Packed[I]; Kinds.Add(A.Type);
+            TestTrue(TEXT("Inside Floor with edge margin"),A.Rect.X>=0 && A.Rect.Y>=0 && A.Rect.X+A.Rect.W<=19750.001 && A.Rect.Y+A.Rect.H<=19750.001);
+            for (int32 J=I+1; J<Packed.Num(); ++J)
+                TestFalse(TEXT("Padded rectangles do not overlap (250cm clearance)"),A.Rect.Intersects(Packed[J].Rect));
+        }
+        TestEqual(TEXT("All six building types"),Kinds.Num(),6);
+        FRandomStream Repeated(Seed);
+        const auto Same=CityPacking::Pack(Types,19500,19500,250,96,Repeated);
+        TestEqual(TEXT("Fixed seed preserves count"),Packed.Num(),Same.Num());
+        for (int32 I=0; I<Packed.Num(); ++I)
+            TestTrue(TEXT("Fixed seed preserves placements"),Packed[I].Type==Same[I].Type && Packed[I].Quarter==Same[I].Quarter && Packed[I].Rect.X==Same[I].Rect.X && Packed[I].Rect.Y==Same[I].Rect.Y);
+    }
+    return true;
+}
+#endif
