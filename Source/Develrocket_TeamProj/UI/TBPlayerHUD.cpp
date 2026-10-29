@@ -2,7 +2,7 @@
 
 
 #include "UI/TBPlayerHUD.h"
-
+#include "UI/TBPauseMenuWidget.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/TBPlayerHUDWidget.h"
 
@@ -69,22 +69,50 @@ void ATBPlayerHUD::TestSkill(int32 Index, float Duration)
 	}
 }
 
+void ATBPlayerHUD::TogglePauseMenu()
+{
+	if (!PauseWidget)
+	{
+		return;
+	}
+	if (PauseWidget->IsVisible())
+	{
+		PauseWidget->ClosePauseMenu();
+	}
+	else
+	{
+		PauseWidget->OpenPauseMenu();
+	}
+}
+
+void ATBPlayerHUD::TestPause()
+{
+	TogglePauseMenu();
+}
+
 void ATBPlayerHUD::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	if (!HUDWidgetClass)
+	if (HUDWidgetClass)
 	{
-		return;
+		HUDWidget = CreateWidget<UTBPlayerHUDWidget>(GetOwningPlayerController(), HUDWidgetClass);
+		if (HUDWidget)
+		{
+			HUDWidget->AddToViewport();
+			HUDWidget->SetHealth(TestHealth, TestMaxHealth);
+			HUDWidget->SetAmmo(TestAmmo, TestReserveAmmo, TestMagazineSize);
+			HUDWidget->SetSkill(0, nullptr, FText::FromString(TEXT("Q")));
+			HUDWidget->SetSkill(1,nullptr, FText::FromString(TEXT("E")));
+		}
 	}
-	
-	HUDWidget = CreateWidget<UTBPlayerHUDWidget>(GetOwningPlayerController(), HUDWidgetClass);
-	if (HUDWidget)
+	if (PauseWidgetClass)
 	{
-		HUDWidget->AddToViewport();
-		HUDWidget->SetHealth(TestHealth, TestMaxHealth);
-		HUDWidget->SetAmmo(TestAmmo, TestReserveAmmo, TestMagazineSize);
-		HUDWidget->SetSkill(0, nullptr, FText::FromString(TEXT("Q")));
-		HUDWidget->SetSkill(1,nullptr, FText::FromString(TEXT("E")));
-	}
+		PauseWidget = CreateWidget<UTBPauseMenuWidget>(GetOwningPlayerController(), PauseWidgetClass);
+		if (PauseWidget)
+		{
+			PauseWidget->AddToViewport(10);
+			PauseWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}	
 }
