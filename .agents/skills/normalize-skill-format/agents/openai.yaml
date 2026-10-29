@@ -1,0 +1,4 @@
+interface:
+  display_name: "스킬 형식 점검 및 정리"
+  short_description: "프로젝트 스킬의 필수 형식과 한국어 표시용 YAML을 검사하고 부족한 설정 보완"
+  default_prompt: "$normalize-skill-format를 사용해 프로젝트 .agents/skills 전체의 형식과 한국어 표시 설정을 점검하고 보완해 주세요."

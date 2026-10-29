@@ -1,5 +1,6 @@
 interface:
-  display_name: "Grill Me"
-  short_description: "Sharpen a plan through interview"
+  display_name: "계획 검증 인터뷰"
+  short_description: "계획과 설계를 구체화하는 심층 질문 인터뷰를 시작하고 쟁점 정리"
+  default_prompt: "$grill-me를 사용해 이 계획을 질문으로 검토하고 구체화해 주세요."
 policy:
   allow_implicit_invocation: false

@@ -1,3 +1,4 @@
 interface:
-  display_name: "Grilling"
-  short_description: "Stress-test thinking a round of questions at a time"
+  display_name: "아이디어 심층 검증"
+  short_description: "계획과 아이디어의 전제 및 의사결정을 단계별 질문으로 심층 검증"
+  default_prompt: "$grilling을 사용해 이 아이디어의 전제와 의사결정을 단계별 질문으로 검증해 주세요."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "프로젝트 스킬 목록 조회"
+  short_description: "현재 프로젝트 스킬의 본명과 한국어 표시 이름 및 실제 기능을 표로 정리"
+  default_prompt: "$list-project-skills를 사용해 현재 프로젝트에 존재하는 모든 스킬의 본명, 한국어 표시 이름, 기능 설명을 표로 알려 주세요."
