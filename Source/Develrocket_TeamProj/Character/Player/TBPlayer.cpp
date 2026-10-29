@@ -1,10 +1,14 @@
-#include "Character/Player/TBPlayer.h"
+#include "TBPlayer.h"
 
 #include "AbilitySystemComponent.h"
-#include "EnhancedInputComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "EnhancedInputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Microsoft/COMPointer.h"
+#include "InputAction.h"
+#include "InputActionValue.h"
+#include "Math/RotationMatrix.h"
+
 #include "Player/TBPlayerState.h"
 
 class ATBPlayerState;
@@ -173,7 +177,16 @@ void ATBPlayer::InitializeFromPlayerState()
 
 void ATBPlayer::UpdateCameraHeight()
 {
-	// 추후 서기·앉기 상태에 따른 카메라 높이 갱신 구현
+	if (!FirstPersonCamera)
+	{
+		return;
+	}
+
+	FVector Location = FirstPersonCamera->GetRelativeLocation();
+
+	Location.Z = BaseEyeHeight;
+
+	FirstPersonCamera->SetRelativeLocation(Location);
 }
 
 // 이동·시점 입력 처리 ----------------------
