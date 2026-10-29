@@ -1,0 +1,4 @@
+interface:
+  display_name: "함수 인자 한 줄 정리"
+  short_description: "제공 코드나 지정 파일 또는 Rider 열린 파일의 함수 인자를 한 줄로 정리"
+  default_prompt: "$inline-function-args를 사용해 제공한 코드나 지정 파일의 함수 인자를 한 줄로 정리해 주세요. 대상이 없으면 현재 Rider에 열린 프로젝트 C++ 파일들을 정리해 주세요."

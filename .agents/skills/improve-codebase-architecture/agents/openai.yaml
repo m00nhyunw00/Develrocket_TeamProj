@@ -1,5 +1,6 @@
 interface:
-  display_name: "Improve Codebase Architecture"
-  short_description: "Find and grill architecture improvements"
+  display_name: "코드 구조 개선 검토"
+  short_description: "코드 구조 개선 후보를 시각 보고서로 제시하고 선택한 방안을 심층 검토"
+  default_prompt: "$improve-codebase-architecture를 사용해 코드 구조 개선 후보를 찾아 보고서로 제시해 주세요."
 policy:
   allow_implicit_invocation: false
