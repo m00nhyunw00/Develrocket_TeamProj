@@ -110,4 +110,5 @@ private:
 	// 스킬 입력 처리 ----------------------
 
 	void InputSkillStarted();
+	void InputSkillStopped();
 };
