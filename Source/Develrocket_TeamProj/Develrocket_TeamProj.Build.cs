@@ -23,6 +23,7 @@ public class Develrocket_TeamProj : ModuleRules
 			"GameplayTasks",
 		});
 
+		PublicDependencyModuleNames.Add("PCG");
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
 		// Uncomment if you are using Slate UI

@@ -1,0 +1,14 @@
+{
+  "complete": true,
+  "world": "/Game/Developers/Dev_Seo/PCG_Test.PCG_Test",
+  "host": "/Game/Developers/Dev_Seo/PCG_Test.PCG_Test:PersistentLevel.CityPackingActor_0",
+  "editor_count": 37,
+  "seed": 42,
+  "gap_cm": 250,
+  "max_buildings": 96,
+  "save_reopen_verified": true,
+  "same_seed_reproduced": true,
+  "PIE_runs_verified": 2,
+  "bridge_stopped": true,
+  "dirty_maps": []
+}
