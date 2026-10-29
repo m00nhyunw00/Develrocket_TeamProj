@@ -11,6 +11,7 @@ class UTBHealthBarWidget;
 class UTBCrosshairWidget;
 class UTBHitMarkerWidget;
 class UTBLowHealthOverlayWidget;
+class UTBSkillBarWidget;
 
 /**
  *
@@ -26,6 +27,8 @@ public:
 	void SetAiming(bool bIsAiming);
 	void SetShowHitMarker(bool bIsKill);
 	void SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize);
+	void SetSkill(int32 Index, UTexture2D* Icon, const FText& Key);
+	void StartSkillCooldown(int32 Index, float Duration);
 	
 protected:
 	//부품 조립을 위한 값
@@ -39,5 +42,7 @@ protected:
 	TObjectPtr<UTBHitMarkerWidget> HitMarkerWidget;
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTBLowHealthOverlayWidget> LowHealthOverlayWidget;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UTBSkillBarWidget> SkillBarWidget;
 	
 };

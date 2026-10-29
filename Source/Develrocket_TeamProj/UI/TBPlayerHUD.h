@@ -7,6 +7,7 @@
 #include "TBPlayerHUD.generated.h"
 
 class UTBPlayerHUDWidget;
+class UTBPauseMenuWidget;
 
 /**
  * 
@@ -29,15 +30,28 @@ public:
 	void TestHit(bool bIsKill); // Test Only : 타격 시스템 연결시 삭제
 	UFUNCTION(Exec)
 	void TestSetAmmo(int32 Current, int32 Reserve); // Test Only : 재장전 시스템 연결시 삭제
+	UFUNCTION(Exec)
+	void TestSkill(int32 Index, float Duration); // Test Only : 스킬 시스템 연결시 삭제
+	
+	void TogglePauseMenu();
+	UFUNCTION(Exec)
+	void TestPause();
+	
 	
 protected:
 	virtual void BeginPlay() override;
 	
+	//HUD 위젯 관련
 	UPROPERTY(EditDefaultsOnly, Category="UI")
 	TSubclassOf<UTBPlayerHUDWidget> HUDWidgetClass;
-	
 	UPROPERTY()
 	TObjectPtr<UTBPlayerHUDWidget> HUDWidget;
+	
+	//PauseMenu관련
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	TSubclassOf<UTBPauseMenuWidget> PauseWidgetClass;
+	UPROPERTY()
+	TObjectPtr<UTBPauseMenuWidget> PauseWidget;
 	
 	// Test Only : HUD 테스트 용 변수
 	float TestHealth = 100.f;
