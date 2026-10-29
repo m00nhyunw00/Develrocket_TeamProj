@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "QuickSlotWidget.generated.h"
+#include "TBQuickSlotWidget.generated.h"
 
 class UTextBlock;
 class UImage;
@@ -14,7 +14,7 @@ class UTexture2D;
  * 
  */
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API UQuickSlotWidget : public UUserWidget
+class DEVELROCKET_TEAMPROJ_API UTBQuickSlotWidget : public UUserWidget
 {
 	GENERATED_BODY()
 

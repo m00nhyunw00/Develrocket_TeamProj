@@ -1,12 +1,12 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "UI/PlayerHUD.h"
+#include "UI/TBPlayerHUD.h"
 
 #include "Blueprint/UserWidget.h"
-#include "UI/PlayerHUDWidget.h"
+#include "UI/TBPlayerHUDWidget.h"
 
-void APlayerHUD::TestDamage(float Amount)
+void ATBPlayerHUD::TestDamage(float Amount)
 {
 	TestHealth = FMath::Clamp(TestHealth - Amount, 0.f, TestMaxHealth);
 	
@@ -16,7 +16,7 @@ void APlayerHUD::TestDamage(float Amount)
 	}
 }
 
-void APlayerHUD::TestHeal(float Amount)
+void ATBPlayerHUD::TestHeal(float Amount)
 {
 	TestHealth = FMath::Clamp(TestHealth + Amount, 0.f, TestMaxHealth);
 	
@@ -26,7 +26,7 @@ void APlayerHUD::TestHeal(float Amount)
 	}
 }
 
-void APlayerHUD::TestSpread(float Spread)
+void ATBPlayerHUD::TestSpread(float Spread)
 {
 	if (HUDWidget)
 	{
@@ -34,7 +34,7 @@ void APlayerHUD::TestSpread(float Spread)
 	}
 }
 
-void APlayerHUD::TestAim(bool bIsAiming)
+void ATBPlayerHUD::TestAim(bool bIsAiming)
 {
 	if (HUDWidget)
 	{
@@ -42,7 +42,7 @@ void APlayerHUD::TestAim(bool bIsAiming)
 	}
 }
 
-void APlayerHUD::TestHit(bool bIsKill)
+void ATBPlayerHUD::TestHit(bool bIsKill)
 {
 	if (HUDWidget)
 	{
@@ -50,7 +50,7 @@ void APlayerHUD::TestHit(bool bIsKill)
 	}
 }
 
-void APlayerHUD::TestSetAmmo(int32 Current, int32 Reserve)
+void ATBPlayerHUD::TestSetAmmo(int32 Current, int32 Reserve)
 {
 	TestAmmo = Current;
 	TestReserveAmmo = Reserve;
@@ -61,7 +61,7 @@ void APlayerHUD::TestSetAmmo(int32 Current, int32 Reserve)
 	}
 }
 
-void APlayerHUD::BeginPlay()
+void ATBPlayerHUD::BeginPlay()
 {
 	Super::BeginPlay();
 	
@@ -70,7 +70,7 @@ void APlayerHUD::BeginPlay()
 		return;
 	}
 	
-	HUDWidget = CreateWidget<UPlayerHUDWidget>(GetOwningPlayerController(), HUDWidgetClass);
+	HUDWidget = CreateWidget<UTBPlayerHUDWidget>(GetOwningPlayerController(), HUDWidgetClass);
 	if (HUDWidget)
 	{
 		HUDWidget->AddToViewport();
