@@ -3,6 +3,7 @@
 
 #include "UI/TBPlayerHUDWidget.h"
 
+#include "TBSkillBarWidget.h"
 #include "UI/TBLowHealthOverlayWidget.h"
 #include "UI/TBCrosshairWidget.h"
 #include "UI/TBHealthBarWidget.h"
@@ -57,4 +58,23 @@ void UTBPlayerHUDWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 Mag
 	}
 	
 	AmmoWidget->SetAmmo(CurrentAmmo, ReserveAmmo, MagazineSize);
+}
+
+void UTBPlayerHUDWidget::SetSkill(int32 Index, UTexture2D* Icon, const FText& Key)
+{
+	if (!SkillBarWidget)
+	{
+		return;
+	}
+	
+	SkillBarWidget->SetSkill(Index, Icon, Key);
+}
+
+void UTBPlayerHUDWidget::StartSkillCooldown(int32 Index, float Duration)
+{
+	if (!SkillBarWidget)
+	{
+		return;
+	}
+	SkillBarWidget->StartSkillCooldown(Index, Duration);
 }

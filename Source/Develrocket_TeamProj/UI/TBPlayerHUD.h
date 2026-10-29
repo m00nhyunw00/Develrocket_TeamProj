@@ -29,6 +29,8 @@ public:
 	void TestHit(bool bIsKill); // Test Only : 타격 시스템 연결시 삭제
 	UFUNCTION(Exec)
 	void TestSetAmmo(int32 Current, int32 Reserve); // Test Only : 재장전 시스템 연결시 삭제
+	UFUNCTION(Exec)
+	void TestSkill(int32 Index, float Duration); // Test Only : 스킬 시스템 연결시 삭제
 	
 protected:
 	virtual void BeginPlay() override;

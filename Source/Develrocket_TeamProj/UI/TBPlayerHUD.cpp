@@ -61,6 +61,14 @@ void ATBPlayerHUD::TestSetAmmo(int32 Current, int32 Reserve)
 	}
 }
 
+void ATBPlayerHUD::TestSkill(int32 Index, float Duration)
+{
+	if (HUDWidget)
+	{
+		HUDWidget->StartSkillCooldown(Index, Duration);
+	}
+}
+
 void ATBPlayerHUD::BeginPlay()
 {
 	Super::BeginPlay();
@@ -76,5 +84,7 @@ void ATBPlayerHUD::BeginPlay()
 		HUDWidget->AddToViewport();
 		HUDWidget->SetHealth(TestHealth, TestMaxHealth);
 		HUDWidget->SetAmmo(TestAmmo, TestReserveAmmo, TestMagazineSize);
+		HUDWidget->SetSkill(0, nullptr, FText::FromString(TEXT("Q")));
+		HUDWidget->SetSkill(1,nullptr, FText::FromString(TEXT("E")));
 	}
 }
