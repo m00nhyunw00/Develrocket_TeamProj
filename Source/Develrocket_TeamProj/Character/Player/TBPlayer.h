@@ -82,8 +82,11 @@ private:
 
 	// PlayerState의 ASC를 현재 캐릭터에 연결
 	void InitializeFromPlayerState();
+	
+	// 메시 및 카메라 설정 ----------------------
 
-	// 카메라 높이 갱신 ----------------------
+	// 메시의 표시·애니메이션 모드·충돌 규칙 적용
+	void ConfigurePlayerMeshes();
 
 	void UpdateCameraHeight();
 

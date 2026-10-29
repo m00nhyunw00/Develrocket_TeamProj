@@ -8,6 +8,8 @@
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "Math/RotationMatrix.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 
 #include "Player/TBPlayerState.h"
 
@@ -23,27 +25,23 @@ ATBPlayer::ATBPlayer(const FObjectInitializer& ObjectInitializer)
 	bUseControllerRotationYaw = true;
 	bUseControllerRotationRoll = false;
 
-	// 이동 방향에 따른 자동 회전을 비활성화하여 시선 방향 유지
+	// 이동 방향과 관계없이 시선 방향으로 몸체 회전
 	GetCharacterMovement()->bOrientRotationToMovement = false;
 
-	// 기본 눈높이에 카메라 배치 및 Controller의 시점 회전 반영
+	// 캡슐을 기준으로 1인칭 카메라 배치
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCamera->SetupAttachment(GetRootComponent());
 	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, BaseEyeHeight));
 	FirstPersonCamera->bUsePawnControlRotation = true;
 
-	// 카메라를 따라 움직이며 소유 플레이어에게만 보이는 1인칭 팔 메시 구성
+	// 카메라에 1인칭 메시 부착
 	FirstPersonMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
 	FirstPersonMesh->SetupAttachment(FirstPersonCamera);
-	FirstPersonMesh->SetOnlyOwnerSee(true);
 
-	// 시각 표현용 팔 메시의 충돌·오버랩·그림자 비활성화
-	FirstPersonMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	FirstPersonMesh->SetGenerateOverlapEvents(false);
-	FirstPersonMesh->SetCastShadow(false);
+	// 발바닥이 원점인 전신 메시를 위한 초기 배치
+	GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, -GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight()));
 
-	// 소유 플레이어에게 전신 메시 숨김
-	GetMesh()->SetOwnerNoSee(true);
+	ConfigurePlayerMeshes();
 }
 
 // 빙의 및 네트워크 초기화 ----------------------
@@ -60,7 +58,9 @@ void ATBPlayer::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 현재 PlayerState를 기준으로 ASC 연결 시도
+	// 기존 Blueprint에 저장된 값과 관계없이 실행 시 표시 규칙 적용
+	ConfigurePlayerMeshes();
+
 	InitializeFromPlayerState();
 	UpdateCameraHeight();
 }
@@ -151,12 +151,19 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 void ATBPlayer::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
 	Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+
+	// 앉기 상태로 갱신된 눈높이를 카메라에 반영
+	UpdateCameraHeight();
 }
 
 void ATBPlayer::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
 	Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+
+	// 서 있는 상태로 복구된 눈높이를 카메라에 반영
+	UpdateCameraHeight();
 }
+
 
 // GAS 연결 및 카메라 높이 ----------------------
 
@@ -175,6 +182,24 @@ void ATBPlayer::InitializeFromPlayerState()
 	InitializeAbilitySystem(TBPlayerState->GetAbilitySystemComponent(), TBPlayerState);
 }
 
+void ATBPlayer::ConfigurePlayerMeshes()
+{
+	// 전신 메시는 소유 플레이어에게 숨기고 다른 플레이어에게 표시
+	GetMesh()->SetOwnerNoSee(true);
+	GetMesh()->SetOnlyOwnerSee(false);
+	GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+
+	// 1인칭 메시는 소유 플레이어에게만 표시
+	FirstPersonMesh->SetOnlyOwnerSee(true);
+	FirstPersonMesh->SetOwnerNoSee(false);
+	FirstPersonMesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+
+	// 시각 표현용 1인칭 메시의 충돌·오버랩·그림자 비활성화
+	FirstPersonMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	FirstPersonMesh->SetGenerateOverlapEvents(false);
+	FirstPersonMesh->SetCastShadow(false);
+}
+
 void ATBPlayer::UpdateCameraHeight()
 {
 	if (!FirstPersonCamera)
@@ -182,11 +207,11 @@ void ATBPlayer::UpdateCameraHeight()
 		return;
 	}
 
-	FVector Location = FirstPersonCamera->GetRelativeLocation();
+	FVector CameraLocation = FirstPersonCamera->GetRelativeLocation();
 
-	Location.Z = BaseEyeHeight;
+	CameraLocation.Z = BaseEyeHeight;
 
-	FirstPersonCamera->SetRelativeLocation(Location);
+	FirstPersonCamera->SetRelativeLocation(CameraLocation);
 }
 
 // 이동·시점 입력 처리 ----------------------
