@@ -146,7 +146,7 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	}
 }
 
-// 앉기 상태 전환 ----------------------
+// 점프·앉기 상태 전환 ----------------------
 
 void ATBPlayer::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
@@ -164,8 +164,38 @@ void ATBPlayer::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust
 	UpdateCameraHeight();
 }
 
+void ATBPlayer::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
 
-// GAS 연결 및 카메라 높이 ----------------------
+	// 착지 직후에는 앉기 의도만 설정하고 실제 자세 변경은 이동 컴포넌트에서 처리
+	if (IsLocallyControlled() && bCrouchInputHeld && !IsMovementBlocked())
+	{
+		Crouch();
+	}
+}
+
+void ATBPlayer::CheckJumpInput(float DeltaTime)
+{
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+
+	if (bPressedJump && !IsMovementBlocked() && IsValid(MovementComponent))
+	{
+		// 서버와 소유 클라이언트 모두 점프 검사 전에 앉기 의도 해제
+		UnCrouch();
+
+		if (IsCrouched())
+		{
+			// 충돌 검사를 포함한 실제 앉기 해제를 점프 검사 전에 수행
+			MovementComponent->UnCrouch(false);
+		}
+	}
+
+	// 앉기 해제 결과를 기준으로 기본 점프 조건 검사 및 실행
+	Super::CheckJumpInput(DeltaTime);
+}
+
+// GAS 연결 ----------------------
 
 void ATBPlayer::InitializeFromPlayerState()
 {
@@ -181,6 +211,8 @@ void ATBPlayer::InitializeFromPlayerState()
 	// PlayerState를 OwnerActor, 현재 캐릭터를 AvatarActor로 ASC 연결
 	InitializeAbilitySystem(TBPlayerState->GetAbilitySystemComponent(), TBPlayerState);
 }
+
+// 메시 및 카메라 설정 ----------------------
 
 void ATBPlayer::ConfigurePlayerMeshes()
 {
@@ -209,6 +241,7 @@ void ATBPlayer::UpdateCameraHeight()
 
 	FVector CameraLocation = FirstPersonCamera->GetRelativeLocation();
 
+	// 자세별 눈높이를 반영하면서 카메라의 수평 오프셋 유지
 	CameraLocation.Z = BaseEyeHeight;
 
 	FirstPersonCamera->SetRelativeLocation(CameraLocation);
@@ -251,16 +284,20 @@ void ATBPlayer::InputLook(const FInputActionValue& Value)
 
 void ATBPlayer::InputJumpStarted()
 {
-	// 이동 가능한 상태에서만 점프 시작
-	if (!IsMovementBlocked())
+	if (IsMovementBlocked())
 	{
-		Jump();
+		return;
 	}
+
+	// 점프를 우선하기 위해 앉기 요청 해제
+	UnCrouch();
+
+	// CharacterMovement의 다음 점프 검사에서 처리할 입력 기록
+	Jump();
 }
 
 void ATBPlayer::InputJumpStopped()
 {
-	// 이동 제한 여부와 관계없이 점프 입력 해제
 	StopJumping();
 }
 
@@ -268,16 +305,29 @@ void ATBPlayer::InputJumpStopped()
 
 void ATBPlayer::InputCrouchStarted()
 {
-	// 이동 가능한 상태에서만 앉기 요청
-	if (!IsMovementBlocked())
+	// 공중에서도 입력을 기억하여 착지 시 앉기 복구
+	bCrouchInputHeld = true;
+
+	const UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+
+	if (IsMovementBlocked() || !IsValid(MovementComponent))
 	{
-		Crouch();
+		return;
 	}
+
+	// 같은 프레임에 점프가 요청되었거나 공중에 있으면 착지까지 앉기 보류
+	if (bPressedJump || !MovementComponent->IsMovingOnGround())
+	{
+		return;
+	}
+
+	Crouch();
 }
 
 void ATBPlayer::InputCrouchStopped()
 {
-	// 앉기 입력 해제에 따른 일어서기 요청
+	bCrouchInputHeld = false;
+
 	UnCrouch();
 }
 
