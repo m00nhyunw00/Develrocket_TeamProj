@@ -1,4 +1,5 @@
 #include "PCG/CityPacking.h"
+#include "PCG/CityPackingAlgorithm.h"
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
@@ -106,76 +107,6 @@ void ACityPackingActor::ApplyLayoutState()
     LayoutSeed = LayoutState.Seed;
     
     RebuildSameSeed();
-}
-
-namespace CityPacking
-{
-    struct FRect
-    {
-        double X, Y, W, H;
-        bool Contains(const FRect& B) const { return B.X>=X-0.001 && B.Y>=Y-0.001 && B.X+B.W<=X+W+0.001 && B.Y+B.H<=Y+H+0.001; }
-        bool Intersects(const FRect& B) const { return X<B.X+B.W-0.001 && X+W>B.X+0.001 && Y<B.Y+B.H-0.001 && Y+H>B.Y+0.001; }
-    };
-    struct FPlacement { FRect Rect; int32 Type; int32 Quarter; };
-
-    // MaxRects: preserve both horizontal and vertical residual spaces, then remove contained rectangles.
-    void Occupy(TArray<FRect>& Free, const FRect& Used)
-    {
-        TArray<FRect> Next;
-        for (const FRect& R : Free)
-        {
-            if (!R.Intersects(Used)) { Next.Add(R); continue; }
-            if (Used.X>R.X) Next.Add({R.X,R.Y,Used.X-R.X,R.H});
-            if (Used.X+Used.W<R.X+R.W) Next.Add({Used.X+Used.W,R.Y,R.X+R.W-Used.X-Used.W,R.H});
-            if (Used.Y>R.Y) Next.Add({R.X,R.Y,R.W,Used.Y-R.Y});
-            if (Used.Y+Used.H<R.Y+R.H) Next.Add({R.X,Used.Y+Used.H,R.W,R.Y+R.H-Used.Y-Used.H});
-        }
-        for (int32 I=Next.Num()-1; I>=0; --I)
-        {
-            bool Remove=Next[I].W<1 || Next[I].H<1;
-            for (int32 J=0; !Remove && J<Next.Num(); ++J)
-                if (I!=J && Next[J].Contains(Next[I])) Remove=true;
-            if (Remove) Next.RemoveAt(I);
-        }
-        Free=MoveTemp(Next);
-    }
-
-    TArray<FPlacement> Pack(const TArray<FCityBuildingFootprint>& Types, double W, double H, double Gap, int32 Limit, FRandomStream& Random)
-    {
-        TArray<FRect> Free; Free.Add({0,0,W+Gap,H+Gap});
-        TArray<FPlacement> Result;
-        TArray<int32> Counts; Counts.Init(0,Types.Num());
-        for (int32 Step=0; Step<Limit; ++Step)
-        {
-            struct FCandidate { FPlacement P; double Score; };
-            TArray<FCandidate> Candidates;
-            int32 LeastCount=MAX_int32;
-            for (int32 T=0; T<Types.Num(); ++T)
-            {
-                const FVector Size=Types[T].BoundsMax-Types[T].BoundsMin;
-                if (!Types[T].BuildingClass || Size.X<=0 || Size.Y<=0) continue;
-                for (int32 Q=0; Q<2; ++Q)
-                {
-                    const double BW=(Q?Size.Y:Size.X)+Gap, BH=(Q?Size.X:Size.Y)+Gap;
-                    for (const FRect& R : Free)
-                    {
-                        if (BW>R.W+0.001 || BH>R.H+0.001) continue;
-                        LeastCount=FMath::Min(LeastCount,Counts[T]);
-                        const double Short=FMath::Min(R.W-BW,R.H-BH);
-                        Candidates.Add({{{R.X,R.Y,BW,BH},T,Q},Short+Random.FRandRange(0,800)});
-                    }
-                }
-            }
-            if (Candidates.IsEmpty()) break;
-            // Keep the six types represented, while still fitting smaller buildings into residual spaces.
-            for (FCandidate& C : Candidates) C.Score+=FMath::Max(0,Counts[C.P.Type]-LeastCount)*2500;
-            Candidates.Sort([](const FCandidate& A,const FCandidate& B){return A.Score<B.Score;});
-            FPlacement P=Candidates[0].P;
-            P.Quarter+=Random.RandRange(0,1)*2;
-            Result.Add(P); ++Counts[P.Type]; Occupy(Free,P.Rect);
-        }
-        return Result;
-    }
 }
 
 class FCityPackingElement : public IPCGElement
