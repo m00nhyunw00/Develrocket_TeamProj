@@ -33,7 +33,7 @@ ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
 
     // 앉기·일어서기 높이 설정
     BaseEyeHeight = 64.0f;
-    CrouchedEyeHeight = 32.0f;
+    CrouchedEyeHeight = 48.0f;
 }
 
 UAbilitySystemComponent* ATBCharacterBase::GetAbilitySystemComponent() const

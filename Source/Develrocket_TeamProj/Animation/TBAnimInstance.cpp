@@ -10,6 +10,7 @@ void UTBAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	// 소유 캐릭터가 없는 프리뷰 상태에서도 이전 값이 남지 않도록 초기화
 	GroundSpeed = 0.0f;
 	MovementDirection = 0.0f;
+	VerticalSpeed = 0.0f;
 	bIsFalling = false;
 	bIsCrouching = false;
 
@@ -29,8 +30,9 @@ void UTBAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 	const FVector Velocity = OwnerCharacter->GetVelocity();
 
-	// 캐릭터의 실제 이동 상태를 애니메이션용 변수에 반영
 	GroundSpeed = Velocity.Size2D();
+	VerticalSpeed = Velocity.Z;
+
 	bIsFalling = MovementComponent->IsFalling();
 	bIsCrouching = OwnerCharacter->IsCrouched();
 

@@ -28,7 +28,13 @@ public:
 
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
-	// 앉기 상태 전환 ----------------------
+	// 점프·앉기 상태 전환 ----------------------
+
+	// 기본 점프 검사 전에 실제 앉기 상태 해제
+	virtual void CheckJumpInput(float DeltaTime) override;
+
+	// 착지 후 유지 중인 앉기 입력 복구
+	virtual void Landed(const FHitResult& Hit) override;
 
 	// 앉기 시작·종료에 따른 카메라 높이 갱신
 	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
@@ -78,6 +84,11 @@ protected:
 	TObjectPtr<UInputAction> SkillAction;
 
 private:
+	// 입력 유지 상태 ----------------------
+
+	// 실제 앉기 상태와 별도로 보관하는 Ctrl 입력 의도
+	bool bCrouchInputHeld = false;
+
 	// GAS 초기화 ----------------------
 
 	// PlayerState의 ASC를 현재 캐릭터에 연결
