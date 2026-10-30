@@ -17,6 +17,18 @@ struct FCityBuildingFootprint
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Building") FVector BoundsMax = FVector::ZeroVector;
 };
 
+USTRUCT()
+struct FCityLayoutState
+{
+    GENERATED_BODY()
+    
+    UPROPERTY()
+    int32 Seed = 42;
+    
+    UPROPERTY()
+    int32 Revision = 0;
+};
+
 UCLASS(BlueprintType)
 class DEVELROCKET_TEAMPROJ_API ACityPackingActor : public AActor
 {
@@ -37,8 +49,19 @@ public:
     UFUNCTION(BlueprintCallable, CallInEditor, Category="City") void RebuildSameSeed();
     // One-shot override used by RebuildSameSeed; ordinary PCG Generate creates a fresh layout.
     bool bReuseSeedNextGeneration = false;
+    
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+    void GenerateNewLayoutOnServer();
 protected:
     virtual void BeginPlay() override;
+    
+    UPROPERTY(ReplicatedUsing = OnRep_LayoutState)
+    FCityLayoutState LayoutState;
+    
+    UFUNCTION()
+    void OnRep_LayoutState();
+    
+    void ApplyLayoutState();
 };
 
 UCLASS(BlueprintType, ClassGroup=(Procedural))

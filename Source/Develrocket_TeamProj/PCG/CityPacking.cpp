@@ -8,10 +8,14 @@
 #include "Metadata/PCGMetadataAttributeTpl.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
+#include "Net/UnrealNetwork.h"
 #include "Engine/StaticMesh.h"
 
 ACityPackingActor::ACityPackingActor()
 {
+    bReplicates = true;
+    bAlwaysRelevant = true;
+    
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
     UBoxComponent* Bounds = CreateDefaultSubobject<UBoxComponent>(TEXT("CityBounds"));
     Bounds->SetupAttachment(RootComponent);
@@ -27,6 +31,12 @@ ACityPackingActor::ACityPackingActor()
 void ACityPackingActor::NewLayout()
 {
     if (!PCGComponent || PCGComponent->IsGenerating()) return;
+    if (GetWorld() && GetWorld()->IsGameWorld())
+    {
+        // 함수 내부의 HasAuthority 검사로 클라이언트 호출은 무시
+        GenerateNewLayoutOnServer();
+        return;
+    }
     Modify();
     LayoutSeed = static_cast<int32>(GetTypeHash(FGuid::NewGuid()) & 0x7fffffff);
     RebuildSameSeed();
@@ -51,10 +61,51 @@ void ACityPackingActor::RebuildSameSeed()
     PCGComponent->GenerateLocal(true);
 }
 
+void ACityPackingActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    
+    DOREPLIFETIME(ACityPackingActor, LayoutState);
+}
+
+void ACityPackingActor::GenerateNewLayoutOnServer()
+{
+    if (!HasAuthority())
+    {
+        return;
+    }
+    LayoutState.Seed = static_cast<int32>(GetTypeHash(FGuid::NewGuid()) & 0x7fffffff);
+    ++LayoutState.Revision;
+    
+    ApplyLayoutState();
+    ForceNetUpdate();
+}
+
 void ACityPackingActor::BeginPlay()
 {
     Super::BeginPlay();
-    if (bRandomizeOnPlay) NewLayout();
+    if (HasAuthority())
+    {
+        GenerateNewLayoutOnServer();
+    }
+    else
+    {
+        ApplyLayoutState();
+    }
+    // if (bRandomizeOnPlay) NewLayout();
+}
+
+void ACityPackingActor::OnRep_LayoutState()
+{
+    ApplyLayoutState();
+}
+
+void ACityPackingActor::ApplyLayoutState()
+{
+    if (!HasActorBegunPlay() || LayoutState.Revision == 0) return;
+    LayoutSeed = LayoutState.Seed;
+    
+    RebuildSameSeed();
 }
 
 namespace CityPacking
@@ -159,8 +210,8 @@ protected:
         if (W<=0 || H<=0) return true;
         const FVector Corner=FT.TransformPosition(FVector(Local.Min.X,Local.Min.Y,Local.Max.Z));
         const FQuat FloorRotation=FT.GetRotation();
-        if (!Owner->bReuseSeedNextGeneration)
-            Owner->LayoutSeed = static_cast<int32>(GetTypeHash(FGuid::NewGuid()) & 0x7fffffff);
+        /*if (!Owner->bReuseSeedNextGeneration)
+            Owner->LayoutSeed = static_cast<int32>(GetTypeHash(FGuid::NewGuid()) & 0x7fffffff);*/
         Owner->bReuseSeedNextGeneration = false;
         FRandomStream Random(Owner->LayoutSeed);
         TArray<CityPacking::FPlacement> Best;
