@@ -21,6 +21,7 @@ public class Develrocket_TeamProj : ModuleRules
 			"GameplayAbilities",
 			"GameplayTags",
 			"GameplayTasks",
+			"AIModule",
 		});
 
 		PublicDependencyModuleNames.Add("PCG");
