@@ -1,4 +1,4 @@
 interface:
   display_name: "핵심 구현 코드 보고서"
-  short_description: "실제 구현의 핵심 코드와 해결 내용을 노션용 보고서로 정리하고 첨부 사진 안내"
-  default_prompt: "$implementation-report를 사용해 오늘 구현한 핵심 코드를 파일명별로 추려 노션에 복사할 수 있는 보고서로 작성하고 첨부할 사진을 안내해 주세요."
+  short_description: "핵심 코드와 해결 내용을 보고서로 정리하고 기존 Notion 보고서에 누적 통합"
+  default_prompt: "$implementation-report를 사용해 구현한 핵심 코드를 파일명별로 정리하고, 보고서 페이지 링크가 있으면 기존 내용과 통합하여 노션에 복사할 수 있는 전체 갱신본과 사진 안내를 작성해 주세요."
