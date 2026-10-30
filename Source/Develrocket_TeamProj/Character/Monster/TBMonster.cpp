@@ -1,26 +1,32 @@
 #include "TBMonster.h"
 
+#include "AIController.h"
 #include "AbilitySystemComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
-	// 몬스터가 직접 소유하는 ASC 생성 및 네트워크 복제 활성화
+	// 몬스터가 직접 소유하는 ASC 생성
 	MonsterASC = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("MonsterASC"));
-
 	MonsterASC->SetIsReplicated(true);
-
-	// 활성 GameplayEffect 상세 정보는 생략하고 상태 태그·GameplayCue 중심으로 복제
 	MonsterASC->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 
-	// 레벨 배치와 런타임 스폰 모두 서버의 AI 자동 빙의 대상으로 설정
+	// 기본 AIController 사용 및 서버의 자동 빙의 설정
+	AIControllerClass = AAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 
-	// Controller의 시선 대신 이동 방향을 따라 몸체 회전
+	// 이동 방향을 따라 몸체 회전
 	bUseControllerRotationYaw = false;
-
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 360.0f, 0.0f);
+
+	// 몬스터 전신 메시의 기본 표시 및 애니메이션 모드 설정
+	GetMesh()->SetOwnerNoSee(false);
+	GetMesh()->SetOnlyOwnerSee(false);
+	GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+	GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, -GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight()));
 }
 
 void ATBMonster::BeginPlay()
