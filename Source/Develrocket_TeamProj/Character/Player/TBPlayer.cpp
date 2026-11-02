@@ -20,6 +20,8 @@ class ATBPlayerState;
 ATBPlayer::ATBPlayer(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	PrimaryActorTick.bCanEverTick = true;
+	
 	// Controller의 좌우 회전만 캐릭터 몸체에 반영
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = true;
@@ -37,11 +39,45 @@ ATBPlayer::ATBPlayer(const FObjectInitializer& ObjectInitializer)
 	// 카메라에 1인칭 메시 부착
 	FirstPersonMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
 	FirstPersonMesh->SetupAttachment(FirstPersonCamera);
+	
+	// 1인칭 총: 소유 플레이어에게만 표시
+	FirstPersonWeaponMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FirstPersonWeaponMesh"));
+	FirstPersonWeaponMesh->SetupAttachment(FirstPersonMesh);
+	FirstPersonWeaponMesh->SetOnlyOwnerSee(true);
+	FirstPersonWeaponMesh->SetOwnerNoSee(false);
+	FirstPersonWeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	FirstPersonWeaponMesh->SetGenerateOverlapEvents(false);
+	FirstPersonWeaponMesh->SetCastShadow(false);
+
+	// 3인칭 총: 소유 플레이어에게 숨기고 다른 플레이어에게 표시
+	ThirdPersonWeaponMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ThirdPersonWeaponMesh"));
+	ThirdPersonWeaponMesh->SetupAttachment(GetMesh());
+	ThirdPersonWeaponMesh->SetOnlyOwnerSee(false);
+	ThirdPersonWeaponMesh->SetOwnerNoSee(true);
+	ThirdPersonWeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ThirdPersonWeaponMesh->SetGenerateOverlapEvents(false);
 
 	// 발바닥이 원점인 전신 메시를 위한 초기 배치
 	GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, -GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight()));
 
 	ConfigurePlayerMeshes();
+}
+
+void ATBPlayer::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (!IsLocallyControlled() || !FirstPersonCamera)
+	{
+		return;
+	}
+
+	FVector CameraLocation = FirstPersonCamera->GetRelativeLocation();
+
+	// 현재 자세의 눈높이를 목표로 카메라 높이 보간
+	CameraLocation.Z = FMath::FInterpTo(CameraLocation.Z, BaseEyeHeight, DeltaSeconds, CameraHeightInterpSpeed);
+
+	FirstPersonCamera->SetRelativeLocation(CameraLocation);
 }
 
 // 빙의 및 네트워크 초기화 ----------------------
@@ -63,6 +99,8 @@ void ATBPlayer::BeginPlay()
 
 	InitializeFromPlayerState();
 	UpdateCameraHeight();
+	
+	InitializeWeaponMeshes();
 }
 
 void ATBPlayer::OnRep_PlayerState()
@@ -152,16 +190,40 @@ void ATBPlayer::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdju
 {
 	Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
 
-	// 앉기 상태로 갱신된 눈높이를 카메라에 반영
-	UpdateCameraHeight();
+	const UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+
+	if (!IsLocallyControlled() || !FirstPersonCamera || !MovementComponent)
+	{
+		return;
+	}
+
+	// 캡슐 바닥을 유지하며 중심이 내려가는 경우 카메라의 순간적인 하강 보정
+	if (MovementComponent->bCrouchMaintainsBaseLocation)
+	{
+		FVector CameraLocation = FirstPersonCamera->GetRelativeLocation();
+		CameraLocation.Z += HalfHeightAdjust;
+		FirstPersonCamera->SetRelativeLocation(CameraLocation);
+	}
 }
 
 void ATBPlayer::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
 	Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
 
-	// 서 있는 상태로 복구된 눈높이를 카메라에 반영
-	UpdateCameraHeight();
+	const UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+
+	if (!IsLocallyControlled() || !FirstPersonCamera || !MovementComponent)
+	{
+		return;
+	}
+
+	// 캡슐 바닥을 유지하며 중심이 올라가는 경우 카메라의 순간적인 상승 보정
+	if (MovementComponent->bCrouchMaintainsBaseLocation)
+	{
+		FVector CameraLocation = FirstPersonCamera->GetRelativeLocation();
+		CameraLocation.Z -= HalfHeightAdjust;
+		FirstPersonCamera->SetRelativeLocation(CameraLocation);
+	}
 }
 
 void ATBPlayer::Landed(const FHitResult& Hit)
@@ -353,4 +415,34 @@ void ATBPlayer::InputSkillStarted()
 void ATBPlayer::InputSkillStopped()
 {
 	StopSkill();
+}
+
+void ATBPlayer::InitializeWeaponMeshes()
+{
+	if (!IsValid(WeaponMeshAsset.Get()) || WeaponSocketName.IsNone())
+	{
+		return;
+	}
+
+	// 1인칭 팔의 소켓에 총 부착
+	if (FirstPersonMesh->DoesSocketExist(WeaponSocketName))
+	{
+		FirstPersonWeaponMesh->SetStaticMesh(WeaponMeshAsset.Get());
+		FirstPersonWeaponMesh->AttachToComponent(FirstPersonMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocketName);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("FirstPersonMesh에 소켓이 없습니다: %s"), *WeaponSocketName.ToString());
+	}
+
+	// 3인칭 전신의 소켓에 총 부착
+	if (GetMesh()->DoesSocketExist(WeaponSocketName))
+	{
+		ThirdPersonWeaponMesh->SetStaticMesh(WeaponMeshAsset.Get());
+		ThirdPersonWeaponMesh->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocketName);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("전신 Mesh에 소켓이 없습니다: %s"), *WeaponSocketName.ToString());
+	}
 }
