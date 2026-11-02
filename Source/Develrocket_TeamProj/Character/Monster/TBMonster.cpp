@@ -5,6 +5,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Abilities/GameplayAbility.h"
 
 ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
@@ -43,4 +44,9 @@ void ATBMonster::PossessedBy(AController* NewController)
 
 	// 서버의 빙의 이후 ASC 연결 및 Controller 관련 참조 갱신
 	InitializeAbilitySystem(MonsterASC.Get(), this);
+	
+	if (HasAuthority() && MeleeAbilityClass && !MonsterASC->FindAbilitySpecFromClass(MeleeAbilityClass))
+	{
+		MonsterASC->GiveAbility(FGameplayAbilitySpec(MeleeAbilityClass, 1, INDEX_NONE, this));
+	}
 }

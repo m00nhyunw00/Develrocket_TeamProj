@@ -4,6 +4,7 @@
 #include "Character/TBCharacterBase.h"
 #include "TBMonster.generated.h"
 
+class UGameplayAbility;
 class UAbilitySystemComponent;
 
 // 자체 ASC를 소유하는 AI 몬스터 캐릭터
@@ -23,4 +24,8 @@ protected:
 	// 몬스터의 능력·효과·상태 태그를 관리하는 ASC
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
 	TObjectPtr<UAbilitySystemComponent> MonsterASC;
+	
+	//전투 효과상태를 관리
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Combat")
+	TSubclassOf<UGameplayAbility> MeleeAbilityClass;
 };
