@@ -12,9 +12,16 @@ UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBPlayer : public ATBCharacterBase
 {
 	GENERATED_BODY()
+	
+protected:
+	// 앉기·일어서기 시 카메라 높이 전환 속도
+	UPROPERTY(EditDefaultsOnly, Category = "Camera", meta = (ClampMin = "0.1"))
+	float CameraHeightInterpSpeed = 20.0f;
 
 public:
 	ATBPlayer(const FObjectInitializer& ObjectInitializer);
+	
+	virtual void Tick(float DeltaSeconds) override;
 
 	// 빙의 및 네트워크 초기화 ----------------------
 
@@ -60,6 +67,24 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mesh")
 	TObjectPtr<USkeletalMeshComponent> FirstPersonMesh;
+	
+	// 무기 메시 ----------------------
+
+	// 소유 플레이어에게 표시할 총
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+	TObjectPtr<UStaticMeshComponent> FirstPersonWeaponMesh;
+
+	// 다른 플레이어에게 표시할 총
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+	TObjectPtr<UStaticMeshComponent> ThirdPersonWeaponMesh;
+
+	// 두 무기 컴포넌트에서 공유할 총 메시
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
+	TObjectPtr<UStaticMesh> WeaponMeshAsset;
+
+	// 팔 메시와 전신 메시에서 사용할 공통 소켓 이름
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
+	FName WeaponSocketName = TEXT("GunSocket");
 
 	// 이동·시점 입력 액션 ----------------------
 
@@ -125,4 +150,9 @@ private:
 
 	void InputSkillStarted();
 	void InputSkillStopped();
+	
+private:
+	// 무기 메시 적용 및 소켓 부착 ----------------------
+	
+	void InitializeWeaponMeshes();
 };
