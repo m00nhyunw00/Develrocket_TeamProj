@@ -100,13 +100,16 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> CrouchAction;
 
-	// 공격·스킬 입력 액션 ----------------------
+	// 공격·스킬·재장전 입력 액션 ----------------------
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> PrimaryAttackAction;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> SkillAction;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> ReloadAction;
 
 private:
 	// 입력 유지 상태 ----------------------
@@ -150,6 +153,9 @@ private:
 
 	void InputSkillStarted();
 	void InputSkillStopped();
+	
+	// 재장전 입력 처리 ----------------------
+	void InputReloadStarted();
 	
 private:
 	// 무기 메시 적용 및 소켓 부착 ----------------------

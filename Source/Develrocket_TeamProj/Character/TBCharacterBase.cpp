@@ -5,6 +5,7 @@
 
 #include "Components/TBCharacterMovementComponent.h"
 #include "TBGameplayTags.h"
+#include "AbilitySystem/TBAbilitySystemComponent.h"
 
 // 기본 이동 컴포넌트를 프로젝트의 커스텀 클래스로 교체
 ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
@@ -41,6 +42,11 @@ UAbilitySystemComponent* ATBCharacterBase::GetAbilitySystemComponent() const
     return CachedASC.Get();
 }
 
+UTBAbilitySystemComponent* ATBCharacterBase::GetTBAbilitySystemComponent() const
+{
+    return Cast<UTBAbilitySystemComponent>(CachedASC.Get());
+}
+
 void ATBCharacterBase::InitializeAbilitySystem(UAbilitySystemComponent* InASC, AActor* InOwnerActor)
 {
     if (!IsValid(InASC) || !IsValid(InOwnerActor))
@@ -70,10 +76,13 @@ void ATBCharacterBase::InitializeAbilitySystem(UAbilitySystemComponent* InASC, A
 
 void ATBCharacterBase::UninitializeAbilitySystem()
 {
-    // 이미 다른 Avatar로 전환된 ASC의 연결은 유지
     if (IsValid(CachedASC.Get()) && CachedASC->GetAvatarActor() == this)
     {
-        // ASC의 Owner는 유지하고 현재 Pawn 연결만 해제
+        // 이전 Pawn에서 실행 중인 전투 Ability 취소
+        const FGameplayTagContainer CombatTags(TBGameplayTags::Ability_Combat);
+        CachedASC->CancelAbilities(&CombatTags);
+
+        // PlayerState ASC는 유지하고 Avatar 연결만 해제
         CachedASC->SetAvatarActor(nullptr);
     }
 
@@ -109,17 +118,21 @@ bool ATBCharacterBase::IsMovementBlocked() const
 
 void ATBCharacterBase::StartPrimaryAttack()
 {
-    // 기본 공격 버튼을 눌렀을 때 호출
-    // 추후 공격 Ability에 입력 시작 전달 또는 활성화 요청
-    // 예: 권총 단발 발사, 자동소총 연사 시작, 차지 공격 충전 시작
+    if (!IsLocallyControlled())
+    {
+        return;
+    }
+
+    if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+    {
+        ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Combat_PrimaryAttack);
+    }
 }
 
 void ATBCharacterBase::StopPrimaryAttack()
 {
-    // 기본 공격 버튼을 놓거나 입력이 취소됐을 때 호출
-    // 추후 공격 Ability에 입력 해제 전달
-    // 예: 자동소총 연사 중단, 차지 공격 충전 종료
-    // 입력 해제 이후의 발동 또는 취소는 Ability에서 판단
+    // 단발 공격은 입력 해제에 따른 추가 처리 없음
+    // 연사·차지 공격 구현 시 입력 해제 전달 추가
 }
 
 void ATBCharacterBase::StartSkill()

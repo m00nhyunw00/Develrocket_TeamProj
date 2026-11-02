@@ -5,6 +5,7 @@
 #include "GameFramework/Character.h"
 #include "TBCharacterBase.generated.h"
 
+class UTBAbilitySystemComponent;
 class UAbilitySystemComponent;
 
 UCLASS(Abstract)
@@ -17,6 +18,8 @@ public:
 	ATBCharacterBase(const FObjectInitializer& ObjectInitializer);
 
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+	
+	UTBAbilitySystemComponent* GetTBAbilitySystemComponent() const;
 
 	// ASC 연결 상태와 상태 태그에 따른 이동 차단 여부 조회
 	UFUNCTION(BlueprintPure, Category = "Character|State")
