@@ -25,7 +25,7 @@ public class Develrocket_TeamProj : ModuleRules
 		});
 
 		PublicDependencyModuleNames.Add("PCG");
-		PrivateDependencyModuleNames.AddRange(new string[] {  });
+		PrivateDependencyModuleNames.AddRange(new string[] { "NavigationSystem" });
 
 		// Uncomment if you are using Slate UI
 		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
