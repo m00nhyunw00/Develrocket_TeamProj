@@ -4,6 +4,7 @@
 #include "CitySidewalkProps.generated.h"
 
 UCLASS(BlueprintType, ClassGroup=(Procedural))
+// 보도 가장자리를 따라 가로등과 볼라드 포인트를 교대로 생성하는 PCG 노드
 class DEVELROCKET_TEAMPROJ_API UCitySidewalkPropsSettings : public UPCGSettings
 {
     GENERATED_BODY()

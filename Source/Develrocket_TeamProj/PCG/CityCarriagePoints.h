@@ -5,13 +5,16 @@
 #include "CityCarriagePoints.generated.h"
 
 UCLASS(BlueprintType, ClassGroup=(Procedural))
+// 보도 변을 따라 마차 배치 후보를 생성하는 PCG 노드
 class DEVELROCKET_TEAMPROJ_API UCityCarriagePointsSettings : public UPCGSettings
 {
     GENERATED_BODY()
 public:
+    // 보도 중심 경계에서 도로 바깥 방향으로 적용할 거리
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Carriages", meta=(ClampMin="0", PCG_Overridable))
     double RoadOffset = 750.0;
 
+    // 변의 양 끝에서 후보 중심을 제외할 거리
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Carriages", meta=(ClampMin="0", PCG_Overridable))
     double CornerClearance = 650.0;
 

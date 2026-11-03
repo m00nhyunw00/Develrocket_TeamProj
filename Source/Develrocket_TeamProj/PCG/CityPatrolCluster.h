@@ -5,6 +5,7 @@
 #include "CityPatrolCluster.generated.h"
 
 UCLASS(BlueprintType, ClassGroup=(Procedural))
+// 인접한 정찰 후보를 연결된 그룹으로 묶고 그룹별 평균 위치 출력
 class DEVELROCKET_TEAMPROJ_API UCityPatrolClusterSettings : public UPCGSettings
 {
     GENERATED_BODY()

@@ -8,6 +8,7 @@
 class UPCGComponent;
 
 USTRUCT(BlueprintType)
+// 건물 클래스와 자식 액터를 포함한 로컬 경계 정보
 struct FCityBuildingFootprint
 {
     GENERATED_BODY()
@@ -18,6 +19,7 @@ struct FCityBuildingFootprint
 };
 
 USTRUCT()
+// 서버에서 동기화하는 배치 시드와 생성 버전
 struct FCityLayoutState
 {
     GENERATED_BODY()
@@ -30,6 +32,7 @@ struct FCityLayoutState
 };
 
 UCLASS(BlueprintType)
+// Floor 영역과 시드를 관리하는 도시 패킹 액터
 class DEVELROCKET_TEAMPROJ_API ACityPackingActor : public AActor
 {
     GENERATED_BODY()
@@ -47,7 +50,7 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="City|Result") double LastCoveragePercent = 0;
     UFUNCTION(BlueprintCallable, CallInEditor, Category="City") void NewLayout();
     UFUNCTION(BlueprintCallable, CallInEditor, Category="City") void RebuildSameSeed();
-    // One-shot override used by RebuildSameSeed; ordinary PCG Generate creates a fresh layout.
+    // 동일 시드 재생성 요청 상태; 새 시드 자동 변경 로직은 현재 비활성화
     bool bReuseSeedNextGeneration = false;
     
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -65,6 +68,7 @@ protected:
 };
 
 UCLASS(BlueprintType, ClassGroup=(Procedural))
+// Floor 전체를 대상으로 건물 배치 포인트를 계산하는 PCG 노드
 class DEVELROCKET_TEAMPROJ_API UCityPackingSettings : public UPCGSettings
 {
     GENERATED_BODY()
