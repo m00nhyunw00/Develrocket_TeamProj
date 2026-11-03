@@ -1,4 +1,5 @@
 #include "PCG/CityLayoutCoordinator.h"
+#include "PCG/CityNavMeshComponent.h"
 
 #include "PCGComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -11,6 +12,7 @@ ACityLayoutCoordinator::ACityLayoutCoordinator()
     bReplicates = true;
     bAlwaysRelevant = true;
     PrimaryActorTick.bCanEverTick = false;
+    CityNavMesh = CreateDefaultSubobject<UCityNavMeshComponent>(TEXT("CityNavMesh"));
 }
 
 void ACityLayoutCoordinator::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -66,6 +68,7 @@ void ACityLayoutCoordinator::ApplyLatestLayout()
 {
     if (!bInitialized || !CityPCG || Layout.Revision <= 0 || CompletedRevision == Layout.Revision) return;
     bLocalCityReady = false;
+    if (HasAuthority() && CityNavMesh) CityNavMesh->InvalidateCityNavigation();
     if (CityPCG->IsGenerating() || CityPCG->IsCleaningUp()) return;
     CityPCG->CleanupLocalImmediate(true);
     CityPCG->Seed = Layout.Seed;
@@ -87,6 +90,7 @@ void ACityLayoutCoordinator::OnGenerated(UPCGComponent* Component)
     bLocalCityReady = true;
     UE_LOG(LogCityLayout, Display, TEXT("Ready world=%s role=%d seed=%d revision=%d"),
         *GetWorld()->GetName(), static_cast<int32>(GetLocalRole()), Layout.Seed, Layout.Revision);
+    if (HasAuthority() && CityNavMesh) CityNavMesh->RequestCityNavigationUpdate(CityVolume, Layout.Revision);
     OnLocalCityReady.Broadcast(Layout.Seed, Layout.Revision);
 }
 

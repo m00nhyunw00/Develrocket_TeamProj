@@ -5,6 +5,7 @@
 #include "CityLayoutCoordinator.generated.h"
 
 class UPCGComponent;
+class UCityNavMeshComponent;
 
 USTRUCT(BlueprintType)
 struct FReplicatedCityLayout
@@ -27,6 +28,9 @@ public:
 
     UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="City")
     TObjectPtr<AActor> CityVolume;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="City|Navigation")
+    TObjectPtr<UCityNavMeshComponent> CityNavMesh;
 
     UPROPERTY(ReplicatedUsing=OnRep_Layout, VisibleInstanceOnly, BlueprintReadOnly, Category="City")
     FReplicatedCityLayout Layout;
