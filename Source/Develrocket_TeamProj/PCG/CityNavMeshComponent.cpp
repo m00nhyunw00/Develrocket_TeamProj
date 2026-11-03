@@ -68,6 +68,7 @@ void UCityNavMeshComponent::PollNavigationUpdate()
             return;
         }
         const FBox CityBounds = CityVolume->GetComponentsBoundingBox(false, false);
+        // 도시 영역과 NavMesh 영역의 교차 여부 확인 후 갱신 요청
         TArray<FBox> NavBounds;
         NavSystem->GetNavigationBoundsForNavData(*NavData, NavBounds);
         bool bOverlaps = false;

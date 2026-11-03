@@ -42,6 +42,7 @@ protected:
                     const double Length=AlongX ? X : Y;
                     const double Available=Length-2*Margin;
                     if (Available<0) continue;
+                    // 코너 여유를 제외한 변의 중앙을 기준으로 일정 간격 배치
                     const int32 Count=FMath::Min(256,1+FMath::FloorToInt(Available/Spacing));
                     const double Start=-0.5*(Count-1)*Spacing;
                     for(int32 N=0;N<Count;++N)
@@ -49,6 +50,7 @@ protected:
                         const double Along=Start+N*Spacing;
                         const FVector Local=AlongX ? FVector(Along,(Side==2?1:-1)*(Y*0.5+Settings->EdgeOffset),Settings->HeightOffset)
                             : FVector((Side==0?1:-1)*(X*0.5+Settings->EdgeOffset),Along,Settings->HeightOffset);
+                        // 각 변에서 가로등과 볼라드를 번갈아 별도 출력
                         FPCGPoint& P=((N%2)==0 ? Lamps : Bollards)->GetMutablePoints().AddDefaulted_GetRef();
                         P.Transform=FTransform(Frame.GetRotation(),Frame.TransformPositionNoScale(Local),FVector::OneVector);
                         P.Density=1;

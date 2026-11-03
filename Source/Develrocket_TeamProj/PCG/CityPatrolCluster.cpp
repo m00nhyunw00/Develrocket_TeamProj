@@ -9,6 +9,7 @@ namespace CityPatrolCluster
 {
     TArray<FVector> BuildCenters(TArray<FVector> Points, double Distance)
     {
+        // 입력 순서에 따른 그룹 순서 차이를 줄이기 위한 좌표 정렬
         Points.Sort([](const FVector& A, const FVector& B)
         {
             if (A.X != B.X) return A.X < B.X;
@@ -26,6 +27,7 @@ namespace CityPatrolCluster
             TArray<int32> Pending{Start};
             Visited[Start] = true;
             FVector Sum = FVector::ZeroVector;
+            // XY 기준 거리로 이어지는 후보를 모두 탐색한 뒤 산술 평균 계산
             for (int32 Cursor = 0; Cursor < Pending.Num(); ++Cursor)
             {
                 const FVector& Current = Points[Pending[Cursor]];
@@ -53,6 +55,7 @@ protected:
     {
         const auto* Settings = Context->GetInputSettings<UCityPatrolClusterSettings>();
         TArray<FVector> Locations;
+        // 여러 입력 데이터의 후보를 한데 모아 데이터 경계를 넘어 병합
         for (const FPCGTaggedData& Tagged : Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel))
         {
             if (const UPCGBasePointData* Data = Cast<UPCGBasePointData>(Tagged.Data))

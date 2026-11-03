@@ -32,6 +32,7 @@ void ACityLayoutCoordinator::BeginPlay()
     }
     CityPCG->OnPCGGraphGeneratedExternal.AddDynamic(this, &ACityLayoutCoordinator::OnGenerated);
     CityPCG->OnPCGGraphCancelledExternal.AddDynamic(this, &ACityLayoutCoordinator::OnCancelled);
+    // 복제된 배치 상태가 도착한 뒤 명시적으로 PCG 생성
     CityPCG->GenerationTrigger = EPCGComponentGenerationTrigger::GenerateOnDemand;
     CityPCG->CleanupLocalImmediate(true);
     bInitialized = true;
@@ -69,6 +70,7 @@ void ACityLayoutCoordinator::ApplyLatestLayout()
     if (!bInitialized || !CityPCG || Layout.Revision <= 0 || CompletedRevision == Layout.Revision) return;
     bLocalCityReady = false;
     if (HasAuthority() && CityNavMesh) CityNavMesh->InvalidateCityNavigation();
+    // 진행 중인 이전 생성이 끝나면 완료 콜백에서 최신 세대 재적용
     if (CityPCG->IsGenerating() || CityPCG->IsCleaningUp()) return;
     CityPCG->CleanupLocalImmediate(true);
     CityPCG->Seed = Layout.Seed;
@@ -83,6 +85,7 @@ void ACityLayoutCoordinator::OnGenerated(UPCGComponent* Component)
     if (Component != CityPCG || !bInitialized) return;
     if (GeneratingRevision != Layout.Revision)
     {
+        // 생성 도중 새 시드가 도착한 경우 이전 결과 대신 최신 배치 요청
         GetWorldTimerManager().SetTimerForNextTick(this, &ACityLayoutCoordinator::ApplyLatestLayout);
         return;
     }
@@ -90,6 +93,7 @@ void ACityLayoutCoordinator::OnGenerated(UPCGComponent* Component)
     bLocalCityReady = true;
     UE_LOG(LogCityLayout, Display, TEXT("Ready world=%s role=%d seed=%d revision=%d"),
         *GetWorld()->GetName(), static_cast<int32>(GetLocalRole()), Layout.Seed, Layout.Revision);
+    // 서버에서 도시 생성 완료 후 NavMesh 갱신 요청
     if (HasAuthority() && CityNavMesh) CityNavMesh->RequestCityNavigationUpdate(CityVolume, Layout.Revision);
     OnLocalCityReady.Broadcast(Layout.Seed, Layout.Revision);
 }

@@ -44,6 +44,7 @@ protected:
                     const double Length = bAlongX ? SpanX : SpanY;
                     if (Length < 2.0 * Settings->CornerClearance) continue;
                     const FVector Center = Frame.GetLocation();
+                    // PCG 시드, 보도 위치와 변 인덱스로 변별 난수 생성
                     uint32 Seed = HashCombine(GetTypeHash(Context->GetSeed()), GetTypeHash(FMath::RoundToInt(Center.X)));
                     Seed = HashCombine(Seed, GetTypeHash(FMath::RoundToInt(Center.Y)));
                     Seed = HashCombine(Seed, GetTypeHash(Side));
@@ -54,6 +55,7 @@ protected:
                     const FVector Local = bAlongX ? FVector(Along, Sign * (SpanY * 0.5 + Settings->RoadOffset), Settings->HeightOffset)
                                                   : FVector(Sign * (SpanX * 0.5 + Settings->RoadOffset), Along, Settings->HeightOffset);
                     FPCGPoint& Point = Output->GetMutablePoints().AddDefaulted_GetRef();
+                    // 마차의 로컬 X축을 해당 보도 변에 평행하게 정렬
                     const FQuat Rotation = Frame.GetRotation() * FRotator(0.0, bAlongX ? 0.0 : 90.0, 0.0).Quaternion();
                     Point.Transform = FTransform(Rotation, Frame.TransformPositionNoScale(Local), FVector::OneVector);
                     Point.BoundsMin = FVector(-500.0, -220.0, -10.0);
