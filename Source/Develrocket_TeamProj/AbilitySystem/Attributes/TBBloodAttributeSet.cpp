@@ -9,7 +9,7 @@ UTBBloodAttributeSet::UTBBloodAttributeSet()
 	InitBlood(0.0f);
 
 	InitMaxLoadedBlood(20.0f);
-	InitLoadedBlood(0.0f);
+	InitLoadedBlood(20.0f);
 }
 
 void UTBBloodAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

@@ -22,7 +22,7 @@ ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
     UCharacterMovementComponent* CharacterMovementComp = GetCharacterMovement();
 
     // 걷기·앉기 속도와 점프 중 이동 제어 설정
-    CharacterMovementComp->MaxWalkSpeed = 450.0f;
+    CharacterMovementComp->MaxWalkSpeed = 750.0f;
     CharacterMovementComp->MaxWalkSpeedCrouched = 200.0f;
 
     CharacterMovementComp->JumpZVelocity = 420.0f;

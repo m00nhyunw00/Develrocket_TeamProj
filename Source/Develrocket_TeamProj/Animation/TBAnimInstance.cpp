@@ -11,6 +11,7 @@ void UTBAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	GroundSpeed = 0.0f;
 	MovementDirection = 0.0f;
 	VerticalSpeed = 0.0f;
+	AimPitch = 0.0f;
 	bIsFalling = false;
 	bIsCrouching = false;
 
@@ -20,6 +21,12 @@ void UTBAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	{
 		return;
 	}
+	
+	// 캐릭터의 조준 방향과 몸체 방향 사이의 상대 회전 계산
+	const FRotator RelativeAimRotation = (OwnerCharacter->GetBaseAimRotation() - OwnerCharacter->GetActorRotation()).GetNormalized();
+
+	// 위쪽은 양수, 아래쪽은 음수인 Pitch를 조준 BS 범위로 제한
+	AimPitch = FMath::Clamp(RelativeAimRotation.Pitch, -90.0f, 90.0f);
 
 	const UCharacterMovementComponent* MovementComponent = OwnerCharacter->GetCharacterMovement();
 
