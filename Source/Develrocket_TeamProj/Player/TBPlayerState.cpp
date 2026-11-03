@@ -1,21 +1,74 @@
-#include "TBPlayerState.h"
+#include "Player/TBPlayerState.h"
 
-#include "AbilitySystemComponent.h"
+#include "AbilitySystem/TBAbilitySystemComponent.h"
+#include "AbilitySystem/Attributes/TBBloodAttributeSet.h"
+#include "GameplayEffect.h"
 
 ATBPlayerState::ATBPlayerState()
 {
-	// 캐릭터 교체 이후에도 유지할 ASC를 PlayerState에 생성
-	AbilitySystemComponent = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
+	// Pawn 교체 이후에도 유지할 커스텀 ASC
+	AbilitySystemComponent = CreateDefaultSubobject<UTBAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
 
-	// ASC의 네트워크 복제 활성화
 	AbilitySystemComponent->SetIsReplicated(true);
-
-	// 활성 GameplayEffect의 상세 정보는 소유 클라이언트에만 복제
-	// GameplayTag와 GameplayCue는 관련 클라이언트에도 복제
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
+
+	// 자원 AttributeSet 생성 및 등록
+	BloodAttributeSet = CreateDefaultSubobject<UTBBloodAttributeSet>(TEXT("BloodAttributeSet"));
+	AbilitySystemComponent->AddAttributeSetSubobject(BloodAttributeSet.Get());
 }
 
 UAbilitySystemComponent* ATBPlayerState::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComponent.Get();
+}
+
+void ATBPlayerState::InitializeGameplayData()
+{
+	if (!HasAuthority() || bGameplayDataInitialized || !AbilitySystemComponent)
+	{
+		return;
+	}
+
+	if (!InitialBloodEffect)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InitialBloodEffect가 설정되지 않았습니다."));
+		return;
+	}
+
+	FGameplayEffectContextHandle Context = AbilitySystemComponent->MakeEffectContext();
+	Context.AddSourceObject(this);
+
+	const FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(InitialBloodEffect, 1.0f, Context);
+
+	if (!Spec.IsValid())
+	{
+		return;
+	}
+
+	// 초기 혈액 및 탄창 설정
+	AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+
+	// 기본 Ability 부여 및 핸들 기록
+	AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
+
+	bGameplayDataInitialized = true;
+}
+
+void ATBPlayerState::ApplyBloodRecovery()
+{
+	// 회복 승인 및 적용은 서버에서 수행
+	if (!HasAuthority() || !AbilitySystemComponent || !BloodRecoveryEffect)
+	{
+		return;
+	}
+
+	FGameplayEffectContextHandle Context = AbilitySystemComponent->MakeEffectContext();
+	Context.AddSourceObject(this);
+
+	const FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(BloodRecoveryEffect, 1.0f, Context);
+
+	if (Spec.IsValid())
+	{
+		AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+	}
 }

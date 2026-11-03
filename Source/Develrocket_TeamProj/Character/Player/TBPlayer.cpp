@@ -7,6 +7,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
+#include "TBGameplayTags.h"
+#include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "Math/RotationMatrix.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -182,6 +184,12 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		EnhancedInput->BindAction(SkillAction, ETriggerEvent::Completed, this, &ATBPlayer::InputSkillStopped);
 		EnhancedInput->BindAction(SkillAction, ETriggerEvent::Canceled, this, &ATBPlayer::InputSkillStopped);
 	}
+	
+	// 스킬의 입력 시작을 공통 캐릭터 함수에 전달
+	if (ReloadAction)
+	{
+		EnhancedInput->BindAction(ReloadAction, ETriggerEvent::Started, this, &ATBPlayer::InputReloadStarted);
+	}
 }
 
 // 점프·앉기 상태 전환 ----------------------
@@ -263,15 +271,17 @@ void ATBPlayer::InitializeFromPlayerState()
 {
 	ATBPlayerState* TBPlayerState = GetPlayerState<ATBPlayerState>();
 
-	// PlayerState가 유효하지 않으면 기존 ASC 연결 정리
 	if (!IsValid(TBPlayerState))
 	{
 		UninitializeAbilitySystem();
 		return;
 	}
 
-	// PlayerState를 OwnerActor, 현재 캐릭터를 AvatarActor로 ASC 연결
+	// OwnerActor: PlayerState / AvatarActor: 현재 Player
 	InitializeAbilitySystem(TBPlayerState->GetAbilitySystemComponent(), TBPlayerState);
+
+	// 서버에서 최초 한 번 자원 및 Ability 설정
+	TBPlayerState->InitializeGameplayData();
 }
 
 // 메시 및 카메라 설정 ----------------------
@@ -415,6 +425,19 @@ void ATBPlayer::InputSkillStarted()
 void ATBPlayer::InputSkillStopped()
 {
 	StopSkill();
+}
+
+void ATBPlayer::InputReloadStarted()
+{
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
+
+	if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+	{
+		ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Combat_Reload);
+	}
 }
 
 void ATBPlayer::InitializeWeaponMeshes()

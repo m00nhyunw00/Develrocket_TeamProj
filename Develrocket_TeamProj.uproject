@@ -10,43 +10,44 @@
 			"LoadingPhase": "Default",
 			"AdditionalDependencies": [
 				"UMG",
-				"Engine"
+				"Engine",
+				"GameplayAbilities"
 			]
-    }
-  ],
-  "Plugins": [
-    {
-      "Name": "Fab",
-      "Enabled": false
-    },
-    {
-      "Name": "PCG",
-      "Enabled": true
-    },
-    {
-      "Name": "ModelingToolsEditorMode",
-      "Enabled": true,
-      "TargetAllowList": [
-        "Editor"
-      ]
-    },
-    {
-      "Name": "ModelContextProtocol",
-      "Enabled": true,
-      "TargetAllowList": [
-        "Editor"
-      ]
-    },
-    {
-      "Name": "EditorToolset",
-      "Enabled": true,
-      "TargetAllowList": [
-        "Editor"
-      ]
-    },
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "Fab",
+			"Enabled": false
+		},
+		{
+			"Name": "PCG",
+			"Enabled": true
+		},
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "ModelContextProtocol",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "EditorToolset",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
 		{
 			"Name": "GameplayAbilities",
 			"Enabled": true
 		}
-  ]
+	]
 }
