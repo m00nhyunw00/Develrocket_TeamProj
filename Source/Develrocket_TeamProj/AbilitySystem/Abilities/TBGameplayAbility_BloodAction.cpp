@@ -46,30 +46,90 @@ UTBGameplayAbility_Reload::UTBGameplayAbility_Reload()
 	bCommitOnActivate = false;
 }
 
+// bool UTBGameplayAbility_Reload::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayTagContainer* OptionalRelevantTags) const
+// {
+// 	// 비용 GameplayEffect의 보유 혈액 소모 가능 여부 검사
+// 	if (!Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags))
+// 	{
+// 		return false;
+// 	}
+//
+// 	const UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
+//
+// 	if (!ASC)
+// 	{
+// 		return false;
+// 	}
+//
+// 	const UTBBloodAttributeSet* Attributes = ASC->GetSet<UTBBloodAttributeSet>();
+//
+// 	if (!Attributes)
+// 	{
+// 		return false;
+// 	}
+//
+// 	// 충전 혈액이 없는 경우에만 고정량 재장전 허용
+// 	return Attributes->GetLoadedBlood() <= KINDA_SMALL_NUMBER;
+// }
+
 bool UTBGameplayAbility_Reload::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayTagContainer* OptionalRelevantTags) const
 {
-	// 비용 GameplayEffect의 보유 혈액 소모 가능 여부 검사
-	if (!Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags))
-	{
-		return false;
-	}
-
 	const UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
+	const UTBBloodAttributeSet* Attributes = ASC ? ASC->GetSet<UTBBloodAttributeSet>() : nullptr;
 
-	if (!ASC)
+	if (!Attributes || !GetCostGameplayEffect())
 	{
 		return false;
 	}
 
-	const UTBBloodAttributeSet* Attributes = ASC->GetSet<UTBBloodAttributeSet>();
+	// 현재 탄창에서 추가로 채울 수 있는 양 계산
+	const float MissingAmmo = Attributes->GetMaxLoadedBlood() - Attributes->GetLoadedBlood();
 
-	if (!Attributes)
+	// 탄창에 빈 공간이 있고 보유 혈액이 있을 때 재장전 허용
+	return MissingAmmo > KINDA_SMALL_NUMBER && Attributes->GetBlood() > KINDA_SMALL_NUMBER;
+}
+
+void UTBGameplayAbility_Reload::ApplyCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const
+{
+	// 재장전 자원 변경은 서버에서만 확정
+	if (!ActorInfo || !ActorInfo->IsNetAuthority())
 	{
-		return false;
+		return;
 	}
 
-	// 충전 혈액이 없는 경우에만 고정량 재장전 허용
-	return Attributes->GetLoadedBlood() <= KINDA_SMALL_NUMBER;
+	UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
+	const UTBBloodAttributeSet* Attributes = ASC ? ASC->GetSet<UTBBloodAttributeSet>() : nullptr;
+	const UGameplayEffect* ReloadEffect = GetCostGameplayEffect();
+
+	if (!Attributes || !ReloadEffect)
+	{
+		return;
+	}
+
+	// 재장전 완료 시점의 탄창 부족량 계산
+	const float MissingAmmo = Attributes->GetMaxLoadedBlood() - Attributes->GetLoadedBlood();
+
+	// 보유 혈액을 초과하지 않는 범위에서 실제 충전량 결정
+	const float ReloadAmount = FMath::Min(MissingAmmo, Attributes->GetBlood());
+	if (ReloadAmount <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+
+	// 이번 재장전에 사용할 GE Spec 생성
+	FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(ReloadEffect->GetClass(), GetAbilityLevel(Handle, ActorInfo), MakeEffectContext(Handle, ActorInfo));
+
+	if (!Spec.IsValid())
+	{
+		return;
+	}
+
+	// 동일한 충전량을 보유 혈액에는 음수, 탄창에는 양수로 전달
+	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Reload_BloodCost, -ReloadAmount);
+	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Reload_LoadedGain, ReloadAmount);
+
+	// 두 자원 변경을 하나의 GE로 적용
+	ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 }
 
 void UTBGameplayAbility_BloodAction::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)

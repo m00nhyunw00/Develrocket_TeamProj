@@ -16,4 +16,10 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_PrimaryAttack);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_Reload);
+	
+	// 데이터 타입 ----------------------
+	
+	// 재장전 GE에 전달할 보유 혈액 차감량과 탄창 충전량
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Reload_BloodCost);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Reload_LoadedGain);
 }
