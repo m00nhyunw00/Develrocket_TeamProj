@@ -288,6 +288,9 @@ void ATBPlayer::InitializeFromPlayerState()
 
 void ATBPlayer::ConfigurePlayerMeshes()
 {
+	// 화면에 보이지 않는 서버 전신 메시도 애니메이션 갱신
+	GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	
 	// 전신 메시는 소유 플레이어에게 숨기고 다른 플레이어에게 표시
 	GetMesh()->SetOwnerNoSee(true);
 	GetMesh()->SetOnlyOwnerSee(false);
