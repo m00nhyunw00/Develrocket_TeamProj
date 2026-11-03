@@ -25,6 +25,10 @@ protected:
 	// 상승·하강 구분에 사용하는 수직 속도
 	UPROPERTY(BlueprintReadOnly, Category = "Locomotion")
 	float VerticalSpeed = 0.0f;
+	
+	// 위아래 조준 Blend Space에 전달할 캐릭터 기준 각도
+	UPROPERTY(BlueprintReadOnly, Category = "Aim")
+	float AimPitch = 0.0f;
 
 	// 점프·낙하 상태 전이에 사용하는 공중 이동 여부
 	UPROPERTY(BlueprintReadOnly, Category = "Locomotion")
