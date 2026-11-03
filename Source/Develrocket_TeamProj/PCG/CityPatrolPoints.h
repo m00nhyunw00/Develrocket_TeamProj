@@ -5,6 +5,7 @@
 #include "CityPatrolPoints.generated.h"
 
 UCLASS(BlueprintType, ClassGroup=(Procedural))
+// 보도 네 모서리 바깥에 정찰 후보 포인트를 생성하는 PCG 노드
 class DEVELROCKET_TEAMPROJ_API UCityPatrolPointsSettings : public UPCGSettings
 {
     GENERATED_BODY()

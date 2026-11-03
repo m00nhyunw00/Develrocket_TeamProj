@@ -38,6 +38,7 @@ protected:
                 if (!ReadPatrolSpan(Data, TEXT("CornerSpanX"), Index, SpanX) ||
                     !ReadPatrolSpan(Data, TEXT("CornerSpanY"), Index, SpanY) || SpanX <= 0.0 || SpanY <= 0.0) continue;
                 const FTransform& Frame = Data->GetTransform(Index);
+                // 보도의 로컬 네 모서리에서 도로 방향으로 후보 위치 계산
                 for (int32 XSign : {-1, 1})
                 {
                     for (int32 YSign : {-1, 1})

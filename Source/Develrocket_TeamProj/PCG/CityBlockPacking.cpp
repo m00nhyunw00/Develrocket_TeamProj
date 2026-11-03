@@ -107,6 +107,7 @@ protected:
         const UCityBlockPackingSettings* Settings = Context->GetInputSettings<UCityBlockPackingSettings>();
         TArray<FCatalogEntry> Catalog;
         int32 RejectedRows = 0;
+        // 건물 클래스와 경계가 유효한 카탈로그 행만 패킹 후보로 수집
         for (const FPCGTaggedData& Tagged : Context->InputData.GetInputsByPin(BuildingsPin))
         {
             const UPCGParamData* Data = Cast<UPCGParamData>(Tagged.Data);
@@ -189,6 +190,7 @@ protected:
                 FRandomStream Random(Seed);
                 TArray<CityPacking::FPlacement> Best;
                 double BestArea = -1;
+                // 블록별 시드로 여러 배치를 시도하고 점유 면적이 가장 큰 결과 선택
                 for (int32 Attempt = 0; Attempt < FMath::Clamp(Settings->LayoutAttempts, 1, 64); ++Attempt)
                 {
                     auto Trial = CityPacking::Pack(Types, W, H, Gap, FMath::Clamp(Settings->MaxBuildingsPerBlock, 1, 64),
@@ -211,6 +213,7 @@ protected:
                     Point.MetadataEntry = Placements->Metadata->AddEntry();
                     PlacementAttributes.Set(Point.MetadataEntry, Entry, BlockID, LotID, Seed, P.Quarter, Coverage);
 
+                    // 건물 피벗 포인트와 별도로 후속 보도 배치에 사용할 점유 영역 출력
                     FPCGPoint& Area = Footprints->GetMutablePoints().AddDefaulted_GetRef();
                     Area.Transform = FTransform(Frame.GetRotation(), Frame.TransformPosition(FVector(
                         Min.X + Inset + P.Rect.X + (P.Rect.W - Gap) * 0.5,

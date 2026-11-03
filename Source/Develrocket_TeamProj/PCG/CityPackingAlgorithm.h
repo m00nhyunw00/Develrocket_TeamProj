@@ -69,6 +69,7 @@ namespace CityPacking
                 }
             }
             if (Candidates.IsEmpty()) break;
+            // 상대적으로 적게 배치된 건물 유형에 우선권을 주도록 점수 보정
             for (FCandidate& C : Candidates)
             {
                 const double Weight = Weights ? FMath::Max((*Weights)[C.P.Type], 0.000001) : 1.0;

@@ -48,6 +48,7 @@ void ACityPackingActor::RebuildSameSeed()
     if (!PCGComponent || PCGComponent->IsGenerating()) return;
     if (Floor)
     {
+        // Floor의 월드 경계에 맞춰 PCG 대상 영역 갱신
         FVector Center, Extent;
         Floor->GetActorBounds(false,Center,Extent);
         if (UBoxComponent* Bounds = Cast<UBoxComponent>(GetDefaultSubobjectByName(TEXT("CityBounds"))))
@@ -104,6 +105,7 @@ void ACityPackingActor::OnRep_LayoutState()
 void ACityPackingActor::ApplyLayoutState()
 {
     if (!HasActorBegunPlay() || LayoutState.Revision == 0) return;
+    // 복제된 시드를 로컬 PCG 생성에 적용
     LayoutSeed = LayoutState.Seed;
     
     RebuildSameSeed();
@@ -147,6 +149,7 @@ protected:
         FRandomStream Random(Owner->LayoutSeed);
         TArray<CityPacking::FPlacement> Best;
         double BestArea=-1;
+        // 여러 배치 시도 중 건물 점유 면적이 가장 큰 결과 선택
         for (int32 Attempt=0; Attempt<24; ++Attempt)
         {
             auto Trial=CityPacking::Pack(Settings->Buildings,W,H,Gap,FMath::Clamp(Owner->MaxBuildings,1,256),Random);
@@ -167,6 +170,7 @@ protected:
             const double Y=FlipY?H-P.Rect.Y-BH:P.Rect.Y;
             const FQuat Yaw(FVector::UpVector,FMath::DegreesToRadians(P.Quarter*90.0));
             const FVector Center=(Type.BoundsMin+Type.BoundsMax)*0.5;
+            // 회전된 건물 경계 중심과 피벗 차이를 보정해 Floor 위에 정렬
             const FVector RotatedCenter=Yaw.RotateVector(FVector(Center.X,Center.Y,0));
             const FVector Pivot=FVector(Margin+X+BW*0.5,Margin+Y+BH*0.5,-Type.BoundsMin.Z)-RotatedCenter;
             FPCGPoint& Point=Points.AddDefaulted_GetRef();

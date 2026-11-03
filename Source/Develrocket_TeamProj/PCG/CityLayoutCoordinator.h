@@ -8,6 +8,7 @@ class UPCGComponent;
 class UCityNavMeshComponent;
 
 USTRUCT(BlueprintType)
+// 도시 배치 재현에 필요한 시드와 세대 번호
 struct FReplicatedCityLayout
 {
     GENERATED_BODY()
@@ -35,6 +36,7 @@ public:
     UPROPERTY(ReplicatedUsing=OnRep_Layout, VisibleInstanceOnly, BlueprintReadOnly, Category="City")
     FReplicatedCityLayout Layout;
 
+    // 각 인스턴스의 PCG 생성 완료 알림; NavMesh 준비 완료와는 별개
     UPROPERTY(BlueprintAssignable, Category="City") FCityLayoutReady OnLocalCityReady;
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="City") bool bLocalCityReady = false;
 
