@@ -84,10 +84,12 @@ void UTBMainMenuWidget::OnHostButtonClicked()
 
 void UTBMainMenuWidget::OnJoinButtonClicked()
 {
-	APlayerController* PC = GetOwningPlayer();
-	if (PC)
+	if (UGameInstance* GI = GetGameInstance())
 	{
-		PC->ClientTravel(JoinAddress, TRAVEL_Absolute);
+		if (UTBSessionSubsystem* Session = GI->GetSubsystem<UTBSessionSubsystem>())
+		{
+			Session->FindSessions(MaxSearchResults);
+		}
 	}
 }
 
