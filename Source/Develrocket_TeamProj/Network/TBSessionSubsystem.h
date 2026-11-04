@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Interfaces/OnlineSessionInterface.h"
+#include "OnlineSessionSettings.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "TBSessionSubsystem.generated.h"
 
@@ -14,6 +15,31 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 	
+	UFUNCTION(BlueprintCallable)
+	void HostSession(int32 NumPublicConnections);
+	UFUNCTION(BlueprintCallable)
+	void FindSessions(int32 MaxSearchResults);
+	
+private: 
+	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
+	void OnFindSessionsComplete(bool bWasSuccessful);
+	void JoinFoundSession(const FOnlineSessionSearchResult& SearchResult);
+	void OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
+	
 private:
 	IOnlineSessionPtr SessionInterface;
+	
+	FOnCreateSessionCompleteDelegate CreateSessionCompleteDelegate;
+	FDelegateHandle CreateSessionCompleteDelegateHandle;
+	
+	FOnFindSessionsCompleteDelegate FindSessionsCompleteDelegate;
+	FDelegateHandle FindSessionsCompleteDelegateHandle;
+	
+	FOnJoinSessionCompleteDelegate JoinSessionCompleteDelegate;
+	FDelegateHandle JoinSessionCompleteDelegateHandle;
+	
+	TSharedPtr<FOnlineSessionSearch> SessionSearch;
+	
+	FString LobbyMapPath = TEXT("/Game/Developers/Dev_Choi/MainMenu/Maps/L_Lobby"); //Dev_Choi바깥으로 옮기면 해당 위치를 수정해 주어야함
+	
 };
