@@ -105,3 +105,84 @@ void UTBSessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSu
 		World->ServerTravel(LobbyMapPath + TEXT("?listen"));
 	}
 }
+
+void UTBSessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
+{
+	if (SessionInterface.IsValid())
+	{
+		SessionInterface->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegateHandle);
+	}
+	
+	if (!SessionSearch.IsValid() || !bWasSuccessful || SessionSearch->SearchResults.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TBSession] No session found(Success: %s)"), 
+			bWasSuccessful ? TEXT("true") : TEXT("false"));
+		return;	
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("[TBSession] Found %d session(s)"), SessionSearch->SearchResults.Num());
+	
+	const FOnlineSessionSearchResult& FirstResult = SessionSearch->SearchResults[0];
+	
+	UE_LOG(LogTemp, Log, TEXT("[TBSession] Host: %s / Ping: %d"),
+		*FirstResult.Session.OwningUserName, FirstResult.PingInMs);
+	
+	JoinFoundSession(FirstResult);
+}
+
+void UTBSessionSubsystem::JoinFoundSession(const FOnlineSessionSearchResult& SearchResult)
+{
+	UE_LOG(LogTemp, Log, TEXT("[TBSession] JoinFoundSession Called"));
+	
+	if (!SessionInterface.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TBSession] JoinFoundSession Failed: SessionInterface invalid"));
+		return;
+	}
+	
+	JoinSessionCompleteDelegateHandle=SessionInterface->AddOnJoinSessionCompleteDelegate_Handle(JoinSessionCompleteDelegate);
+	
+	const bool bRequested = SessionInterface->JoinSession(0, NAME_GameSession, SearchResult);
+	
+	if (!bRequested)
+	{
+		SessionInterface->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionCompleteDelegateHandle);
+		UE_LOG(LogTemp, Warning, TEXT("[TBSession] JoinSession request failed"));
+	}
+}
+
+void UTBSessionSubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)
+{
+	if (SessionInterface.IsValid())
+	{
+		SessionInterface->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionCompleteDelegateHandle);
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("[TBSession] OnJoinSessionComplete: %s / Result: %s"),
+		*SessionName.GetPlainNameString(), LexToString(Result));
+	
+	if (Result != EOnJoinSessionCompleteResult::Success)
+	{
+		return;
+	}
+	
+	FString ConnectString;
+	if (!SessionInterface.IsValid() || !SessionInterface->GetResolvedConnectString(SessionName, ConnectString))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TBSession] Could not resolve connect string"));
+		return;
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("[TBSession] ConnectString: %s"), *ConnectString);
+	
+	UGameInstance* GI = GetGameInstance();
+	APlayerController* PC = GI ? GI->GetFirstLocalPlayerController() : nullptr;
+	
+	if (!PC)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TBSession] No local PlayerController"));
+		return;
+	}
+	
+	PC->ClientTravel(ConnectString, TRAVEL_Absolute);
+}	
