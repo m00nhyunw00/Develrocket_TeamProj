@@ -5,6 +5,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Network/TBSessionSubsystem.h"
 
 void UTBMainMenuWidget::NativeOnInitialized()
 {
@@ -72,7 +73,13 @@ void UTBMainMenuWidget::ShowMenuButtons()
 
 void UTBMainMenuWidget::OnHostButtonClicked()
 {
-	UGameplayStatics::OpenLevel(this, LobbyLevelName, true, TEXT("listen"));
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UTBSessionSubsystem* Session = GI->GetSubsystem<UTBSessionSubsystem>())
+		{
+			Session->HostSession(MaxPlayers);
+		}
+	}
 }
 
 void UTBMainMenuWidget::OnJoinButtonClicked()

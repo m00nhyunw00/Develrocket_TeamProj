@@ -38,6 +38,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Menu")
 	FString JoinAddress = TEXT("127.0.0.1");
 	
+	UPROPERTY(EditDefaultsOnly, Category="Session")
+	int32 MaxPlayers = 6;
+	
 private:
 	void ShowMenuButtons();
 	
