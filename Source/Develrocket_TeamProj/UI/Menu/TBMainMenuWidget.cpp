@@ -2,6 +2,7 @@
 #include "Components/Button.h"
 #include "Components/WidgetSwitcher.h"
 #include "Animation/WidgetAnimation.h"
+#include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -70,8 +71,22 @@ void UTBMainMenuWidget::ShowMenuButtons()
 	}
 }
 
+void UTBMainMenuWidget::RestoreGameInput()
+{
+	APlayerController* PC = GetOwningPlayer();
+	if (!PC)
+	{
+		return;
+	}
+	
+	PC->SetInputMode(FInputModeGameOnly());
+	
+	PC->SetShowMouseCursor(false);
+}
+
 void UTBMainMenuWidget::OnHostButtonClicked()
 {
+	RestoreGameInput();
 	UGameplayStatics::OpenLevel(this, LobbyLevelName, true, TEXT("listen"));
 }
 
@@ -80,6 +95,7 @@ void UTBMainMenuWidget::OnJoinButtonClicked()
 	APlayerController* PC = GetOwningPlayer();
 	if (PC)
 	{
+		RestoreGameInput();
 		PC->ClientTravel(JoinAddress, TRAVEL_Absolute);
 	}
 }

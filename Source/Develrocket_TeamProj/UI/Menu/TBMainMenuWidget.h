@@ -40,6 +40,7 @@ protected:
 	
 private:
 	void ShowMenuButtons();
+	void RestoreGameInput();
 	
 	UFUNCTION()
 	void OnHostButtonClicked();
