@@ -1,5 +1,6 @@
 #include "AI/TBPatrolPoint.h"
 #include "Components/BillboardComponent.h"
+#include "AI/TBPatrolPointSubsystem.h"
 
 ATBPatrolPoint::ATBPatrolPoint()
 {
@@ -23,9 +24,19 @@ ATBPatrolPoint::ATBPatrolPoint()
 void ATBPatrolPoint::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	if (UTBPatrolPointSubsystem* Subsystem = GetWorld()->GetSubsystem<UTBPatrolPointSubsystem>())
+	{
+		Subsystem->RegisterPatrolPoint(this);
+	}
 }
 
 void ATBPatrolPoint::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (UTBPatrolPointSubsystem* Subsystem = GetWorld()->GetSubsystem<UTBPatrolPointSubsystem>())
+	{
+		Subsystem->UnregisterPatrolPoint(this);
+	}
+		
 	Super::EndPlay(EndPlayReason);
 }
