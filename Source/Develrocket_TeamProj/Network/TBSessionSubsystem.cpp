@@ -7,6 +7,8 @@ void UTBSessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	
+	FindSessionsCompleteDelegate.BindUObject(this, &UTBSessionSubsystem::OnFindSessionsComplete);
+	JoinSessionCompleteDelegate.BindUObject(this, &UTBSessionSubsystem::OnJoinSessionComplete);
 	CreateSessionCompleteDelegate.BindUObject(this, &UTBSessionSubsystem::OnCreateSessionComplete);
 	
 	IOnlineSubsystem* OnlineSubsystem = Online::GetSubsystem(GetWorld());
@@ -55,6 +57,31 @@ void UTBSessionSubsystem::HostSession(int32 NumPublicConnections)
 	{
 		SessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegateHandle);
 		UE_LOG(LogTemp, Warning, TEXT("[TBSession] CreateSession request failed"));
+	}
+}
+
+void UTBSessionSubsystem::FindSessions(int32 MaxSearchResults)
+{
+	UE_LOG(LogTemp, Log, TEXT("[TBSession] FindSessions called (Num=%d)"), MaxSearchResults);
+	
+	if (!SessionInterface.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TBSession] FindSession Failed: SessionInterface invalid"));
+		return;
+	}
+	
+	SessionSearch = MakeShared<FOnlineSessionSearch>();
+	SessionSearch->MaxSearchResults = MaxSearchResults;
+	SessionSearch->bIsLanQuery = true;
+	
+	FindSessionsCompleteDelegateHandle = SessionInterface->AddOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegate);
+	
+	const bool bRequested = SessionInterface->FindSessions(0, SessionSearch.ToSharedRef());
+	
+	if (!bRequested)
+	{
+		SessionInterface->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegateHandle);
+		UE_LOG(LogTemp, Warning, TEXT("[TBSession] FindSessions request failed"));
 	}
 }
 
