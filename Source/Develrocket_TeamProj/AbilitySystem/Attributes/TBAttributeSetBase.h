@@ -76,5 +76,5 @@ protected:
 
 private:
 	// Attribute별 허용 범위 제한
-	void ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const;
+	virtual void ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const;
 };

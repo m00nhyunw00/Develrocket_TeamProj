@@ -44,7 +44,7 @@ public:
 	FTBMonsterStaggerFull OnStaggerFull;
 
 	// 서버에서 그로기 수치 누적 및 최대치 도달 알림
-	void AddStagger(float Damage);
+	UFUNCTION(BlueprintCallable) void AddStagger(float Damage);
 	// 기존 C++ 호출을 공통 Blood 속성으로 연결
 	float GetHealth() const { return GetBlood(); }
 	float GetMaxHealth() const { return GetMaxBlood(); }
@@ -52,7 +52,7 @@ public:
 	static FGameplayAttribute GetMaxHealthAttribute() { return GetMaxBloodAttribute(); }
 
 private:
-	virtual void ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const;
+	void ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const;
 	bool HasDied() const;
 };
 
