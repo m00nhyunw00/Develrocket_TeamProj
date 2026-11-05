@@ -149,7 +149,7 @@ bool ATBMonster::ApplyGASDamage(float Damage,AActor* DamageSource)
 	{
 		return false;
 	}
-	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, Damage);
+	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);
 	const bool bApplied = MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
 	if (bApplied && !bIsDead && !MonsterASC->HasMatchingGameplayTag(TBGameplayTags::State_Stunned))
 	{
@@ -165,8 +165,30 @@ void ATBMonster::HandleStaggerFull()
 		return;
 	}
 
+	if (AAIController* AIController = Cast<AAIController>(GetController()))
+	{
+		AIController->StopMovement();
+		if (UBrainComponent* Brain = AIController->GetBrainComponent(); Brain && Brain->IsRunning() && !Brain->IsPaused())
+		{
+			Brain->PauseLogic(TEXT("Monster staggered"));
+			bPausedBrainForStagger = true;
+		}
+	}
+	GetCharacterMovement()->StopMovementImmediately();
+
 	if (!StaggerAbilityClass || !MonsterASC->TryActivateAbilityByClass(StaggerAbilityClass))
 	{
+		if (bPausedBrainForStagger)
+		{
+			if (AAIController* AIController = Cast<AAIController>(GetController()))
+			{
+				if (UBrainComponent* Brain = AIController->GetBrainComponent())
+				{
+					Brain->ResumeLogic(TEXT("Stagger ability failed"));
+				}
+			}
+			bPausedBrainForStagger = false;
+		}
 		// 활성화 실패 시 다음 피해에서 다시 시도할 수 있도록 수치 복구
 		MonsterAttributes->SetStagger(0.0f);
 		UE_LOG(LogTemp, Warning, TEXT("%s: 그로기 어빌리티를 활성화하지 못했습니다."), *GetName());
@@ -179,6 +201,17 @@ void ATBMonster::HandleAbilityEnded(const FAbilityEndedData& EndedData)
 		&& EndedData.AbilityThatEnded && EndedData.AbilityThatEnded->GetClass() == StaggerAbilityClass)
 	{
 		MonsterAttributes->SetStagger(0.0f);
+		if (bPausedBrainForStagger)
+		{
+			if (AAIController* AIController = Cast<AAIController>(GetController()))
+			{
+				if (UBrainComponent* Brain = AIController->GetBrainComponent())
+				{
+					Brain->ResumeLogic(TEXT("Stagger ended"));
+				}
+			}
+			bPausedBrainForStagger = false;
+		}
 	}
 }
 

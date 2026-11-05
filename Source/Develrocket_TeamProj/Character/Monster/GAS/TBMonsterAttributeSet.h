@@ -52,7 +52,7 @@ public:
 	static FGameplayAttribute GetMaxHealthAttribute() { return GetMaxBloodAttribute(); }
 
 private:
-	void ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const;
+	virtual void ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const;
 	bool HasDied() const;
 };
 

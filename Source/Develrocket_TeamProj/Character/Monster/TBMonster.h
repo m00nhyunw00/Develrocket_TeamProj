@@ -96,6 +96,7 @@ private:
 
 	bool bGameplayDataInitialized = false;
 	bool bDeathHandled = false;
+	bool bPausedBrainForStagger = false;
 	FDelegateHandle OutOfHealthHandle;
 	FDelegateHandle StaggerFullHandle;
 	FDelegateHandle AbilityEndedHandle;
