@@ -51,6 +51,54 @@ namespace
 	}
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTBMonsterDeathTagTest, "Project.GAS.Monster.DeathEffectTag", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FTBMonsterDeathTagTest::RunTest(const FString& Parameters)
+{
+	FScopedMonsterTestWorld TestWorld;
+	if (!TestNotNull(TEXT("Isolated game world"), TestWorld.World)) return false;
+
+	UClass* DeathEffect = LoadClass<UGameplayEffect>(nullptr, TEXT("/Game/_Game/Blueprints/AbilitySystem/GE_Dead.GE_Dead_C"));
+	FClassProperty* DeathEffectProperty = FindFProperty<FClassProperty>(ATBMonster::StaticClass(), TEXT("DeathEffectClass"));
+	if (!TestNotNull(TEXT("Death GE class"), DeathEffect) || !TestNotNull(TEXT("Death GE setting"), DeathEffectProperty)) return false;
+
+	ATBMonster* Monster = TestWorld.World->SpawnActorDeferred<ATBMonster>(ATBMonster::StaticClass(), FTransform::Identity, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (!TestNotNull(TEXT("Monster"), Monster)) return false;
+	DeathEffectProperty->SetObjectPropertyValue_InContainer(Monster, DeathEffect);
+	Monster->FinishSpawning(FTransform::Identity);
+	if (!Monster->HasActorBegunPlay()) Monster->DispatchBeginPlay();
+	UTBAbilitySystemComponent* ASC = Monster->GetTBAbilitySystemComponent();
+	if (!TestNotNull(TEXT("Monster ASC"), ASC)) return false;
+
+	ApplyAttributeOverride(ASC, UTBMonsterAttributeSet::GetBloodAttribute(), 0.0f);
+	TestTrue(TEXT("Death GE grants State.Dead"), ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead));
+	TestTrue(TEXT("IsDead reads State.Dead"), Monster->IsDead());
+	TestTrue(TEXT("Death disables movement"), Monster->GetCharacterMovement()->MovementMode == MOVE_None);
+	TestEqual(TEXT("Death disables collision"), Monster->GetCapsuleComponent()->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	bool bFoundDeathEffect = false;
+	for (const FActiveGameplayEffectHandle& Handle : ASC->GetActiveEffects(FGameplayEffectQuery()))
+	{
+		const FActiveGameplayEffect* ActiveEffect = ASC->GetActiveGameplayEffect(Handle);
+		bFoundDeathEffect |= ActiveEffect && ActiveEffect->Spec.Def && ActiveEffect->Spec.Def->GetClass() == DeathEffect;
+	}
+	TestTrue(TEXT("GE_Dead remains active"), bFoundDeathEffect);
+
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ATBMonster* UnconfiguredMonster = TestWorld.World->SpawnActor<ATBMonster>(ATBMonster::StaticClass(), FTransform::Identity, SpawnParameters);
+	if (!TestNotNull(TEXT("Monster without death GE"), UnconfiguredMonster)) return false;
+	if (!UnconfiguredMonster->HasActorBegunPlay()) UnconfiguredMonster->DispatchBeginPlay();
+	AddExpectedError(TEXT("DeathEffectClass"), EAutomationExpectedErrorFlags::Contains, 1);
+	ApplyAttributeOverride(UnconfiguredMonster->GetTBAbilitySystemComponent(), UTBMonsterAttributeSet::GetBloodAttribute(), 0.0f);
+	TestFalse(TEXT("Missing death GE does not add a fallback tag"), UnconfiguredMonster->IsDead());
+	TestEqual(TEXT("Missing death GE leaves collision enabled"), UnconfiguredMonster->GetCapsuleComponent()->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
+	DeathEffectProperty->SetObjectPropertyValue_InContainer(UnconfiguredMonster, UGameplayEffect::StaticClass());
+	AddExpectedError(TEXT("사망 GE 적용에 실패했거나 State.Dead"), EAutomationExpectedErrorFlags::Contains, 1);
+	ApplyAttributeOverride(UnconfiguredMonster->GetTBAbilitySystemComponent(), UTBMonsterAttributeSet::GetBloodAttribute(), 0.0f);
+	TestFalse(TEXT("Death GE without State.Dead does not add a fallback tag"), UnconfiguredMonster->IsDead());
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTBMonsterGASLifecycleTest, "Project.GAS.Monster.InitializationDamageAndDeath", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FTBMonsterGASLifecycleTest::RunTest(const FString& Parameters)
@@ -93,9 +141,9 @@ bool FTBMonsterGASLifecycleTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Repossession does not reset health"), Monster->GetHealth(), 60.0f);
 	TestEqual(TEXT("Repossession does not duplicate abilities"), ASC->GetActivatableAbilities().Num(), 2);
 
-	ApplyAttributeOverride(ASC, UTBMonsterAttributeSet::GetHealthAttribute(), 500.0f);
+	ApplyAttributeOverride(ASC, UTBMonsterAttributeSet::GetBloodAttribute(), 500.0f);
 	TestEqual(TEXT("Healing is capped by maximum health"), Monster->GetHealth(), 100.0f);
-	ApplyAttributeOverride(ASC, UTBMonsterAttributeSet::GetMaxHealthAttribute(), 25.0f);
+	ApplyAttributeOverride(ASC, UTBMonsterAttributeSet::GetMaxBloodAttribute(), 25.0f);
 	TestEqual(TEXT("Maximum health changes clamp current health"), Monster->GetHealth(), 25.0f);
 	TestTrue(TEXT("Lethal damage GE applied"), Monster->ApplyGASDamage(1000.0f, nullptr));
 	TestTrue(TEXT("Monster enters terminal death state"), Monster->IsDead());
@@ -105,7 +153,7 @@ bool FTBMonsterGASLifecycleTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Death disables movement"), Monster->GetCharacterMovement()->MovementMode == MOVE_None);
 	TestEqual(TEXT("Death disables capsule collision"), Monster->GetCapsuleComponent()->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
 	TestFalse(TEXT("Damage after death rejected"), Monster->ApplyGASDamage(10.0f, nullptr));
-	ApplyAttributeOverride(ASC, UTBMonsterAttributeSet::GetHealthAttribute(), 100.0f);
+	ApplyAttributeOverride(ASC, UTBMonsterAttributeSet::GetBloodAttribute(), 100.0f);
 	TestEqual(TEXT("Ordinary healing does not resurrect a dead monster"), Monster->GetHealth(), 0.0f);
 	return true;
 }

@@ -61,19 +61,7 @@ void UTBMonsterAttributeSet::AddStagger(float Damage)
 
 void UTBMonsterAttributeSet::ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const
 {
-	if (!FMath::IsFinite(NewValue))
-	{
-		NewValue = Attribute == GetMaxHealthAttribute() ? 1.0f : 0.0f;
-	}
-
-	if (Attribute == GetMaxHealthAttribute())
-	{
-		NewValue = FMath::Max(1.0f, NewValue);
-	}
-	else if (Attribute == GetHealthAttribute())
-	{
-		NewValue = HasDied() ? 0.0f : FMath::Clamp(NewValue, 0.0f, FMath::Max(1.0f, GetMaxHealth()));
-	}
+	Super::ClampAttribute(Attribute, NewValue);
 }
 
 void UTBMonsterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
@@ -90,15 +78,15 @@ void UTBMonsterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 			SetBlood(FMath::Clamp(GetBlood() - Damage, 0.0f, GetMaxBlood()));
 		}
 	}
-	else if (Attribute == GetHealthAttribute() || Attribute == GetMaxHealthAttribute())
+	else if (Attribute == GetBloodAttribute() || Attribute == GetMaxBloodAttribute())
 	{
 		SetMaxBlood(FMath::Max(1.0f, GetMaxBlood()));
 		SetBlood(HasDied() ? 0.0f : FMath::Clamp(GetBlood(), 0.0f, GetMaxBlood()));
 	}
 
-	if (GetHealth() <= 0.0f && GetOwningActor() && GetOwningActor()->HasAuthority() && !HasDied())
+	if (GetBlood() <= 0.0f && GetOwningActor() && GetOwningActor()->HasAuthority() && !HasDied())
 	{
-		OnOutOfHealth.Broadcast();
+		OnOutOfBlood.Broadcast();
 	}
 }
 

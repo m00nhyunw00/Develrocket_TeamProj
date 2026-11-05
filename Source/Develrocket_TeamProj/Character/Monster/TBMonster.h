@@ -10,6 +10,7 @@ class UTBAbilitySystemComponent;
 class UTBMonsterAttributeSet;
 class ATBMonster;
 struct FAbilityEndedData;
+struct FGameplayTag;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTBMonsterDied, ATBMonster*, Monster);
 
@@ -31,7 +32,7 @@ public:
 	float GetMaxHealth() const;
 
 	UFUNCTION(BlueprintPure, Category = "Monster|State")
-	bool IsDead() const { return bIsDead; }
+	bool IsDead() const;
 
 	// 서버에서 피해 GE를 적용하는 공통 진입점; 클라이언트 RPC가 아닌 권한 검사 함수
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Monster|Damage")
@@ -78,26 +79,20 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Monster|State", meta = (DisplayName = "On Death"))
 	void ReceiveDeath();
 
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-
 private:
 	void InitializeMonsterAbilitySystem();
 	void InitializeGameplayData();
 	void HandleStaggerFull();
 	void HandleAbilityEnded(const FAbilityEndedData& EndedData);
+	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
 	void Die();
 	void HandleDeath();
-
-	UFUNCTION()
-	void OnRep_IsDead();
-
-	UPROPERTY(ReplicatedUsing = OnRep_IsDead)
-	bool bIsDead = false;
 
 	bool bGameplayDataInitialized = false;
 	bool bDeathHandled = false;
 	bool bPausedBrainForStagger = false;
-	FDelegateHandle OutOfHealthHandle;
+	FDelegateHandle OutOfBloodHandle;
 	FDelegateHandle StaggerFullHandle;
 	FDelegateHandle AbilityEndedHandle;
+	FDelegateHandle DeadTagChangedHandle;
 };

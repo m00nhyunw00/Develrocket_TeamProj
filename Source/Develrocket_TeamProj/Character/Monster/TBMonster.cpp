@@ -9,7 +9,6 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Abilities/GameplayAbility.h"
-#include "Net/UnrealNetwork.h"
 #include "TBGameplayTags.h"
 
 ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
@@ -57,9 +56,17 @@ void ATBMonster::PossessedBy(AController* NewController)
 void ATBMonster::InitializeMonsterAbilitySystem()
 {
 	InitializeAbilitySystem(MonsterASC.Get(), this);
-	if (!OutOfHealthHandle.IsValid())
+	if (!DeadTagChangedHandle.IsValid())
 	{
-		OutOfHealthHandle = MonsterAttributes->OnOutOfHealth.AddUObject(this, &ThisClass::Die);
+		DeadTagChangedHandle = MonsterASC->RegisterGameplayTagEvent(TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleDeadTagChanged);
+		if (IsDead())
+		{
+			HandleDeadTagChanged(TBGameplayTags::State_Dead, 1);
+		}
+	}
+	if (!OutOfBloodHandle.IsValid())
+	{
+		OutOfBloodHandle = MonsterAttributes->OnOutOfBlood.AddUObject(this, &ThisClass::Die);
 	}
 	if (!StaggerFullHandle.IsValid())
 	{
@@ -93,7 +100,7 @@ void ATBMonster::InitializeGameplayData()
 		MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 	}
 
-	if (bIsDead)
+	if (IsDead())
 	{
 		return;
 	}
@@ -117,17 +124,22 @@ void ATBMonster::InitializeGameplayData()
 
 float ATBMonster::GetHealth() const
 {
-	return MonsterAttributes ? MonsterAttributes->GetHealth() : 0.0f;
+	return MonsterAttributes ? MonsterAttributes->GetBlood() : 0.0f;
 }
 
 float ATBMonster::GetMaxHealth() const
 {
-	return MonsterAttributes ? MonsterAttributes->GetMaxHealth() : 0.0f;
+	return MonsterAttributes ? MonsterAttributes->GetMaxBlood() : 0.0f;
+}
+
+bool ATBMonster::IsDead() const
+{
+	return MonsterASC && MonsterASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
 }
 
 bool ATBMonster::ApplyGASDamage(float Damage,AActor* DamageSource)
 {
-	if (!HasAuthority() || !bGameplayDataInitialized || bIsDead || !FMath::IsFinite(Damage) || Damage <= 0.0f || !DamageEffectClass)
+	if (!HasAuthority() || !bGameplayDataInitialized || IsDead() || !FMath::IsFinite(Damage) || Damage <= 0.0f || !DamageEffectClass)
 	{
 		return false;
 	}
@@ -151,7 +163,7 @@ bool ATBMonster::ApplyGASDamage(float Damage,AActor* DamageSource)
 	}
 	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);
 	const bool bApplied = MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
-	if (bApplied && !bIsDead && !MonsterASC->HasMatchingGameplayTag(TBGameplayTags::State_Stunned))
+	if (bApplied && !IsDead() && !MonsterASC->HasMatchingGameplayTag(TBGameplayTags::State_Stunned))
 	{
 		MonsterAttributes->AddStagger(Damage);
 	}
@@ -160,7 +172,7 @@ bool ATBMonster::ApplyGASDamage(float Damage,AActor* DamageSource)
 
 void ATBMonster::HandleStaggerFull()
 {
-	if (!HasAuthority() || bIsDead || !MonsterASC || !MonsterAttributes)
+	if (!HasAuthority() || IsDead() || !MonsterASC || !MonsterAttributes)
 	{
 		return;
 	}
@@ -197,7 +209,7 @@ void ATBMonster::HandleStaggerFull()
 
 void ATBMonster::HandleAbilityEnded(const FAbilityEndedData& EndedData)
 {
-	if (HasAuthority() && !bIsDead && MonsterAttributes && StaggerAbilityClass
+	if (HasAuthority() && !IsDead() && MonsterAttributes && StaggerAbilityClass
 		&& EndedData.AbilityThatEnded && EndedData.AbilityThatEnded->GetClass() == StaggerAbilityClass)
 	{
 		MonsterAttributes->SetStagger(0.0f);
@@ -217,24 +229,45 @@ void ATBMonster::HandleAbilityEnded(const FAbilityEndedData& EndedData)
 
 void ATBMonster::Die()
 {
-	if (!HasAuthority() || bIsDead)
+	if (!HasAuthority() || IsDead() || !MonsterASC)
 	{
 		return;
 	}
 
-	bIsDead = true;
-	if (DeathEffectClass)
+	if (!DeathEffectClass)
 	{
-		const FGameplayEffectSpecHandle Spec = MonsterASC->MakeOutgoingSpec(DeathEffectClass, 1.0f, MonsterASC->MakeEffectContext());
-		if (Spec.IsValid())
-		{
-			MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
-		}
+		UE_LOG(LogTemp, Error, TEXT("%s: DeathEffectClass가 설정되지 않아 사망 처리에 실패했습니다."), *GetName());
+		return;
 	}
-	// 사망 GE가 비어 있거나 태그를 부여하지 않아도 서버의 사망 판정 유지
-	if (!MonsterASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
+	const FGameplayEffectSpecHandle Spec = MonsterASC->MakeOutgoingSpec(DeathEffectClass, 1.0f, MonsterASC->MakeEffectContext());
+	if (!Spec.IsValid())
 	{
-		MonsterASC->AddLooseGameplayTag(TBGameplayTags::State_Dead);
+		UE_LOG(LogTemp, Error, TEXT("%s: 사망 GE Spec을 생성하지 못했습니다."), *GetName());
+		return;
+	}
+	const FActiveGameplayEffectHandle AppliedHandle = MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+	if (!AppliedHandle.WasSuccessfullyApplied() || !IsDead())
+	{
+		if (AppliedHandle.IsValid())
+		{
+			MonsterASC->RemoveActiveGameplayEffect(AppliedHandle);
+		}
+		UE_LOG(LogTemp, Error, TEXT("%s: 사망 GE 적용에 실패했거나 State.Dead를 부여하지 않았습니다."), *GetName());
+		return;
+	}
+	ForceNetUpdate();
+}
+
+void ATBMonster::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	if (NewCount <= 0 || bDeathHandled)
+	{
+		return;
+	}
+	if (!HasAuthority())
+	{
+		HandleDeath();
+		return;
 	}
 	MonsterASC->BlockAbilitiesWithTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat));
 	MonsterASC->CancelAllAbilities();
@@ -250,15 +283,6 @@ void ATBMonster::Die()
 	if (DeathAbilityClass && !MonsterASC->TryActivateAbilityByClass(DeathAbilityClass))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s: 사망 어빌리티를 활성화하지 못했습니다."), *GetName());
-	}
-	ForceNetUpdate();
-}
-
-void ATBMonster::OnRep_IsDead()
-{
-	if (bIsDead)
-	{
-		HandleDeath();
 	}
 }
 
@@ -277,18 +301,12 @@ void ATBMonster::HandleDeath()
 	OnMonsterDied.Broadcast(this);
 }
 
-void ATBMonster::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(ATBMonster, bIsDead);
-}
-
 void ATBMonster::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (MonsterAttributes && OutOfHealthHandle.IsValid())
+	if (MonsterAttributes && OutOfBloodHandle.IsValid())
 	{
-		MonsterAttributes->OnOutOfHealth.Remove(OutOfHealthHandle);
-		OutOfHealthHandle.Reset();
+		MonsterAttributes->OnOutOfBlood.Remove(OutOfBloodHandle);
+		OutOfBloodHandle.Reset();
 	}
 	if (MonsterAttributes && StaggerFullHandle.IsValid())
 	{
@@ -297,6 +315,11 @@ void ATBMonster::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 	if (MonsterASC)
 	{
+		if (DeadTagChangedHandle.IsValid())
+		{
+			MonsterASC->UnregisterGameplayTagEvent(DeadTagChangedHandle, TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved);
+			DeadTagChangedHandle.Reset();
+		}
 		if (AbilityEndedHandle.IsValid())
 		{
 			MonsterASC->OnAbilityEnded.Remove(AbilityEndedHandle);
