@@ -66,6 +66,7 @@ void UTBSessionSubsystem::FindSessions(int32 MaxSearchResults)
 	
 	if (!SessionInterface.IsValid())
 	{
+		OnSessionsFound.Broadcast(TArray<FTBSessionInfo>(), false);
 		UE_LOG(LogTemp, Warning, TEXT("[TBSession] FindSession Failed: SessionInterface invalid"));
 		return;
 	}
@@ -81,6 +82,7 @@ void UTBSessionSubsystem::FindSessions(int32 MaxSearchResults)
 	if (!bRequested)
 	{
 		SessionInterface->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegateHandle);
+		OnSessionsFound.Broadcast(TArray<FTBSessionInfo>(), false);
 		UE_LOG(LogTemp, Warning, TEXT("[TBSession] FindSessions request failed"));
 	}
 }

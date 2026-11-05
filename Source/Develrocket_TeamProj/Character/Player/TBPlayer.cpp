@@ -12,8 +12,8 @@
 #include "Math/RotationMatrix.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
-
 #include "Framework/TBPlayerState.h"
+#include "UI/TBPlayerHUD.h"
 
 class ATBPlayerState;
 
@@ -123,6 +123,8 @@ void ATBPlayer::OnRep_Controller()
 		// Controller 복제 이후 ASC에 저장된 관련 참조 갱신
 		CachedASC->RefreshAbilityActorInfo();
 	}
+	
+	TryBindLocalHUD();
 }
 
 void ATBPlayer::PawnClientRestart()
@@ -282,6 +284,9 @@ void ATBPlayer::InitializeFromPlayerState()
 
 	// 서버에서 최초 한 번 자원 및 Ability 설정
 	TBPlayerState->InitializeGameplayData();
+	
+	// 
+	TryBindLocalHUD();
 }
 
 // 메시 및 카메라 설정 ----------------------
@@ -470,5 +475,21 @@ void ATBPlayer::InitializeWeaponMeshes()
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("전신 Mesh에 소켓이 없습니다: %s"), *WeaponSocketName.ToString());
+	}
+}
+
+void ATBPlayer::TryBindLocalHUD()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
+
+	if (!PC || !PC->IsLocalController() || !PS)
+	{
+		return;
+	}
+
+	if (ATBPlayerHUD* HUD = Cast<ATBPlayerHUD>(PC->GetHUD()))
+	{
+		HUD->BindAbilitySystem(PS->GetAbilitySystemComponent());
 	}
 }

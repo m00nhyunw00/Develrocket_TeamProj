@@ -1,29 +1,24 @@
 ﻿#include "UI/TBAmmoWidget.h"
 #include "Components/TextBlock.h"
 
-void UTBAmmoWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize)
+void UTBAmmoWidget::SetAmmo(int32 CurrentAmmo, int32 AmmoAtLastReload, int32 MagazineSize, bool bCanReload)
 {
-	if (!AmmoText || !ReloadText)
+	if (AmmoText)
 	{
-		return;
+		const FString AmmoString = FString::Printf(TEXT("%d / %d"), CurrentAmmo, AmmoAtLastReload);
+
+		AmmoText->SetText(FText::FromString(AmmoString));
+
+		// 탄약 부족 색상은 탄창 최대 용량 기준
+		const bool bLowAmmo = MagazineSize > 0 && static_cast<float>(CurrentAmmo) / MagazineSize <= LowAmmoRatio;
+
+		AmmoText->SetColorAndOpacity(bLowAmmo ? AmmoLowColor : AmmoNormalColor);
 	}
-	
-	const FString AmmoString = FString::Printf(TEXT("%d / %d"), CurrentAmmo, ReserveAmmo);
-	AmmoText->SetText(FText::FromString(AmmoString));
-	
-	// 부족 판단 (탄창 크기가 0 이하면 나눌 수 없으니 부족 아님)
-	const bool bLow = MagazineSize > 0 && (float)CurrentAmmo / MagazineSize <= LowAmmoRatio;
-	AmmoText->SetColorAndOpacity(bLow ? AmmoLowColor : AmmoNormalColor);
-	
-	// 0발일 때만 문구 표시
-	if (CurrentAmmo == 0)
+
+	if (ReloadText)
 	{
-		ReloadText->SetText(FText::FromString(ReserveAmmo > 0 ? TEXT("RELOAD") : TEXT("NO AMMO")));
-		ReloadText->SetVisibility(ESlateVisibility::HitTestInvisible);
+		ReloadText->SetText(FText::FromString(bCanReload ? TEXT("RELOAD") : TEXT("NO AMMO")));
+
+		ReloadText->SetVisibility(CurrentAmmo <= 0 ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	}
-	else
-	{
-		ReloadText->SetVisibility(ESlateVisibility::Collapsed);
-	}
-	
 }

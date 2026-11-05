@@ -49,12 +49,19 @@ private:
 
 
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_PrimaryAttack : public UTBGameplayAbility_BloodAction
+class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_PrimaryAttack
+	: public UTBGameplayAbility_BloodAction
 {
 	GENERATED_BODY()
 
 public:
 	UTBGameplayAbility_PrimaryAttack();
+
+	virtual void ActivateAbility(
+		const FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		const FGameplayAbilityActivationInfo ActivationInfo,
+		const FGameplayEventData* TriggerEventData) override;
 };
 
 

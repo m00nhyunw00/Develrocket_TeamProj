@@ -37,7 +37,7 @@ protected:
 	TObjectPtr<UTBAbilitySystemComponent> AbilitySystemComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
-	TObjectPtr<UTBAttributeSetBase> BloodAttributeSet;
+	TObjectPtr<UTBAttributeSetBase> PlayerAttributeSet;
 
 	// 초기 데이터 ----------------------
 

@@ -13,6 +13,7 @@ class DEVELROCKET_TEAMPROJ_API UTBCrosshairWidget : public UUserWidget
 public:
 	void SetCrosshairSpread(float Spread);
 	void SetAiming(bool bIsAiming);
+	void NotifyShotFired();
 	
 protected:
 	virtual void NativeConstruct() override;
