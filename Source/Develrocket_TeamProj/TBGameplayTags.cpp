@@ -13,4 +13,5 @@ namespace TBGameplayTags
 	
 	UE_DEFINE_GAMEPLAY_TAG(Data_Reload_BloodCost, "Data.Reload.BloodCost");
 	UE_DEFINE_GAMEPLAY_TAG(Data_Reload_LoadedGain, "Data.Reload.LoadedGain");
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Monster_Damage);
 }

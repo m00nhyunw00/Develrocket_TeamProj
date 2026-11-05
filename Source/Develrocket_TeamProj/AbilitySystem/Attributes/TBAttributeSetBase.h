@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "AbilitySystemComponent.h"
 #include "AttributeSet.h"
-#include "TBBloodAttributeSet.generated.h"
+#include "TBAttributeSetBase.generated.h"
 
 // Attribute 식별자와 값 조회·설정·초기화 접근자 생성
 #define TB_ATTRIBUTE_ACCESSORS(ClassName, PropertyName) \
@@ -14,12 +14,12 @@
 
 // 보유 혈액과 탄창에 충전된 혈액의 수치 및 복제 관리
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API UTBBloodAttributeSet : public UAttributeSet
+class DEVELROCKET_TEAMPROJ_API UTBAttributeSetBase : public UAttributeSet
 {
 	GENERATED_BODY()
 
 public:
-	UTBBloodAttributeSet();
+	UTBAttributeSetBase();
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 

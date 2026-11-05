@@ -1,7 +1,7 @@
 #include "Player/TBPlayerState.h"
 
 #include "AbilitySystem/TBAbilitySystemComponent.h"
-#include "AbilitySystem/Attributes/TBBloodAttributeSet.h"
+#include "AbilitySystem/Attributes/TBAttributeSetBase.h"
 #include "GameplayEffect.h"
 
 ATBPlayerState::ATBPlayerState()
@@ -13,7 +13,7 @@ ATBPlayerState::ATBPlayerState()
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
 
 	// 자원 AttributeSet 생성 및 등록
-	BloodAttributeSet = CreateDefaultSubobject<UTBBloodAttributeSet>(TEXT("BloodAttributeSet"));
+	BloodAttributeSet = CreateDefaultSubobject<UTBAttributeSetBase>(TEXT("BloodAttributeSet"));
 	AbilitySystemComponent->AddAttributeSetSubobject(BloodAttributeSet.Get());
 }
 
