@@ -19,4 +19,6 @@ protected:
 	
 	UPROPERTY()
 	TObjectPtr<UTBMainMenuWidget> MainMenuWidget;
+	
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 };
