@@ -7,6 +7,7 @@
 class UButton;
 class UWidgetAnimation;
 class UWidgetSwitcher;
+class UTBSessionListWidget;
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API UTBMainMenuWidget : public UUserWidget
@@ -28,6 +29,8 @@ protected:
 	TObjectPtr<UButton> JoinButton;
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UButton> QuitButton;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UTBSessionListWidget> SessionList;
 	
 	UPROPERTY(Transient, meta=(BindWidgetAnim))
 	TObjectPtr<UWidgetAnimation> PressBlinkAnim;
@@ -53,4 +56,6 @@ private:
 	void OnJoinButtonClicked();
 	UFUNCTION()
 	void OnQuitButtonClicked();
+	
+	void HandleSessionListBack();
 };

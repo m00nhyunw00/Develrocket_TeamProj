@@ -4,6 +4,7 @@
 #include "Components/ScrollBox.h"
 #include "Components/TextBlock.h"
 #include "UI/Menu/TBSessionRowWidget.h"
+#include "UI/Menu/TBSessionListWidget.h"
 
 void UTBSessionListWidget::StartSearch()
 {
