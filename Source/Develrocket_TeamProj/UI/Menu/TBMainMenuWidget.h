@@ -41,6 +41,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Session")
 	int32 MaxPlayers = 6;
 	
+	UPROPERTY(EditDefaultsOnly, Category="Session")
+	int32 MaxSearchResults = 15;
+	
 private:
 	void ShowMenuButtons();
 	
