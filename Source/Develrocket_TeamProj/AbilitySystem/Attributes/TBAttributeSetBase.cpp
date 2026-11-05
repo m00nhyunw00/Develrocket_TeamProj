@@ -1,9 +1,9 @@
-#include "AbilitySystem/Attributes/TBBloodAttributeSet.h"
+#include "AbilitySystem/Attributes/TBAttributeSetBase.h"
 
 #include "GameplayEffectExtension.h"
 #include "Net/UnrealNetwork.h"
 
-UTBBloodAttributeSet::UTBBloodAttributeSet()
+UTBAttributeSetBase::UTBAttributeSetBase()
 {
 	InitMaxBlood(100.0f);
 	InitBlood(0.0f);
@@ -12,33 +12,33 @@ UTBBloodAttributeSet::UTBBloodAttributeSet()
 	InitLoadedBlood(20.0f);
 }
 
-void UTBBloodAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+void UTBAttributeSetBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	// 자원 수치는 소유 플레이어에게만 복제
 	// 수신 값이 로컬 값과 같아도 RepNotify를 호출하여 GAS 예측 보정 반영
-	DOREPLIFETIME_CONDITION_NOTIFY(UTBBloodAttributeSet, Blood, COND_OwnerOnly, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UTBBloodAttributeSet, MaxBlood, COND_OwnerOnly, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UTBBloodAttributeSet, LoadedBlood, COND_OwnerOnly, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UTBBloodAttributeSet, MaxLoadedBlood, COND_OwnerOnly, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, Blood, COND_OwnerOnly, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, MaxBlood, COND_OwnerOnly, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, LoadedBlood, COND_OwnerOnly, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, MaxLoadedBlood, COND_OwnerOnly, REPNOTIFY_Always);
 }
 
-void UTBBloodAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
+void UTBAttributeSetBase::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
 {
 	Super::PreAttributeChange(Attribute, NewValue);
 
 	ClampAttribute(Attribute, NewValue);
 }
 
-void UTBBloodAttributeSet::PreAttributeBaseChange(const FGameplayAttribute& Attribute, float& NewValue) const
+void UTBAttributeSetBase::PreAttributeBaseChange(const FGameplayAttribute& Attribute, float& NewValue) const
 {
 	Super::PreAttributeBaseChange(Attribute, NewValue);
 
 	ClampAttribute(Attribute, NewValue);
 }
 
-void UTBBloodAttributeSet::ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const
+void UTBAttributeSetBase::ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const
 {
 	if (Attribute == GetBloodAttribute())
 	{
@@ -58,7 +58,7 @@ void UTBBloodAttributeSet::ClampAttribute(const FGameplayAttribute& Attribute, f
 	}
 }
 
-void UTBBloodAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
+void UTBAttributeSetBase::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
 {
 	Super::PostGameplayEffectExecute(Data);
 
@@ -80,22 +80,22 @@ void UTBBloodAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCal
 }
 
 // 복제된 Attribute 값을 ASC의 집계 및 예측 보정에 전달
-void UTBBloodAttributeSet::OnRep_Blood(const FGameplayAttributeData& OldValue)
+void UTBAttributeSetBase::OnRep_Blood(const FGameplayAttributeData& OldValue)
 {
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBBloodAttributeSet, Blood, OldValue);
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBAttributeSetBase, Blood, OldValue);
 }
 
-void UTBBloodAttributeSet::OnRep_MaxBlood(const FGameplayAttributeData& OldValue)
+void UTBAttributeSetBase::OnRep_MaxBlood(const FGameplayAttributeData& OldValue)
 {
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBBloodAttributeSet, MaxBlood, OldValue);
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBAttributeSetBase, MaxBlood, OldValue);
 }
 
-void UTBBloodAttributeSet::OnRep_LoadedBlood(const FGameplayAttributeData& OldValue)
+void UTBAttributeSetBase::OnRep_LoadedBlood(const FGameplayAttributeData& OldValue)
 {
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBBloodAttributeSet, LoadedBlood, OldValue);
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBAttributeSetBase, LoadedBlood, OldValue);
 }
 
-void UTBBloodAttributeSet::OnRep_MaxLoadedBlood(const FGameplayAttributeData& OldValue)
+void UTBAttributeSetBase::OnRep_MaxLoadedBlood(const FGameplayAttributeData& OldValue)
 {
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBBloodAttributeSet, MaxLoadedBlood, OldValue);
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBAttributeSetBase, MaxLoadedBlood, OldValue);
 }

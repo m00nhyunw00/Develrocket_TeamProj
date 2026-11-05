@@ -7,7 +7,7 @@
 
 class UAbilitySystemComponent;
 class UTBAbilitySystemComponent;
-class UTBBloodAttributeSet;
+class UTBAttributeSetBase;
 class UGameplayAbility;
 class UGameplayEffect;
 
@@ -37,7 +37,7 @@ protected:
 	TObjectPtr<UTBAbilitySystemComponent> AbilitySystemComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
-	TObjectPtr<UTBBloodAttributeSet> BloodAttributeSet;
+	TObjectPtr<UTBAttributeSetBase> BloodAttributeSet;
 
 	// 초기 데이터 ----------------------
 

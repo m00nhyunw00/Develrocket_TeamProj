@@ -2,7 +2,7 @@
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "AbilitySystemComponent.h"
-#include "AbilitySystem/Attributes/TBBloodAttributeSet.h"
+#include "AbilitySystem/Attributes/TBAttributeSetBase.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "Character/Player/TBPlayer.h"
@@ -75,7 +75,7 @@ UTBGameplayAbility_Reload::UTBGameplayAbility_Reload()
 bool UTBGameplayAbility_Reload::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayTagContainer* OptionalRelevantTags) const
 {
 	const UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
-	const UTBBloodAttributeSet* Attributes = ASC ? ASC->GetSet<UTBBloodAttributeSet>() : nullptr;
+	const UTBAttributeSetBase* Attributes = ASC ? ASC->GetSet<UTBAttributeSetBase>() : nullptr;
 
 	if (!Attributes || !GetCostGameplayEffect())
 	{
@@ -98,7 +98,7 @@ void UTBGameplayAbility_Reload::ApplyCost(const FGameplayAbilitySpecHandle Handl
 	}
 
 	UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
-	const UTBBloodAttributeSet* Attributes = ASC ? ASC->GetSet<UTBBloodAttributeSet>() : nullptr;
+	const UTBAttributeSetBase* Attributes = ASC ? ASC->GetSet<UTBAttributeSetBase>() : nullptr;
 	const UGameplayEffect* ReloadEffect = GetCostGameplayEffect();
 
 	if (!Attributes || !ReloadEffect)
