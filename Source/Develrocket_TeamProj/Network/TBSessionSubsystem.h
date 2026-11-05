@@ -68,6 +68,6 @@ private:
 	
 	TSharedPtr<FOnlineSessionSearch> SessionSearch;
 	
-	FString LobbyMapPath = TEXT("/Game/Developers/Dev_Choi/MainMenu/Maps/L_Lobby"); //Dev_Choi바깥으로 옮기면 해당 위치를 수정해 주어야함
+	FString LobbyMapPath = TEXT("/Game/_Game/Maps/L_Lobby"); 
 	
 };
