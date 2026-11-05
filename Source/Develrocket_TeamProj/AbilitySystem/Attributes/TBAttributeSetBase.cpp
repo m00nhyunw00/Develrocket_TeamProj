@@ -6,11 +6,7 @@
 UTBAttributeSetBase::UTBAttributeSetBase()
 {
 	InitMaxBlood(100.0f);
-	InitBlood(0.0f);
-
-	// InitMaxLoadedBlood(20.0f);
-	// InitLoadedBlood(20.0f);
-	// InitAmmoAtLastReload(20.0f);
+	InitBlood(100.0f);
 }
 
 void UTBAttributeSetBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -21,9 +17,6 @@ void UTBAttributeSetBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 	// 수신 값이 로컬 값과 같아도 RepNotify를 호출하여 GAS 예측 보정 반영
 	DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, Blood, COND_OwnerOnly, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, MaxBlood, COND_OwnerOnly, REPNOTIFY_Always);
-	// DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, LoadedBlood, COND_OwnerOnly, REPNOTIFY_Always);
-	// DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, MaxLoadedBlood, COND_OwnerOnly, REPNOTIFY_Always);
-	// DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, AmmoAtLastReload, COND_OwnerOnly, REPNOTIFY_Always);
 }
 
 void UTBAttributeSetBase::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -64,13 +57,6 @@ void UTBAttributeSetBase::PostGameplayEffectExecute(const FGameplayEffectModCall
 		SetMaxBlood(FMath::Max(0.0f, GetMaxBlood()));
 		SetBlood(FMath::Clamp(GetBlood(), 0.0f, GetMaxBlood()));
 	}
-
-	// 탄창 용량 감소 시 충전된 혈액도 새 상한에 맞추어 제한
-	// if (Attribute == GetLoadedBloodAttribute() || Attribute == GetMaxLoadedBloodAttribute())
-	// {
-	// 	SetMaxLoadedBlood(FMath::Max(0.0f, GetMaxLoadedBlood()));
-	// 	SetLoadedBlood(FMath::Clamp(GetLoadedBlood(), 0.0f, GetMaxLoadedBlood()));
-	// }
 }
 
 // 복제된 Attribute 값을 ASC의 집계 및 예측 보정에 전달
@@ -83,18 +69,3 @@ void UTBAttributeSetBase::OnRep_MaxBlood(const FGameplayAttributeData& OldValue)
 {
 	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBAttributeSetBase, MaxBlood, OldValue);
 }
-
-// void UTBAttributeSetBase::OnRep_LoadedBlood(const FGameplayAttributeData& OldValue)
-// {
-// 	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBAttributeSetBase, LoadedBlood, OldValue);
-// }
-//
-// void UTBAttributeSetBase::OnRep_MaxLoadedBlood(const FGameplayAttributeData& OldValue)
-// {
-// 	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBAttributeSetBase, MaxLoadedBlood, OldValue);
-// }
-//
-// void UTBAttributeSetBase::OnRep_AmmoAtLastReload(const FGameplayAttributeData& OldValue)
-// {
-// 	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBAttributeSetBase, AmmoAtLastReload, OldValue);
-// }

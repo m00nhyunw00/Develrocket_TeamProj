@@ -5,6 +5,7 @@
 #include "GameFramework/PlayerState.h"
 #include "TBPlayerState.generated.h"
 
+class UTBPlayerAttributeSet;
 class UAbilitySystemComponent;
 class UTBAbilitySystemComponent;
 class UTBAttributeSetBase;
@@ -37,7 +38,7 @@ protected:
 	TObjectPtr<UTBAbilitySystemComponent> AbilitySystemComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
-	TObjectPtr<UTBAttributeSetBase> PlayerAttributeSet;
+	TObjectPtr<UTBPlayerAttributeSet> PlayerAttributeSet;
 
 	// 초기 데이터 ----------------------
 
