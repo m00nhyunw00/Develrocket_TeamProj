@@ -37,6 +37,26 @@ bool UTBMonsterAttributeSet::HasDied() const
 	return ASC && ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
 }
 
+void UTBMonsterAttributeSet::AddStagger(float Damage)
+{
+	if (!GetOwningActor() || !GetOwningActor()->HasAuthority() || HasDied()
+		|| !FMath::IsFinite(Damage) || Damage <= 0.0f
+		|| !FMath::IsFinite(GetStagger()) || !FMath::IsFinite(GetMaxStagger()) || GetMaxStagger() <= 0.0f)
+	{
+		return;
+	}
+
+	const float PreviousStagger = GetStagger();
+	const float MaxStaggerValue = GetMaxStagger();
+	const float NewStagger = FMath::Clamp(PreviousStagger + Damage, 0.0f, MaxStaggerValue);
+	SetStagger(NewStagger);
+
+	if (PreviousStagger < MaxStaggerValue && GetStagger() >= MaxStaggerValue)
+	{
+		OnStaggerFull.Broadcast();
+	}
+}
+
 void UTBMonsterAttributeSet::ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const
 {
 	if (!FMath::IsFinite(NewValue))

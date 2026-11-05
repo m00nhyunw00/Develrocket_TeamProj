@@ -4,7 +4,6 @@
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "Character/Monster/GAS/TBMonsterAttributeSet.h"
-#include "Character/Monster/GAS/TBMonsterGameplayEffects.h"
 #include "BrainComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -12,7 +11,6 @@
 #include "Abilities/GameplayAbility.h"
 #include "Net/UnrealNetwork.h"
 #include "TBGameplayTags.h"
-#include "Character/Monster/GAS/TBMonsterGameplayTags.h"
 
 ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
@@ -23,8 +21,6 @@ ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(Obje
 
 	MonsterAttributes = CreateDefaultSubobject<UTBMonsterAttributeSet>(TEXT("MonsterAttributes"));
 	MonsterASC->AddAttributeSetSubobject(MonsterAttributes.Get());
-	InitialAttributesEffect = UTBGameplayEffect_MonsterInitialize::StaticClass();
-	DamageEffectClass = UTBGameplayEffect_MonsterDamage::StaticClass();
 
 	// 기본 AIController 사용 및 서버의 자동 빙의 설정
 	AIControllerClass = AAIController::StaticClass();
@@ -113,7 +109,7 @@ float ATBMonster::GetMaxHealth() const
 	return MonsterAttributes ? MonsterAttributes->GetMaxHealth() : 0.0f;
 }
 
-bool ATBMonster::ApplyGASDamage(float Damage, AActor* DamageSource)
+bool ATBMonster::ApplyGASDamage(float Damage,AActor* DamageSource)
 {
 	if (!HasAuthority() || !bGameplayDataInitialized || bIsDead || !FMath::IsFinite(Damage) || Damage <= 0.0f || !DamageEffectClass)
 	{
@@ -132,11 +128,12 @@ bool ATBMonster::ApplyGASDamage(float Damage, AActor* DamageSource)
 		}
 	}
 	const FGameplayEffectSpecHandle Spec = SpecASC->MakeOutgoingSpec(DamageEffectClass, 1.0f, Context);
+	
 	if (!Spec.IsValid())
 	{
 		return false;
 	}
-	Spec.Data->SetSetByCallerMagnitude(TBMonsterGameplayTags::Data_Damage, Damage);
+	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, Damage);
 	return MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
 }
 
@@ -148,10 +145,18 @@ void ATBMonster::Die()
 	}
 
 	bIsDead = true;
-	const FGameplayEffectSpecHandle Spec = MonsterASC->MakeOutgoingSpec(UTBGameplayEffect_MonsterDeath::StaticClass(), 1.0f, MonsterASC->MakeEffectContext());
-	if (Spec.IsValid())
+	if (DeathEffectClass)
 	{
-		MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+		const FGameplayEffectSpecHandle Spec = MonsterASC->MakeOutgoingSpec(DeathEffectClass, 1.0f, MonsterASC->MakeEffectContext());
+		if (Spec.IsValid())
+		{
+			MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+		}
+	}
+	// 사망 GE가 비어 있거나 태그를 부여하지 않아도 서버의 사망 판정 유지
+	if (!MonsterASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
+	{
+		MonsterASC->AddLooseGameplayTag(TBGameplayTags::State_Dead);
 	}
 	MonsterASC->BlockAbilitiesWithTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat));
 	MonsterASC->CancelAllAbilities();

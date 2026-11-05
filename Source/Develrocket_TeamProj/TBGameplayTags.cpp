@@ -10,8 +10,9 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat, "Ability.Combat");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_PrimaryAttack, "Ability.Combat.PrimaryAttack");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_Reload, "Ability.Combat.Reload");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Death, "Ability.Death");
 	
 	UE_DEFINE_GAMEPLAY_TAG(Data_Reload_BloodCost, "Data.Reload.BloodCost");
 	UE_DEFINE_GAMEPLAY_TAG(Data_Reload_LoadedGain, "Data.Reload.LoadedGain");
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Monster_Damage);
+	UE_DEFINE_GAMEPLAY_TAG(Data_Damage, "Data.Damage");
 }

@@ -13,6 +13,7 @@
 	GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
 
 DECLARE_MULTICAST_DELEGATE(FTBMonsterOutOfHealth);
+DECLARE_MULTICAST_DELEGATE(FTBMonsterStaggerFull);
 
 // 몬스터 체력 복제 및 서버 피해 계산
 UCLASS()
@@ -31,8 +32,19 @@ public:
 	FGameplayAttributeData IncomingDamage;
 	TB_MONSTER_ATTRIBUTE_ACCESSORS(IncomingDamage)
 
+	UPROPERTY(BlueprintReadOnly, Category = "Monster|Damage")
+	FGameplayAttributeData Stagger;
+	TB_MONSTER_ATTRIBUTE_ACCESSORS(Stagger)
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Monster|Damage")
+	FGameplayAttributeData MaxStagger;
+	TB_MONSTER_ATTRIBUTE_ACCESSORS(MaxStagger)
+	
 	FTBMonsterOutOfHealth OnOutOfHealth;
+	FTBMonsterStaggerFull OnStaggerFull;
 
+	// 서버에서 그로기 수치 누적 및 최대치 도달 알림
+	void AddStagger(float Damage);
 	// 기존 C++ 호출을 공통 Blood 속성으로 연결
 	float GetHealth() const { return GetBlood(); }
 	float GetMaxHealth() const { return GetMaxBlood(); }
