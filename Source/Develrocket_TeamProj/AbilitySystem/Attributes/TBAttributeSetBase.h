@@ -50,6 +50,11 @@ public:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_MaxLoadedBlood, Category = "Blood|Loaded")
 	FGameplayAttributeData MaxLoadedBlood;
 	TB_ATTRIBUTE_ACCESSORS(ThisClass, MaxLoadedBlood)
+	
+	// 마지막 재장전 완료 당시 실제 장전량
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_AmmoAtLastReload, Category = "Blood|Loaded")
+	FGameplayAttributeData AmmoAtLastReload;
+	TB_ATTRIBUTE_ACCESSORS(ThisClass, AmmoAtLastReload)
 
 protected:
 	// Attribute 복제 알림 ----------------------
@@ -65,6 +70,9 @@ protected:
 
 	UFUNCTION()
 	void OnRep_MaxLoadedBlood(const FGameplayAttributeData& OldValue);
+	
+	UFUNCTION()
+	void OnRep_AmmoAtLastReload(const FGameplayAttributeData& OldValue);
 
 private:
 	// Attribute별 허용 범위 제한

@@ -8,6 +8,7 @@
 #include "Character/Player/TBPlayer.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "TBGameplayTags.h"
+#include "AbilitySystem/TBAbilitySystemComponent.h"
 
 UTBGameplayAbility_BloodAction::UTBGameplayAbility_BloodAction()
 {
@@ -36,6 +37,37 @@ UTBGameplayAbility_PrimaryAttack::UTBGameplayAbility_PrimaryAttack()
 
 	// 공격 시작 시 충전 혈액 비용 적용
 	bCommitOnActivate = true;
+}
+
+void UTBGameplayAbility_PrimaryAttack::ActivateAbility(
+	const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo,
+	const FGameplayAbilityActivationInfo ActivationInfo,
+	const FGameplayEventData* TriggerEventData)
+{
+	// 기존 비용 처리와 몽타주 재생
+	Super::ActivateAbility(
+		Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+	// 비용 부족 등으로 취소된 경우
+	if (!IsActive() || !ActorInfo)
+	{
+		return;
+	}
+
+	const ATBPlayer* Player =
+		Cast<ATBPlayer>(ActorInfo->AvatarActor.Get());
+
+	// 소유 플레이어 화면에서만 발사 알림 발생
+	if (!Player || !Player->IsLocallyControlled())
+	{
+		return;
+	}
+
+	if (UTBAbilitySystemComponent* TBASC = Cast<UTBAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get()))
+	{
+		TBASC->OnPrimaryShotFired.Broadcast();
+	}
 }
 
 UTBGameplayAbility_Reload::UTBGameplayAbility_Reload()
@@ -128,8 +160,17 @@ void UTBGameplayAbility_Reload::ApplyCost(const FGameplayAbilitySpecHandle Handl
 	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Reload_BloodCost, -ReloadAmount);
 	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Reload_LoadedGain, ReloadAmount);
 
-	// 두 자원 변경을 하나의 GE로 적용
-	ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+	// // 두 자원 변경을 하나의 GE로 적용
+	// ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+	
+	// 재장전 적용: 체력을 소모하고 탄약을 충전
+	const FActiveGameplayEffectHandle AppliedHandle = ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+
+	// 재장전 적용에 성공했다면 실제 장전량 저장
+	if (AppliedHandle.WasSuccessfullyApplied())
+	{
+		ASC->SetNumericAttributeBase(UTBAttributeSetBase::GetAmmoAtLastReloadAttribute(),Attributes->GetLoadedBlood());
+	}
 }
 
 void UTBGameplayAbility_BloodAction::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)

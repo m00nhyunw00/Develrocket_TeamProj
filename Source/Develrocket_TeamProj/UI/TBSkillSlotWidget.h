@@ -29,7 +29,7 @@ protected:
 	TObjectPtr<UImage> SkillIcon;
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTextBlock> CooldownText;
-	UPROPERTY(meta=(BindWidget))
+	UPROPERTY(EditAnywhere, meta=(BindWidget))
 	TObjectPtr<UTextBlock> KeyText;
 	
 	// 프레임 텍스처

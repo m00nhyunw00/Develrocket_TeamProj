@@ -12,7 +12,7 @@ class DEVELROCKET_TEAMPROJ_API UTBAmmoWidget : public UUserWidget
 	GENERATED_BODY()
 	
 public:
-	void SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize);
+	void SetAmmo(int32 CurrentAmmo, int32 AmmoAtLastReload, int32 MagazineSize, bool bCanReload);
 	
 protected:
 	//재장전 피드백을 위한 값
