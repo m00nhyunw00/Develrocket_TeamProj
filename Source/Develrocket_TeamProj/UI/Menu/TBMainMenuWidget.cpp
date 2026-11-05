@@ -6,6 +6,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Network/TBSessionSubsystem.h"
+#include "UI/Menu/TBSessionListWidget.h"
 
 void UTBMainMenuWidget::NativeOnInitialized()
 {
@@ -24,6 +25,10 @@ void UTBMainMenuWidget::NativeOnInitialized()
 	if (QuitButton)
 	{
 		QuitButton->OnClicked.AddDynamic(this, &UTBMainMenuWidget::OnQuitButtonClicked);
+	}
+	if (SessionList)
+	{
+		SessionList->OnBackRequested.AddUObject(this, &UTBMainMenuWidget::HandleSessionListBack);
 	}
 }
 
@@ -84,16 +89,22 @@ void UTBMainMenuWidget::OnHostButtonClicked()
 
 void UTBMainMenuWidget::OnJoinButtonClicked()
 {
-	if (UGameInstance* GI = GetGameInstance())
+	if (MenuSwitcher && SessionList)
 	{
-		if (UTBSessionSubsystem* Session = GI->GetSubsystem<UTBSessionSubsystem>())
-		{
-			Session->FindSessions(MaxSearchResults);
-		}
+		MenuSwitcher->SetActiveWidgetIndex(2);   // 목록 화면
+		SessionList->StartSearch();
 	}
 }
 
 void UTBMainMenuWidget::OnQuitButtonClicked()
 {
 	UKismetSystemLibrary::QuitGame(GetWorld(), GetOwningPlayer(), EQuitPreference::Quit, false);
+}
+
+void UTBMainMenuWidget::HandleSessionListBack()
+{
+	if (MenuSwitcher)
+	{
+		MenuSwitcher->SetActiveWidgetIndex(1);   // 버튼 화면
+	}
 }
