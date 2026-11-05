@@ -1,13 +1,12 @@
 #include "Character/Monster/GAS/TBMonsterAttributeSet.h"
-
 #include "GameplayEffectExtension.h"
 #include "Net/UnrealNetwork.h"
 #include "TBGameplayTags.h"
 
 UTBMonsterAttributeSet::UTBMonsterAttributeSet()
 {
-	InitMaxHealth(100.0f);
-	InitHealth(100.0f);
+	InitMaxBlood(100.0f);
+	InitBlood(100.0f);
 	InitIncomingDamage(0.0f);
 }
 
@@ -16,8 +15,8 @@ void UTBMonsterAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	// 보스 체력 표시를 위한 모든 관련 클라이언트 복제
-	DOREPLIFETIME_CONDITION_NOTIFY(UTBMonsterAttributeSet, Health, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UTBMonsterAttributeSet, MaxHealth, COND_None, REPNOTIFY_Always);
+	RESET_REPLIFETIME_CONDITION(UTBAttributeSetBase, Blood, COND_None);
+	RESET_REPLIFETIME_CONDITION(UTBAttributeSetBase, MaxBlood, COND_None);
 }
 
 void UTBMonsterAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -66,13 +65,13 @@ void UTBMonsterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 		SetIncomingDamage(0.0f);
 		if (FMath::IsFinite(Damage) && Damage > 0.0f && !HasDied())
 		{
-			SetHealth(FMath::Clamp(GetHealth() - Damage, 0.0f, GetMaxHealth()));
+			SetBlood(FMath::Clamp(GetBlood() - Damage, 0.0f, GetMaxBlood()));
 		}
 	}
 	else if (Attribute == GetHealthAttribute() || Attribute == GetMaxHealthAttribute())
 	{
-		SetMaxHealth(FMath::Max(1.0f, GetMaxHealth()));
-		SetHealth(HasDied() ? 0.0f : FMath::Clamp(GetHealth(), 0.0f, GetMaxHealth()));
+		SetMaxBlood(FMath::Max(1.0f, GetMaxBlood()));
+		SetBlood(HasDied() ? 0.0f : FMath::Clamp(GetBlood(), 0.0f, GetMaxBlood()));
 	}
 
 	if (GetHealth() <= 0.0f && GetOwningActor() && GetOwningActor()->HasAuthority() && !HasDied())
@@ -81,12 +80,3 @@ void UTBMonsterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 	}
 }
 
-void UTBMonsterAttributeSet::OnRep_Health(const FGameplayAttributeData& OldValue)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBMonsterAttributeSet, Health, OldValue);
-}
-
-void UTBMonsterAttributeSet::OnRep_MaxHealth(const FGameplayAttributeData& OldValue)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBMonsterAttributeSet, MaxHealth, OldValue);
-}

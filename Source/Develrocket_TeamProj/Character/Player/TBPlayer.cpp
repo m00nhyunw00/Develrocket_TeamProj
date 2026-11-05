@@ -13,7 +13,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 
-#include "Player/TBPlayerState.h"
+#include "Framework/TBPlayerState.h"
 
 class ATBPlayerState;
 

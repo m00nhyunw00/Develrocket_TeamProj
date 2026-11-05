@@ -1,4 +1,4 @@
-#include "Player/TBPlayerState.h"
+#include "Framework/TBPlayerState.h"
 
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
