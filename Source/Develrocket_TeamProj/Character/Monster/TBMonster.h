@@ -61,6 +61,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Damage")
 	TSubclassOf<UGameplayEffect> DamageEffectClass;
 
+	// 사망 상태 태그를 부여할 블루프린트 Gameplay Effect
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|State")
+	TSubclassOf<UGameplayEffect> DeathEffectClass;
+
 	// 기존 몬스터 BP에 사망 연출을 연결할 확장 지점
 	UFUNCTION(BlueprintImplementableEvent, Category = "Monster|State", meta = (DisplayName = "On Death"))
 	void ReceiveDeath();
