@@ -9,6 +9,7 @@ class UGameplayEffect;
 class UTBAbilitySystemComponent;
 class UTBMonsterAttributeSet;
 class ATBMonster;
+struct FAbilityEndedData;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTBMonsterDied, ATBMonster*, Monster);
 
@@ -58,6 +59,14 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Abilities")
 	TArray<TSubclassOf<UGameplayAbility>> StartupAbilities;
 
+	// 최대 그로기 수치 도달 시 실행할 어빌리티
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Abilities")
+	TSubclassOf<UGameplayAbility> StaggerAbilityClass;
+
+	// 사망 시 실행할 블루프린트 어빌리티
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Abilities")
+	TSubclassOf<UGameplayAbility> DeathAbilityClass;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Damage")
 	TSubclassOf<UGameplayEffect> DamageEffectClass;
 
@@ -74,6 +83,8 @@ protected:
 private:
 	void InitializeMonsterAbilitySystem();
 	void InitializeGameplayData();
+	void HandleStaggerFull();
+	void HandleAbilityEnded(const FAbilityEndedData& EndedData);
 	void Die();
 	void HandleDeath();
 
@@ -86,4 +97,6 @@ private:
 	bool bGameplayDataInitialized = false;
 	bool bDeathHandled = false;
 	FDelegateHandle OutOfHealthHandle;
+	FDelegateHandle StaggerFullHandle;
+	FDelegateHandle AbilityEndedHandle;
 };

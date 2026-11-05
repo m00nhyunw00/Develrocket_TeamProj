@@ -61,6 +61,14 @@ void ATBMonster::InitializeMonsterAbilitySystem()
 	{
 		OutOfHealthHandle = MonsterAttributes->OnOutOfHealth.AddUObject(this, &ThisClass::Die);
 	}
+	if (!StaggerFullHandle.IsValid())
+	{
+		StaggerFullHandle = MonsterAttributes->OnStaggerFull.AddUObject(this, &ThisClass::HandleStaggerFull);
+	}
+	if (!AbilityEndedHandle.IsValid())
+	{
+		AbilityEndedHandle = MonsterASC->OnAbilityEnded.AddUObject(this, &ThisClass::HandleAbilityEnded);
+	}
 	InitializeGameplayData();
 }
 
@@ -95,6 +103,14 @@ void ATBMonster::InitializeGameplayData()
 	if (MeleeAbilityClass)
 	{
 		Abilities.AddUnique(MeleeAbilityClass);
+	}
+	if (StaggerAbilityClass)
+	{
+		Abilities.AddUnique(StaggerAbilityClass);
+	}
+	if (DeathAbilityClass)
+	{
+		Abilities.AddUnique(DeathAbilityClass);
 	}
 	MonsterASC->AddCharacterAbilities(Abilities);
 }
@@ -134,7 +150,36 @@ bool ATBMonster::ApplyGASDamage(float Damage,AActor* DamageSource)
 		return false;
 	}
 	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, Damage);
-	return MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
+	const bool bApplied = MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
+	if (bApplied && !bIsDead && !MonsterASC->HasMatchingGameplayTag(TBGameplayTags::State_Stunned))
+	{
+		MonsterAttributes->AddStagger(Damage);
+	}
+	return bApplied;
+}
+
+void ATBMonster::HandleStaggerFull()
+{
+	if (!HasAuthority() || bIsDead || !MonsterASC || !MonsterAttributes)
+	{
+		return;
+	}
+
+	if (!StaggerAbilityClass || !MonsterASC->TryActivateAbilityByClass(StaggerAbilityClass))
+	{
+		// 활성화 실패 시 다음 피해에서 다시 시도할 수 있도록 수치 복구
+		MonsterAttributes->SetStagger(0.0f);
+		UE_LOG(LogTemp, Warning, TEXT("%s: 그로기 어빌리티를 활성화하지 못했습니다."), *GetName());
+	}
+}
+
+void ATBMonster::HandleAbilityEnded(const FAbilityEndedData& EndedData)
+{
+	if (HasAuthority() && !bIsDead && MonsterAttributes && StaggerAbilityClass
+		&& EndedData.AbilityThatEnded && EndedData.AbilityThatEnded->GetClass() == StaggerAbilityClass)
+	{
+		MonsterAttributes->SetStagger(0.0f);
+	}
 }
 
 void ATBMonster::Die()
@@ -169,6 +214,10 @@ void ATBMonster::Die()
 		}
 	}
 	HandleDeath();
+	if (DeathAbilityClass && !MonsterASC->TryActivateAbilityByClass(DeathAbilityClass))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s: 사망 어빌리티를 활성화하지 못했습니다."), *GetName());
+	}
 	ForceNetUpdate();
 }
 
@@ -208,8 +257,18 @@ void ATBMonster::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		MonsterAttributes->OnOutOfHealth.Remove(OutOfHealthHandle);
 		OutOfHealthHandle.Reset();
 	}
+	if (MonsterAttributes && StaggerFullHandle.IsValid())
+	{
+		MonsterAttributes->OnStaggerFull.Remove(StaggerFullHandle);
+		StaggerFullHandle.Reset();
+	}
 	if (MonsterASC)
 	{
+		if (AbilityEndedHandle.IsValid())
+		{
+			MonsterASC->OnAbilityEnded.Remove(AbilityEndedHandle);
+			AbilityEndedHandle.Reset();
+		}
 		MonsterASC->RemoveCharacterAbilities();
 	}
 	Super::EndPlay(EndPlayReason);

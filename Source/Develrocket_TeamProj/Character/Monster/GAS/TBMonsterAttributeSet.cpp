@@ -8,6 +8,8 @@ UTBMonsterAttributeSet::UTBMonsterAttributeSet()
 	InitMaxBlood(100.0f);
 	InitBlood(100.0f);
 	InitIncomingDamage(0.0f);
+	InitMaxStagger(100.0f);
+	InitStagger(0.0f);
 }
 
 void UTBMonsterAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
