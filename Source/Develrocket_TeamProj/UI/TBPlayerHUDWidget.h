@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -24,25 +22,25 @@ class DEVELROCKET_TEAMPROJ_API UTBPlayerHUDWidget : public UUserWidget
 public:
 	void SetHealth(float CurrentHealth, float MaxHealth);
 	void SetCrosshairSpread(float Spread);
+	void NotifyShotFired();
 	void SetAiming(bool bIsAiming);
 	void SetShowHitMarker(bool bIsKill);
-	void SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize);
+	void SetAmmo(int32 CurrentAmmo, int32 AmmoAtLastReload, int32 MagazineSize, bool bCanReload);
 	void SetSkill(int32 Index, UTexture2D* Icon, const FText& Key);
 	void StartSkillCooldown(int32 Index, float Duration);
 	
 protected:
 	//부품 조립을 위한 값
 	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<UTBAmmoWidget> AmmoWidget;
+	TObjectPtr<UTBAmmoWidget> Ammo;
 	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<UTBHealthBarWidget> HealthBarWidget;
+	TObjectPtr<UTBHealthBarWidget> HealthBar;
 	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<UTBCrosshairWidget> CrosshairWidget;
+	TObjectPtr<UTBCrosshairWidget> Crosshair;
 	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<UTBHitMarkerWidget> HitMarkerWidget;
+	TObjectPtr<UTBHitMarkerWidget> HitMarker;
 	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<UTBLowHealthOverlayWidget> LowHealthOverlayWidget;
+	TObjectPtr<UTBLowHealthOverlayWidget> LowHealthOverlay;
 	UPROPERTY(meta=(BindWidget))
-	TObjectPtr<UTBSkillBarWidget> SkillBarWidget;
-	
+	TObjectPtr<UTBSkillBarWidget> SkillBar;
 };

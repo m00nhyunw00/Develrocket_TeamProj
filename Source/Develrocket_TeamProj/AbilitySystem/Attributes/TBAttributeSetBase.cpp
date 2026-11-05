@@ -10,6 +10,7 @@ UTBAttributeSetBase::UTBAttributeSetBase()
 
 	InitMaxLoadedBlood(20.0f);
 	InitLoadedBlood(20.0f);
+	InitAmmoAtLastReload(20.0f);
 }
 
 void UTBAttributeSetBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -22,6 +23,7 @@ void UTBAttributeSetBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 	DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, MaxBlood, COND_OwnerOnly, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, LoadedBlood, COND_OwnerOnly, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, MaxLoadedBlood, COND_OwnerOnly, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UTBAttributeSetBase, AmmoAtLastReload, COND_OwnerOnly, REPNOTIFY_Always);
 }
 
 void UTBAttributeSetBase::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -98,4 +100,9 @@ void UTBAttributeSetBase::OnRep_LoadedBlood(const FGameplayAttributeData& OldVal
 void UTBAttributeSetBase::OnRep_MaxLoadedBlood(const FGameplayAttributeData& OldValue)
 {
 	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBAttributeSetBase, MaxLoadedBlood, OldValue);
+}
+
+void UTBAttributeSetBase::OnRep_AmmoAtLastReload(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBAttributeSetBase, AmmoAtLastReload, OldValue);
 }

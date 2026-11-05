@@ -159,6 +159,8 @@ private:
 	
 private:
 	// 무기 메시 적용 및 소켓 부착 ----------------------
-	
 	void InitializeWeaponMeshes();
+	
+	// 
+	void TryBindLocalHUD();
 };

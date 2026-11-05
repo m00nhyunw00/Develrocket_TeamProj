@@ -6,10 +6,15 @@
 
 class UGameplayAbility;
 
+DECLARE_MULTICAST_DELEGATE(FOnPrimaryShotFired);
+
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API UTBAbilitySystemComponent : public UAbilitySystemComponent
 {
 	GENERATED_BODY()
+	
+public:
+	FOnPrimaryShotFired OnPrimaryShotFired;
 
 public:
 	// 기본 Ability 관리 ----------------------

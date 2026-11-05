@@ -18,6 +18,19 @@ void UTBCrosshairWidget::SetAiming(bool bIsAiming)
 	}
 }
 
+void UTBCrosshairWidget::NotifyShotFired()
+{
+	constexpr float ShotKick = 0.25f;
+
+	// 발사할 때 현재 간격 증가
+	CurrentSpread = FMath::Clamp(FMath::Max(CurrentSpread, TargetSpread) + ShotKick,0.0f,1.0f);
+
+	// 기존 NativeTick에서 기본 간격으로 복귀
+	TargetSpread = 0.0f;
+
+	ApplyCrosshairSpread(CurrentSpread);
+}
+
 void UTBCrosshairWidget::NativeConstruct()
 {
 	Super::NativeConstruct();

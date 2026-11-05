@@ -1,6 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "UI/TBPlayerHUDWidget.h"
 
 #include "TBSkillBarWidget.h"
@@ -12,69 +9,76 @@
 
 void UTBPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {
-	if (HealthBarWidget)
+	if (HealthBar)
 	{
-		HealthBarWidget->SetHealth(CurrentHealth, MaxHealth);
+		HealthBar->SetHealth(CurrentHealth, MaxHealth);
 	}
 	
-	if (LowHealthOverlayWidget)
+	if (LowHealthOverlay)
 	{
-		LowHealthOverlayWidget->SetHealth(CurrentHealth, MaxHealth);
+		LowHealthOverlay->SetHealth(CurrentHealth, MaxHealth);
 	}	
 }
 
 void UTBPlayerHUDWidget::SetCrosshairSpread(float Spread)
 {
-	if (!CrosshairWidget)
+	if (!Crosshair)
 	{
 		return;
 	}
-	CrosshairWidget->SetCrosshairSpread(Spread);		
+	Crosshair->SetCrosshairSpread(Spread);		
+}
+
+void UTBPlayerHUDWidget::NotifyShotFired()
+{
+	if (Crosshair)
+	{
+		Crosshair->NotifyShotFired();
+	}
 }
 
 void UTBPlayerHUDWidget::SetAiming(bool bIsAiming)
 {
-	if (!CrosshairWidget)
+	if (!Crosshair)
 	{
 		return;
 	}
-	CrosshairWidget->SetAiming(bIsAiming);
+	Crosshair->SetAiming(bIsAiming);
 }
 
 void UTBPlayerHUDWidget::SetShowHitMarker(bool bIsKill)
 {
-	if (!HitMarkerWidget)
+	if (!HitMarker)
 	{
 		return;
 	}
-	HitMarkerWidget->SetShowHitMarker(bIsKill);
+	HitMarker->SetShowHitMarker(bIsKill);
 }
 
-void UTBPlayerHUDWidget::SetAmmo(int32 CurrentAmmo, int32 ReserveAmmo, int32 MagazineSize)
+void UTBPlayerHUDWidget::SetAmmo(int32 CurrentAmmo, int32 AmmoAtLastReload, int32 MagazineSize, bool bCanReload)
 {
-	if (!AmmoWidget)
+	if (Ammo)
 	{
-		return;
+		Ammo->SetAmmo(CurrentAmmo, AmmoAtLastReload, MagazineSize, bCanReload);
 	}
-	
-	AmmoWidget->SetAmmo(CurrentAmmo, ReserveAmmo, MagazineSize);
 }
 
 void UTBPlayerHUDWidget::SetSkill(int32 Index, UTexture2D* Icon, const FText& Key)
 {
-	if (!SkillBarWidget)
+	if (!SkillBar)
 	{
 		return;
 	}
 	
-	SkillBarWidget->SetSkill(Index, Icon, Key);
+	SkillBar->SetSkill(Index, Icon, Key);
 }
 
 void UTBPlayerHUDWidget::StartSkillCooldown(int32 Index, float Duration)
 {
-	if (!SkillBarWidget)
+	if (!SkillBar)
 	{
 		return;
 	}
-	SkillBarWidget->StartSkillCooldown(Index, Duration);
+	SkillBar->StartSkillCooldown(Index, Duration);
 }
+

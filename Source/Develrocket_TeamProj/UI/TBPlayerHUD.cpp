@@ -1,118 +1,210 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "UI/TBPlayerHUD.h"
-#include "UI/TBPauseMenuWidget.h"
+
+#include "AbilitySystemComponent.h"
+#include "AbilitySystem/TBAbilitySystemComponent.h"
+#include "AbilitySystem/Attributes/TBAttributeSetBase.h"
 #include "Blueprint/UserWidget.h"
+#include "Framework/TBPlayerState.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
+#include "UI/TBPauseMenuWidget.h"
 #include "UI/TBPlayerHUDWidget.h"
 
-void ATBPlayerHUD::TestDamage(float Amount)
+void ATBPlayerHUD::BeginPlay()
 {
-	TestHealth = FMath::Clamp(TestHealth - Amount, 0.f, TestMaxHealth);
-	
-	if (HUDWidget)
-	{
-		HUDWidget->SetHealth(TestHealth, TestMaxHealth);
-	}
+    Super::BeginPlay();
+
+    APlayerController* PC = GetOwningPlayerController();
+
+    if (!PC || !PC->IsLocalController())
+    {
+        return;
+    }
+
+    // HUD 생성
+    if (HUDWidgetClass)
+    {
+        HUDWidget = CreateWidget<UTBPlayerHUDWidget>(PC, HUDWidgetClass);
+
+        if (HUDWidget)
+        {
+            HUDWidget->AddToViewport();
+            
+            // 슬롯별 표시 키 설정
+            HUDWidget->SetSkill(0, nullptr, FText::FromString(TEXT("Q")));
+            HUDWidget->SetSkill(1, nullptr, FText::FromString(TEXT("E")));
+        }
+    }
+
+    // 일시정지 메뉴 생성
+    if (PauseWidgetClass)
+    {
+        PauseWidget = CreateWidget<UTBPauseMenuWidget>(PC, PauseWidgetClass);
+
+        if (PauseWidget)
+        {
+            PauseWidget->AddToViewport(10);
+            PauseWidget->SetVisibility(ESlateVisibility::Collapsed);
+        }
+    }
+
+    // 이미 준비된 PlayerState가 있으면 GAS 연결
+    ATBPlayerState* PS = PC->GetPlayerState<ATBPlayerState>();
+
+    if (!PS && PC->GetPawn())
+    {
+        PS = PC->GetPawn()->GetPlayerState<ATBPlayerState>();
+    }
+
+    if (PS)
+    {
+        BindAbilitySystem(PS->GetAbilitySystemComponent());
+    }
 }
 
-void ATBPlayerHUD::TestHeal(float Amount)
+void ATBPlayerHUD::BindAbilitySystem(UAbilitySystemComponent* InASC)
 {
-	TestHealth = FMath::Clamp(TestHealth + Amount, 0.f, TestMaxHealth);
-	
-	if (HUDWidget)
-	{
-		HUDWidget->SetHealth(TestHealth, TestMaxHealth);
-	}
+    if (!HUDWidget || !IsValid(InASC))
+    {
+        return;
+    }
+
+    if (!InASC->GetSet<UTBAttributeSetBase>())
+    {
+        return;
+    }
+
+    // 같은 ASC에 중복 연결 방지
+    if (BoundASC.Get() == InASC)
+    {
+        RefreshResourceHUD();
+        return;
+    }
+
+    UnbindAbilitySystem();
+    BoundASC = InASC;
+
+    // 체력 및 탄약 속성 구독
+    const FGameplayAttribute Attributes[] =
+    {
+        UTBAttributeSetBase::GetBloodAttribute(),
+        UTBAttributeSetBase::GetMaxBloodAttribute(),
+        UTBAttributeSetBase::GetLoadedBloodAttribute(),
+        UTBAttributeSetBase::GetMaxLoadedBloodAttribute(),
+        UTBAttributeSetBase::GetAmmoAtLastReloadAttribute()
+    };
+
+    for (const FGameplayAttribute& Attribute : Attributes)
+    {
+        FDelegateHandle Handle = InASC->GetGameplayAttributeValueChangeDelegate(Attribute).AddUObject(this, &ATBPlayerHUD::HandleAttributeChanged);
+
+        AttributeBindings.Emplace(Attribute, Handle);
+    }
+
+    // 기본 공격 발사 이벤트 구독
+    if (UTBAbilitySystemComponent* ASC = Cast<UTBAbilitySystemComponent>(InASC))
+    {
+        ShotFiredHandle = ASC->OnPrimaryShotFired.AddUObject(this, &ATBPlayerHUD::NotifyShotFired);
+    }
+
+    // 연결 직후 현재 값 표시
+    RefreshResourceHUD();
 }
 
-void ATBPlayerHUD::TestSpread(float Spread)
+void ATBPlayerHUD::HandleAttributeChanged(const FOnAttributeChangeData& Data)
 {
-	if (HUDWidget)
-	{
-		HUDWidget->SetCrosshairSpread(Spread);
-	}
+    RefreshResourceHUD();
 }
 
-void ATBPlayerHUD::TestAim(bool bIsAiming)
+void ATBPlayerHUD::RefreshResourceHUD()
 {
-	if (HUDWidget)
-	{
-		HUDWidget->SetAiming(bIsAiming);
-	}
+    UAbilitySystemComponent* ASC = BoundASC.Get();
+
+    if (!ASC || !HUDWidget)
+    {
+        return;
+    }
+
+    const UTBAttributeSetBase* Attributes = ASC->GetSet<UTBAttributeSetBase>();
+
+    if (!Attributes)
+    {
+        return;
+    }
+
+    // 실제 체력 표시
+    HUDWidget->SetHealth(Attributes->GetBlood(), Attributes->GetMaxBlood());
+
+    // 실제 재장전 가능 여부
+    const bool bCanReload = Attributes->GetBlood() > KINDA_SMALL_NUMBER &&Attributes->GetLoadedBlood() < Attributes->GetMaxLoadedBlood();
+
+    // 현재 잔탄 / 마지막 재장전 완료 당시 잔탄
+    HUDWidget->SetAmmo(
+FMath::RoundToInt(Attributes->GetLoadedBlood()),
+        FMath::RoundToInt(Attributes->GetAmmoAtLastReload()),
+        FMath::RoundToInt(Attributes->GetMaxLoadedBlood()),
+        bCanReload);
 }
 
-void ATBPlayerHUD::TestHit(bool bIsKill)
+void ATBPlayerHUD::NotifyShotFired()
 {
-	if (HUDWidget)
-	{
-		HUDWidget->SetShowHitMarker(bIsKill);
-	}
+    if (HUDWidget)
+    {
+        HUDWidget->NotifyShotFired();
+    }
 }
 
-void ATBPlayerHUD::TestSetAmmo(int32 Current, int32 Reserve)
+void ATBPlayerHUD::UnbindAbilitySystem()
 {
-	TestAmmo = Current;
-	TestReserveAmmo = Reserve;
-	
-	if (HUDWidget)
-	{
-		HUDWidget->SetAmmo(TestAmmo, TestReserveAmmo, TestMagazineSize);
-	}
-}
+    if (UAbilitySystemComponent* ASC = BoundASC.Get())
+    {
+        for (const auto& Binding : AttributeBindings)
+        {
+            ASC->GetGameplayAttributeValueChangeDelegate(Binding.Key).Remove(Binding.Value);
+        }
 
-void ATBPlayerHUD::TestSkill(int32 Index, float Duration)
-{
-	if (HUDWidget)
-	{
-		HUDWidget->StartSkillCooldown(Index, Duration);
-	}
+        if (UTBAbilitySystemComponent* TBASC = Cast<UTBAbilitySystemComponent>(ASC))
+        {
+            TBASC->OnPrimaryShotFired.Remove(ShotFiredHandle);
+        }
+    }
+
+    AttributeBindings.Reset();
+    ShotFiredHandle.Reset();
+    BoundASC.Reset();
 }
 
 void ATBPlayerHUD::TogglePauseMenu()
 {
-	if (!PauseWidget)
-	{
-		return;
-	}
-	if (PauseWidget->IsVisible())
-	{
-		PauseWidget->ClosePauseMenu();
-	}
-	else
-	{
-		PauseWidget->OpenPauseMenu();
-	}
+    if (!PauseWidget)
+    {
+        return;
+    }
+
+    if (PauseWidget->IsVisible())
+    {
+        PauseWidget->ClosePauseMenu();
+    }
+    else
+    {
+        PauseWidget->OpenPauseMenu();
+    }
 }
 
-void ATBPlayerHUD::TestPause()
+void ATBPlayerHUD::EndPlay(
+    const EEndPlayReason::Type EndPlayReason)
 {
-	TogglePauseMenu();
-}
+    UnbindAbilitySystem();
 
-void ATBPlayerHUD::BeginPlay()
-{
-	Super::BeginPlay();
-	
-	if (HUDWidgetClass)
-	{
-		HUDWidget = CreateWidget<UTBPlayerHUDWidget>(GetOwningPlayerController(), HUDWidgetClass);
-		if (HUDWidget)
-		{
-			HUDWidget->AddToViewport();
-			HUDWidget->SetHealth(TestHealth, TestMaxHealth);
-			HUDWidget->SetAmmo(TestAmmo, TestReserveAmmo, TestMagazineSize);
-			HUDWidget->SetSkill(0, nullptr, FText::FromString(TEXT("Q")));
-			HUDWidget->SetSkill(1,nullptr, FText::FromString(TEXT("E")));
-		}
-	}
-	if (PauseWidgetClass)
-	{
-		PauseWidget = CreateWidget<UTBPauseMenuWidget>(GetOwningPlayerController(), PauseWidgetClass);
-		if (PauseWidget)
-		{
-			PauseWidget->AddToViewport(10);
-			PauseWidget->SetVisibility(ESlateVisibility::Collapsed);
-		}
-	}	
+    if (HUDWidget)
+    {
+        HUDWidget->RemoveFromParent();
+    }
+
+    if (PauseWidget)
+    {
+        PauseWidget->RemoveFromParent();
+    }
+
+    Super::EndPlay(EndPlayReason);
 }
