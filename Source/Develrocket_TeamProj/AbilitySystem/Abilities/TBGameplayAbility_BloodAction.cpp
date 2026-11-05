@@ -9,6 +9,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "TBGameplayTags.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
+#include "AbilitySystem/Attributes/TBPlayerAttributeSet.h"
 
 UTBGameplayAbility_BloodAction::UTBGameplayAbility_BloodAction()
 {
@@ -78,36 +79,11 @@ UTBGameplayAbility_Reload::UTBGameplayAbility_Reload()
 	bCommitOnActivate = false;
 }
 
-// bool UTBGameplayAbility_Reload::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayTagContainer* OptionalRelevantTags) const
-// {
-// 	// 비용 GameplayEffect의 보유 혈액 소모 가능 여부 검사
-// 	if (!Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags))
-// 	{
-// 		return false;
-// 	}
-//
-// 	const UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
-//
-// 	if (!ASC)
-// 	{
-// 		return false;
-// 	}
-//
-// 	const UTBBloodAttributeSet* Attributes = ASC->GetSet<UTBBloodAttributeSet>();
-//
-// 	if (!Attributes)
-// 	{
-// 		return false;
-// 	}
-//
-// 	// 충전 혈액이 없는 경우에만 고정량 재장전 허용
-// 	return Attributes->GetLoadedBlood() <= KINDA_SMALL_NUMBER;
-// }
-
 bool UTBGameplayAbility_Reload::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayTagContainer* OptionalRelevantTags) const
 {
 	const UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
-	const UTBAttributeSetBase* Attributes = ASC ? ASC->GetSet<UTBAttributeSetBase>() : nullptr;
+	const UTBPlayerAttributeSet* Attributes = ASC ? ASC->GetSet<UTBPlayerAttributeSet>() : nullptr;
+
 
 	if (!Attributes || !GetCostGameplayEffect())
 	{
@@ -130,7 +106,7 @@ void UTBGameplayAbility_Reload::ApplyCost(const FGameplayAbilitySpecHandle Handl
 	}
 
 	UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
-	const UTBAttributeSetBase* Attributes = ASC ? ASC->GetSet<UTBAttributeSetBase>() : nullptr;
+	const UTBPlayerAttributeSet* Attributes = ASC ? ASC->GetSet<UTBPlayerAttributeSet>() : nullptr;
 	const UGameplayEffect* ReloadEffect = GetCostGameplayEffect();
 
 	if (!Attributes || !ReloadEffect)
@@ -169,7 +145,7 @@ void UTBGameplayAbility_Reload::ApplyCost(const FGameplayAbilitySpecHandle Handl
 	// 재장전 적용에 성공했다면 실제 장전량 저장
 	if (AppliedHandle.WasSuccessfullyApplied())
 	{
-		ASC->SetNumericAttributeBase(UTBAttributeSetBase::GetAmmoAtLastReloadAttribute(),Attributes->GetLoadedBlood());
+		ASC->SetNumericAttributeBase(UTBPlayerAttributeSet::GetAmmoAtLastReloadAttribute(),Attributes->GetLoadedBlood());
 	}
 }
 
