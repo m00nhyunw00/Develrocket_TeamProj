@@ -85,6 +85,18 @@ void UTBSessionSubsystem::FindSessions(int32 MaxSearchResults)
 	}
 }
 
+void UTBSessionSubsystem::JoinSessionByIndex(int32 SearchIndex)
+{
+	//검색결과가 없거나, 번호가 배열 범위를 벗어나면 중단 (크래시 방지)
+	if (!SessionSearch.IsValid() || !SessionSearch->SearchResults.IsValidIndex(SearchIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TBSession] JoinSessionByIndex: invalid index %d"), SearchIndex);
+		return;
+	}
+	
+	JoinFoundSession(SessionSearch->SearchResults[SearchIndex]);
+}
+
 void UTBSessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSuccessful)
 {
 	if (SessionInterface.IsValid())
@@ -113,21 +125,32 @@ void UTBSessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
 		SessionInterface->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegateHandle);
 	}
 	
-	if (!SessionSearch.IsValid() || !bWasSuccessful || SessionSearch->SearchResults.Num() == 0)
+	TArray<FTBSessionInfo> Sessions;
+	
+	if (!SessionSearch.IsValid() || !bWasSuccessful)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[TBSession] No session found(Success: %s)"), 
-			bWasSuccessful ? TEXT("true") : TEXT("false"));
-		return;	
+		UE_LOG(LogTemp, Warning, TEXT("[TBSession] FindSessions failed"));
+		OnSessionsFound.Broadcast(Sessions, false);
+		return;
 	}
 	
-	UE_LOG(LogTemp, Log, TEXT("[TBSession] Found %d session(s)"), SessionSearch->SearchResults.Num());
+	for (int32 i = 0; i < SessionSearch->SearchResults.Num();++i)
+	{
+		const FOnlineSessionSearchResult& Result = SessionSearch->SearchResults[i];
+		
+		FTBSessionInfo Info;
+		Info.SearchIndex = i;
+		Info.HostName = Result.Session.OwningUserName;                   // 방 만든 사람 이름
+		Info.MaxPlayers = Result.Session.SessionSettings.NumPublicConnections; // Host 때 넣은 최대 인원
+		Info.CurrentPlayers = Info.MaxPlayers - Result.Session.NumOpenPublicConnections; // 최대 - 빈자리 = 현재 인원
+		Info.PingInMs = Result.PingInMs;   // 핑
+		
+		Sessions.Add(Info);
+	}
 	
-	const FOnlineSessionSearchResult& FirstResult = SessionSearch->SearchResults[0];
+	UE_LOG(LogTemp,Log, TEXT("[TBSession] Found %d session(s)"), Sessions.Num());
 	
-	UE_LOG(LogTemp, Log, TEXT("[TBSession] Host: %s / Ping: %d"),
-		*FirstResult.Session.OwningUserName, FirstResult.PingInMs);
-	
-	JoinFoundSession(FirstResult);
+	OnSessionsFound.Broadcast(Sessions, true);
 }
 
 void UTBSessionSubsystem::JoinFoundSession(const FOnlineSessionSearchResult& SearchResult)

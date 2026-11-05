@@ -6,6 +6,29 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "TBSessionSubsystem.generated.h"
 
+USTRUCT (BlueprintType)
+struct FTBSessionInfo
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(BlueprintReadOnly)
+	int32 SearchIndex = INDEX_NONE;
+	
+	UPROPERTY(BlueprintReadOnly)
+	FString HostName;
+	
+	UPROPERTY(BlueprintReadOnly)
+	int32 CurrentPlayers = 0;
+	
+	UPROPERTY(BlueprintReadOnly)
+	int32 MaxPlayers = 0;
+	
+	UPROPERTY(BLueprintReadOnly)
+	int32 PingInMs = 0;
+};
+
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnTBSessionsFound, const TArray<FTBSessionInfo>& /*Sessions*/, bool /*bWasSuccessful*/);
+
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API UTBSessionSubsystem : public UGameInstanceSubsystem
 {
@@ -19,6 +42,11 @@ public:
 	void HostSession(int32 NumPublicConnections);
 	UFUNCTION(BlueprintCallable)
 	void FindSessions(int32 MaxSearchResults);
+	UFUNCTION(BlueprintCallable)
+	void JoinSessionByIndex(int32 SearchIndex);
+	
+	FOnTBSessionsFound OnSessionsFound;
+	
 	
 private: 
 	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
