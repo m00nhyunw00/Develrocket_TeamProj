@@ -3,6 +3,7 @@
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
 #include "GameplayEffect.h"
+#include "AbilitySystem/Attributes/TBPlayerAttributeSet.h"
 
 ATBPlayerState::ATBPlayerState()
 {
@@ -13,7 +14,8 @@ ATBPlayerState::ATBPlayerState()
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
 
 	// 자원 AttributeSet 생성 및 등록
-	PlayerAttributeSet = CreateDefaultSubobject<UTBAttributeSetBase>(TEXT("BloodAttributeSet"));
+	PlayerAttributeSet = CreateDefaultSubobject<UTBPlayerAttributeSet>(TEXT("BloodAttributeSet"));
+
 	AbilitySystemComponent->AddAttributeSetSubobject(PlayerAttributeSet.Get());
 }
 
@@ -44,14 +46,6 @@ void ATBPlayerState::InitializeGameplayData()
 	{
 		return;
 	}
-
-	// // 초기 혈액 및 탄창 설정
-	// AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
-	//
-	// // 기본 Ability 부여 및 핸들 기록
-	// AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
-	//
-	// bGameplayDataInitialized = true;
 	
 	// 초기 체력 및 탄약 설정
 	const FActiveGameplayEffectHandle AppliedHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
@@ -63,8 +57,8 @@ void ATBPlayerState::InitializeGameplayData()
 	}
 
 	// 설정된 현재 탄약을 오른쪽 표시용 기준값으로 저장
-	AbilitySystemComponent->SetNumericAttributeBase(UTBAttributeSetBase::GetAmmoAtLastReloadAttribute(), PlayerAttributeSet->GetLoadedBlood());
-
+	AbilitySystemComponent->SetNumericAttributeBase(UTBPlayerAttributeSet::GetAmmoAtLastReloadAttribute(), PlayerAttributeSet->GetLoadedBlood());
+	
 	// 기본 Ability 부여 및 핸들 기록
 	AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
 

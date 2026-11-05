@@ -3,6 +3,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
+#include "AbilitySystem/Attributes/TBPlayerAttributeSet.h"
 #include "Blueprint/UserWidget.h"
 #include "Framework/TBPlayerState.h"
 #include "GameFramework/Pawn.h"
@@ -69,7 +70,7 @@ void ATBPlayerHUD::BindAbilitySystem(UAbilitySystemComponent* InASC)
         return;
     }
 
-    if (!InASC->GetSet<UTBAttributeSetBase>())
+    if (!InASC->GetSet<UTBPlayerAttributeSet>())
     {
         return;
     }
@@ -83,15 +84,18 @@ void ATBPlayerHUD::BindAbilitySystem(UAbilitySystemComponent* InASC)
 
     UnbindAbilitySystem();
     BoundASC = InASC;
-
+    
     // 체력 및 탄약 속성 구독
     const FGameplayAttribute Attributes[] =
     {
+        // 공통 체력 속성
         UTBAttributeSetBase::GetBloodAttribute(),
         UTBAttributeSetBase::GetMaxBloodAttribute(),
-        UTBAttributeSetBase::GetLoadedBloodAttribute(),
-        UTBAttributeSetBase::GetMaxLoadedBloodAttribute(),
-        UTBAttributeSetBase::GetAmmoAtLastReloadAttribute()
+
+        // 플레이어 전용 탄약 속성
+        UTBPlayerAttributeSet::GetLoadedBloodAttribute(),
+        UTBPlayerAttributeSet::GetMaxLoadedBloodAttribute(),
+        UTBPlayerAttributeSet::GetAmmoAtLastReloadAttribute()
     };
 
     for (const FGameplayAttribute& Attribute : Attributes)
@@ -125,7 +129,7 @@ void ATBPlayerHUD::RefreshResourceHUD()
         return;
     }
 
-    const UTBAttributeSetBase* Attributes = ASC->GetSet<UTBAttributeSetBase>();
+    const UTBPlayerAttributeSet* Attributes = ASC->GetSet<UTBPlayerAttributeSet>();
 
     if (!Attributes)
     {
