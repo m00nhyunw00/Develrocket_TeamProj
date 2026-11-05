@@ -24,3 +24,15 @@ void ATBMenuPlayerController::BeginPlay()
 		}
 	}		
 }
+
+void ATBMenuPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (IsLocalController())
+        {
+            // 메뉴에서 걸어둔 UI Only를 해제하고 게임 입력으로 복구
+            SetInputMode(FInputModeGameOnly());
+            SetShowMouseCursor(false);
+        }
+	
+	Super::EndPlay(EndPlayReason);
+}
