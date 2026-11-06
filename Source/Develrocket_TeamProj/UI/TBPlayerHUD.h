@@ -8,6 +8,7 @@
 class UAbilitySystemComponent;
 class UTBPlayerHUDWidget;
 class UTBPauseMenuWidget;
+class UTBMatchWaitWidget;
 
 struct FOnAttributeChangeData;
 
@@ -40,6 +41,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTBPauseMenuWidget> PauseWidget;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UTBMatchWaitWidget> MatchWaitWidgetClass;
 
 private:
 	void HandleAttributeChanged(const FOnAttributeChangeData& Data);

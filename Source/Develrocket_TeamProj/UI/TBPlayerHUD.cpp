@@ -10,6 +10,9 @@
 #include "GameFramework/PlayerController.h"
 #include "UI/TBPauseMenuWidget.h"
 #include "UI/TBPlayerHUDWidget.h"
+#include "UI/TBMatchWaitWidget.h"
+#include "Framework/TBLevelManager.h"
+#include "Kismet/GameplayStatics.h"
 
 void ATBPlayerHUD::BeginPlay()
 {
@@ -46,6 +49,15 @@ void ATBPlayerHUD::BeginPlay()
         {
             PauseWidget->AddToViewport(10);
             PauseWidget->SetVisibility(ESlateVisibility::Collapsed);
+        }
+    }
+    
+    // 대기 화면 : LevelManager가 있는 맵 안에서만
+    if (MatchWaitWidgetClass && UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass()))
+    {
+        if (UTBMatchWaitWidget* WaitWidget = CreateWidget<UTBMatchWaitWidget>(PC, MatchWaitWidgetClass))
+        {
+            WaitWidget->AddToViewport(20);
         }
     }
 

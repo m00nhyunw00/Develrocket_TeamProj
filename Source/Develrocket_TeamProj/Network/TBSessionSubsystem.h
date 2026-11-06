@@ -68,6 +68,6 @@ private:
 	
 	TSharedPtr<FOnlineSessionSearch> SessionSearch;
 	
-	FString LobbyMapPath = TEXT("/Game/_Game/Maps/L_Lobby"); 
+	FString LobbyMapPath = TEXT("/Game/_Game/Maps/L_Battlefield"); 
 	
 };
