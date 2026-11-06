@@ -71,7 +71,10 @@ void UTBMatchWaitWidget::OnStartClicked()
     if (ATBLevelManager* Manager = LevelManager.Get())
     {
         StartButton->SetIsEnabled(false);   // 연타 방지
-        Manager->StartMatch();              // 호스트 = 서버라서 직접 호출 가능
+		if (!Manager->StartMatch())
+		{
+			StartButton->SetIsEnabled(true);
+		}
     }
 }
 
