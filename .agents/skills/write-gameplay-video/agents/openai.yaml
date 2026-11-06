@@ -1,0 +1,4 @@
+interface:
+  display_name: "게임플레이 촬영 시나리오"
+  short_description: "Notion 기획과 코드를 근거로 촬영 장면과 자막을 작성"
+  default_prompt: "$write-gameplay-video 스킬로 제공한 Notion 문서와 프로젝트 코드를 확인하고 촬영 시나리오와 장면별 자막을 작성해줘."
