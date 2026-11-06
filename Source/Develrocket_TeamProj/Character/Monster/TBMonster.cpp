@@ -10,6 +10,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Abilities/GameplayAbility.h"
 #include "TBGameplayTags.h"
+#include "Elements/Metadata/PCGMetadataOpElementBase.h"
 
 ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
@@ -299,6 +300,13 @@ void ATBMonster::HandleDeath()
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ReceiveDeath();
 	OnMonsterDied.Broadcast(this);
+}
+
+bool ATBMonster::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource,
+	const FHitResult& HitResult)
+{
+	
+	return ApplyGASDamage(Damage, DamageSource);
 }
 
 void ATBMonster::EndPlay(const EEndPlayReason::Type EndPlayReason)

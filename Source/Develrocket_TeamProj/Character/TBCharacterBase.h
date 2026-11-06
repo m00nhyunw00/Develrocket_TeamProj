@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
 #include "GameFramework/Character.h"
+#include "Interface/TBHitInterface.h"
 #include "TBCharacterBase.generated.h"
 
 class UTBAbilitySystemComponent;
@@ -10,7 +11,7 @@ class UAbilitySystemComponent;
 
 UCLASS(Abstract)
 class DEVELROCKET_TEAMPROJ_API ATBCharacterBase
-	: public ACharacter, public IAbilitySystemInterface
+	: public ACharacter, public IAbilitySystemInterface, public ITBHitInterface
 {
 	GENERATED_BODY()
 
