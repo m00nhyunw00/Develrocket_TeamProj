@@ -68,6 +68,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Abilities")
 	TSubclassOf<UGameplayAbility> DeathAbilityClass;
 
+	// 데미지를 받는 게임플레이 이펙트
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Damage")
 	TSubclassOf<UGameplayEffect> DamageEffectClass;
 
@@ -87,7 +88,8 @@ private:
 	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
 	void Die();
 	void HandleDeath();
-
+	virtual bool ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult) override;
+	
 	bool bGameplayDataInitialized = false;
 	bool bDeathHandled = false;
 	bool bPausedBrainForStagger = false;
