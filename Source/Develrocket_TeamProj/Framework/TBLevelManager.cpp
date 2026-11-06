@@ -1,14 +1,16 @@
 #include "Framework/TBLevelManager.h"
 
 #include "Kismet/GameplayStatics.h"
-#include "Components/BrushComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
-#include "GameFramework/Volume.h"
+#include "Character/Monster/TBMonster.h"
+#include "Character/Player/TBPlayer.h"
 #include "Net/UnrealNetwork.h"
 #include "PCG/CityLayoutCoordinator.h"
+#include "TimerManager.h"
 
 ATBLevelManager::ATBLevelManager()
 {
@@ -47,6 +49,15 @@ void ATBLevelManager::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATBLevelManager, bMatchStarted);
+	DOREPLIFETIME(ATBLevelManager, bSearchingForSpawn);
+}
+
+void ATBLevelManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	GetWorldTimerManager().ClearTimer(MatchSpawnRetryTimer);
+	GetWorldTimerManager().ClearTimer(PendingSpawnRetryTimer);
+	PendingSpawnRequests.Empty();
+	Super::EndPlay(EndPlayReason);
 }
 
 void ATBLevelManager::HandleCityReady(int32 Seed, int32 Revision)
@@ -69,35 +80,44 @@ bool ATBLevelManager::StartMatch()
 	{
 		return false;
 	}
+	if (bSearchingForSpawn) return true;
+	bSearchingForSpawn = true;
+	MatchRetryCount = 0;
+	OnRep_SearchingForSpawn();
+	ForceNetUpdate();
+	RetryMatchSpawn();
+	if (bSearchingForSpawn)
+	{
+		GetWorldTimerManager().SetTimer(MatchSpawnRetryTimer, this, &ThisClass::RetryMatchSpawn, FMath::Max(0.1f, SpawnRetryInterval), true);
+	}
+	return true;
+}
+
+void ATBLevelManager::RetryMatchSpawn()
+{
+	if (!HasAuthority() || !bSearchingForSpawn || bMatchStarted) return;
 	if (!PlacePlayersAroundCity())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[TBLevel] 외곽 스폰 위치를 찾지 못해 게임을 시작하지 않았습니다."));
-		return false;
+		if (++MatchRetryCount % 10 == 0) UE_LOG(LogTemp, Warning, TEXT("[TBLevel] 안전한 시작 위치 탐색을 계속 재시도 중입니다. Floor 설정과 주변 공간을 확인하세요. (%d회)"), MatchRetryCount);
+		return;
 	}
-
+	GetWorldTimerManager().ClearTimer(MatchSpawnRetryTimer);
+	bSearchingForSpawn = false;
 	bMatchStarted = true;
-
-	// 서버(호스트)는 OnRep이 자동 호출되지 않으므로 직접 호출
+	OnRep_SearchingForSpawn();
 	OnRep_MatchStarted();
-	return true;
+	ForceNetUpdate();
+}
+
+void ATBLevelManager::OnRep_SearchingForSpawn()
+{
+	OnSpawnSearchChangedEvent.Broadcast();
 }
 
 bool ATBLevelManager::PlacePlayersAroundCity()
 {
 	UWorld* World = GetWorld();
-	ACityLayoutCoordinator* City = World ? Cast<ACityLayoutCoordinator>(UGameplayStatics::GetActorOfClass(this, ACityLayoutCoordinator::StaticClass())) : nullptr;
-	AVolume* Volume = City ? Cast<AVolume>(City->CityVolume) : nullptr;
-	UBrushComponent* Brush = Volume ? Volume->GetBrushComponent() : nullptr;
-	if (!World || !Brush)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[TBLevel] CityVolume 또는 볼륨 경계를 찾지 못했습니다."));
-		return false;
-	}
-	const FBox Bounds = Brush->Bounds.GetBox();
-	if (!Bounds.IsValid || Bounds.GetExtent().X <= 1.0f || Bounds.GetExtent().Y <= 1.0f)
-	{
-		return false;
-	}
+	if (!World) return false;
 
 	TArray<ACharacter*> Characters;
 	TArray<AActor*> IgnoredPlayers;
@@ -116,22 +136,14 @@ bool ATBLevelManager::PlacePlayersAroundCity()
 	}
 	if (Characters.IsEmpty()) return false;
 
-	const int32 EdgeOrder[] = { 0, 2, 1, 3 };
-	bool UsedEdges[] = { false, false, false, false };
 	TArray<FVector> Locations;
+	TArray<FTransform> SpawnTransforms;
 	for (int32 Index = 0; Index < Characters.Num(); ++Index)
 	{
-		FVector Location;
-		bool bFound = false;
-		for (int32 Offset = 0; Offset < 4 && !bFound; ++Offset)
-		{
-			const int32 Edge = EdgeOrder[(Index + Offset) % 4];
-			if (Index < 4 && UsedEdges[Edge]) continue;
-			bFound = FindSafeEdgeLocation(Bounds, Edge, Characters[Index], Locations, IgnoredPlayers, Location);
-			if (bFound) UsedEdges[Edge] = true;
-		}
-		if (!bFound) return false;
-		Locations.Add(Location);
+		FTransform SpawnTransform;
+		if (!FindSafePlayerSpawnInternal(Characters[Index], Characters[Index], IgnoredPlayers, Locations, SpawnTransform)) return false;
+		SpawnTransforms.Add(SpawnTransform);
+		Locations.Add(SpawnTransform.GetLocation());
 	}
 
 	TArray<FTransform> OriginalTransforms;
@@ -140,8 +152,7 @@ bool ATBLevelManager::PlacePlayersAroundCity()
 	for (ACharacter* Character : Characters) OriginalControlRotations.Add(Character->GetControlRotation());
 	for (int32 Index = 0; Index < Characters.Num(); ++Index)
 	{
-		const FVector Direction = Bounds.GetCenter() - Locations[Index];
-		const FRotator Facing(0.0f, Direction.Rotation().Yaw, 0.0f);
+		const FRotator Facing = SpawnTransforms[Index].Rotator();
 		if (!Characters[Index]->TeleportTo(Locations[Index], Facing, false, false))
 		{
 			for (int32 Previous = 0; Previous < Index; ++Previous)
@@ -156,35 +167,106 @@ bool ATBLevelManager::PlacePlayersAroundCity()
 	return true;
 }
 
-bool ATBLevelManager::FindSafeEdgeLocation(const FBox& CityBounds, int32 Edge, const ACharacter* Character, const TArray<FVector>& ReservedLocations, const TArray<AActor*>& Players, FVector& OutLocation) const
+bool ATBLevelManager::FindSafePlayerSpawn(TSubclassOf<ACharacter> CharacterClass, AActor* IgnoredActor, FTransform& OutSpawnTransform) const
 {
-	const FVector Center = CityBounds.GetCenter();
-	const FVector Extent = CityBounds.GetExtent();
+	if (!HasAuthority() || !bLocalCityReady || !CharacterClass) return false;
+	const ACharacter* Character = CharacterClass->GetDefaultObject<ACharacter>();
+	return FindSafePlayerSpawnInternal(Character, IgnoredActor, {}, {}, OutSpawnTransform);
+}
+
+bool ATBLevelManager::RequestSafePlayerSpawn(TSubclassOf<ACharacter> CharacterClass, AActor* IgnoredActor, FTBSpawnLocationReady OnReady)
+{
+	if (!HasAuthority() || !CharacterClass || !OnReady.IsBound()) return false;
+	FTBPendingSpawnRequest& Request = PendingSpawnRequests.AddDefaulted_GetRef();
+	Request.CharacterClass = CharacterClass;
+	Request.IgnoredActor = IgnoredActor;
+	Request.OnReady = OnReady;
+	if (!GetWorldTimerManager().IsTimerActive(PendingSpawnRetryTimer))
+	{
+		GetWorldTimerManager().SetTimer(PendingSpawnRetryTimer, this, &ThisClass::RetryPendingSpawns, FMath::Max(0.1f, SpawnRetryInterval), true, 0.01f);
+	}
+	return true;
+}
+
+void ATBLevelManager::RetryPendingSpawns()
+{
+	if (!HasAuthority()) return;
+	TArray<FTBPendingSpawnRequest> Requests = MoveTemp(PendingSpawnRequests);
+	PendingSpawnRequests.Reset();
+	TArray<FVector> ReservedLocations;
+	for (const FTBPendingSpawnRequest& Request : Requests)
+	{
+		if (!Request.OnReady.IsBound() || !Request.CharacterClass) continue;
+		FTransform SpawnTransform;
+		const ACharacter* Character = Request.CharacterClass->GetDefaultObject<ACharacter>();
+		if (bLocalCityReady && FindSafePlayerSpawnInternal(Character, Request.IgnoredActor.Get(), {}, ReservedLocations, SpawnTransform))
+		{
+			ReservedLocations.Add(SpawnTransform.GetLocation());
+			Request.OnReady.ExecuteIfBound(SpawnTransform);
+		}
+		else PendingSpawnRequests.Add(Request);
+	}
+	if (PendingSpawnRequests.IsEmpty())
+	{
+		GetWorldTimerManager().ClearTimer(PendingSpawnRetryTimer);
+		PendingRetryCount = 0;
+	}
+	else if (++PendingRetryCount % 10 == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TBLevel] 리스폰 위치를 계속 탐색 중입니다. Floor 설정과 주변 공간을 확인하세요. (대기 %d명)"), PendingSpawnRequests.Num());
+	}
+}
+
+bool ATBLevelManager::FindSafePlayerSpawnInternal(const ACharacter* Character, AActor* IgnoredActor, const TArray<AActor*>& IgnoredPlayers, const TArray<FVector>& ReservedLocations, FTransform& OutSpawnTransform) const
+{
+	UWorld* World = GetWorld();
+	if (!World || !Character || !Character->GetCapsuleComponent()) return false;
+
+	AActor* Floor = SpawnFloor.Get();
+	if (!IsValid(Floor))
+	{
+		TArray<AActor*> Floors;
+		if (!SpawnFloorTag.IsNone()) UGameplayStatics::GetAllActorsWithTag(this, SpawnFloorTag, Floors);
+		if (Floors.Num() != 1)
+		{
+			return false;
+		}
+		Floor = Floors[0];
+	}
+	// 실제 Floor의 월드 경계를 기준으로 후보를 생성
+	const FBox FloorBounds = Floor->GetComponentsBoundingBox(false, false);
+	if (!FloorBounds.IsValid || FloorBounds.GetExtent().X <= 1.0 || FloorBounds.GetExtent().Y <= 1.0) return false;
+
 	const UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
 	const float Radius = Capsule->GetScaledCapsuleRadius();
 	const float HalfHeight = Capsule->GetScaledCapsuleHalfHeight();
 	FCollisionQueryParams Query(SCENE_QUERY_STAT(CityPlayerSpawn), false);
-	Query.AddIgnoredActors(Players);
-	constexpr int32 Samples = 17;
-	for (int32 Index = 0; Index < Samples; ++Index)
+	Query.AddIgnoredActors(IgnoredPlayers);
+	if (IsValid(IgnoredActor)) Query.AddIgnoredActor(IgnoredActor);
+	for (int32 Attempt = 0; Attempt < MaxSpawnAttempts; ++Attempt)
 	{
-		const float Along = ((Index + 0.5f) / Samples * 1.6f) - 0.8f;
-		const float XInset = FMath::Min(SpawnEdgeInset, static_cast<float>(Extent.X * 0.45));
-		const float YInset = FMath::Min(SpawnEdgeInset, static_cast<float>(Extent.Y * 0.45));
-		FVector Sample = Center;
-		if (Edge == 0 || Edge == 2) { Sample.X += (Edge == 0 ? 1.0 : -1.0) * (Extent.X - XInset); Sample.Y += Along * Extent.Y; }
-		else { Sample.Y += (Edge == 1 ? 1.0 : -1.0) * (Extent.Y - YInset); Sample.X += Along * Extent.X; }
+		const double X = FMath::FRandRange(FloorBounds.Min.X, FloorBounds.Max.X);
+		const double Y = FMath::FRandRange(FloorBounds.Min.Y, FloorBounds.Max.Y);
 		FHitResult Hit;
-		const FVector Top(Sample.X, Sample.Y, CityBounds.Max.Z + 500.0);
-		const FVector Bottom(Sample.X, Sample.Y, CityBounds.Min.Z - 1000.0);
-		if (!GetWorld()->LineTraceSingleByChannel(Hit, Top, Bottom, ECC_Visibility, Query) || Hit.ImpactNormal.Z < 0.7f) continue;
+		const FVector Top(X, Y, FloorBounds.Max.Z + TraceHeightAboveCity);
+		const FVector Bottom(X, Y, FloorBounds.Min.Z - 1000.0);
+		if (!World->LineTraceSingleByChannel(Hit, Top, Bottom, ECC_Visibility, Query) || Hit.GetActor() != Floor) continue;
 		const FVector Location = Hit.ImpactPoint + FVector(0, 0, HalfHeight + 3.0f);
 		bool bTooClose = false;
 		for (const FVector& Reserved : ReservedLocations) bTooClose |= FVector::Dist2D(Location, Reserved) < MinimumPlayerSpawnDistance;
+		for (TActorIterator<ATBPlayer> It(World); It && !bTooClose; ++It)
+		{
+			if (*It != IgnoredActor && !IgnoredPlayers.Contains(*It) && FVector::Dist2D(Location, It->GetActorLocation()) < MinimumPlayerSpawnDistance) bTooClose = true;
+		}
+		for (TActorIterator<ATBMonster> It(World); It && !bTooClose; ++It)
+		{
+			if (*It != IgnoredActor && FVector::Dist2D(Location, It->GetActorLocation()) < MinimumMonsterSpawnDistance) bTooClose = true;
+		}
 		if (bTooClose) continue;
 		const FCollisionShape Shape = FCollisionShape::MakeCapsule(Radius, HalfHeight);
-		if (GetWorld()->OverlapBlockingTestByProfile(Location, FQuat::Identity, Capsule->GetCollisionProfileName(), Shape, Query)) continue;
-		OutLocation = Location;
+		if (World->OverlapAnyTestByProfile(Location, FQuat::Identity, Capsule->GetCollisionProfileName(), Shape, Query)) continue;
+		const FVector Direction = FloorBounds.GetCenter() - Location;
+		OutSpawnTransform = FTransform(FRotator(0.0f, Direction.Rotation().Yaw, 0.0f), Location);
 		return true;
 	}
 	return false;
