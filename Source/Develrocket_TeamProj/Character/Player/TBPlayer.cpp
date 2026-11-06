@@ -192,6 +192,11 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	{
 		EnhancedInput->BindAction(ReloadAction, ETriggerEvent::Started, this, &ATBPlayer::InputReloadStarted);
 	}
+	
+	if (InteractAction)
+	{
+		EnhancedInput->BindAction(InteractAction, ETriggerEvent::Started, this, &ATBPlayer::InputInteractStarted);
+	}
 }
 
 // 점프·앉기 상태 전환 ----------------------
@@ -446,6 +451,11 @@ void ATBPlayer::InputReloadStarted()
 	{
 		ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Combat_Reload);
 	}
+}
+
+void ATBPlayer::InputInteractStarted()
+{
+	
 }
 
 void ATBPlayer::InitializeWeaponMeshes()

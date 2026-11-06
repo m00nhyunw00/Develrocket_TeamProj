@@ -18,7 +18,7 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 	
-	//조준선 : 위젯과 간격 설정
+	// 조준선 : 위젯과 간격 설정
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UImage> CrosshairTop;
 	UPROPERTY(meta=(BindWidget))

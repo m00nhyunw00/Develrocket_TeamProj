@@ -20,7 +20,7 @@ void UTBCrosshairWidget::SetAiming(bool bIsAiming)
 
 void UTBCrosshairWidget::NotifyShotFired()
 {
-	constexpr float ShotKick = 0.25f;
+	constexpr float ShotKick = 0.5f;
 
 	// 발사할 때 현재 간격 증가
 	CurrentSpread = FMath::Clamp(FMath::Max(CurrentSpread, TargetSpread) + ShotKick,0.0f,1.0f);
