@@ -192,6 +192,12 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	{
 		EnhancedInput->BindAction(ReloadAction, ETriggerEvent::Started, this, &ATBPlayer::InputReloadStarted);
 	}
+	
+	// 상호작용 입력 시작을 전달
+	if (InteractAction)
+	{
+		EnhancedInput->BindAction(InteractAction, ETriggerEvent::Started, this, &ATBPlayer::InputInteractStarted);
+	}
 }
 
 // 점프·앉기 상태 전환 ----------------------
@@ -445,6 +451,19 @@ void ATBPlayer::InputReloadStarted()
 	if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
 	{
 		ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Combat_Reload);
+	}
+}
+
+void ATBPlayer::InputInteractStarted()
+{
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
+	
+	if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+	{
+		ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Interaction);
 	}
 }
 
