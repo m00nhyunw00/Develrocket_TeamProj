@@ -4,7 +4,7 @@
 
 #include "AIController.h"
 #include "AbilitySystem/Abilities/TBGameplayAbility_BloodAction.h"
-#include "Character/Monster/GAS/TBMonsterAttributeSet.h"
+#include "AbilitySystem/Attributes/TBMonsterAttributeSet.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "Character/Monster/TBMonster.h"
 #include "Components/CapsuleComponent.h"

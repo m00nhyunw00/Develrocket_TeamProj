@@ -20,6 +20,12 @@ protected:
 	
 	UFUNCTION()
 	void HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
+
+	UFUNCTION()
+	void HandleTargetDestroyed(AActor* DestroyedActor);
+
+	void UpdateTarget(AActor* ExcludedActor = nullptr);
+	TWeakObjectPtr<AActor> TrackedTarget;
 	
 	UPROPERTY(VisibleAnywhere, Category = "AI|Perception")
 	TObjectPtr<UAISenseConfig_Sight> SightConfig;

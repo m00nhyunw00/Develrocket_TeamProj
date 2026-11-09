@@ -3,7 +3,7 @@
 #include "AIController.h"
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
-#include "Character/Monster/GAS/TBMonsterAttributeSet.h"
+#include "AbilitySystem/Attributes/TBMonsterAttributeSet.h"
 #include "BrainComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
