@@ -10,6 +10,17 @@ class ACharacter;
 // 위젯이 구독할 로컬 알림 (일반 멀티캐스트)
 DECLARE_MULTICAST_DELEGATE(FOnTBLocalCityReady);
 DECLARE_MULTICAST_DELEGATE(FOnTBMatchStarted);
+DECLARE_MULTICAST_DELEGATE(FOnTBSpawnSearchChanged);
+DECLARE_DYNAMIC_DELEGATE_OneParam(FTBSpawnLocationReady, FTransform, SpawnTransform);
+
+USTRUCT()
+struct FTBPendingSpawnRequest
+{
+	GENERATED_BODY()
+	UPROPERTY() TSubclassOf<ACharacter> CharacterClass;
+	UPROPERTY() TWeakObjectPtr<AActor> IgnoredActor;
+	UPROPERTY() FTBSpawnLocationReady OnReady;
+};
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBLevelManager : public AActor
@@ -21,22 +32,48 @@ public:
 	
 	bool IsLocalCityReady() const { return bLocalCityReady; }
 	bool IsMatchStarted() const { return bMatchStarted; }
+	bool IsSearchingForSpawn() const { return bSearchingForSpawn; }
 	
 	// 호스트(서버)의 START버튼이 호출
 	bool StartMatch();
+
+	// 서버에서 호출. 리스폰할 캐릭터 클래스의 캡슐을 기준으로 위치 탐색.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="City|Player Spawn")
+	bool FindSafePlayerSpawn(TSubclassOf<ACharacter> CharacterClass, AActor* IgnoredActor, FTransform& OutSpawnTransform) const;
+
+	// 리스폰 위치를 찾을 때까지 재시도하고 성공 시 콜백 호출
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="City|Player Spawn")
+	bool RequestSafePlayerSpawn(TSubclassOf<ACharacter> CharacterClass, AActor* IgnoredActor, FTBSpawnLocationReady OnReady);
 	
 	FOnTBLocalCityReady OnLocalCityReadyEvent;
 	FOnTBMatchStarted OnMatchStartedEvent;
+	FOnTBSpawnSearchChanged OnSpawnSearchChangedEvent;
 	
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
 
 	UPROPERTY(EditInstanceOnly, Category="City|Player Spawn", meta=(ClampMin="0.0", Units="cm"))
-	float SpawnEdgeInset = 1500.0f;
+	float MinimumPlayerSpawnDistance = 3000.0f;
 
 	UPROPERTY(EditInstanceOnly, Category="City|Player Spawn", meta=(ClampMin="0.0", Units="cm"))
-	float MinimumPlayerSpawnDistance = 3000.0f;
+	float MinimumMonsterSpawnDistance = 3000.0f;
+
+	UPROPERTY(EditInstanceOnly, Category="City|Player Spawn", meta=(ClampMin="1"))
+	int32 MaxSpawnAttempts = 100;
+
+	UPROPERTY(EditInstanceOnly, Category="City|Player Spawn", meta=(ClampMin="0.1", Units="s"))
+	float SpawnRetryInterval = 1.0f;
+
+	UPROPERTY(EditInstanceOnly, Category="City|Player Spawn")
+	TObjectPtr<AActor> SpawnFloor;
+
+	UPROPERTY(EditInstanceOnly, Category="City|Player Spawn")
+	FName SpawnFloorTag = TEXT("CityFloor");
+
+	UPROPERTY(EditInstanceOnly, Category="City|Player Spawn", meta=(ClampMin="0.0", Units="cm"))
+	float TraceHeightAboveCity = 10000.0f;
 	
 private:
 	// Coordinator의 OnLocalCityReady는 Dynamic(Seed, Revision) -> 시그니처를 맞춰야 함
@@ -46,11 +83,26 @@ private:
 	UFUNCTION()
 	void OnRep_MatchStarted();
 
+	UFUNCTION()
+	void OnRep_SearchingForSpawn();
+	void RetryMatchSpawn();
+	void RetryPendingSpawns();
+
 	bool PlacePlayersAroundCity();
-	bool FindSafeEdgeLocation(const FBox& CityBounds, int32 Edge, const ACharacter* Character, const TArray<FVector>& ReservedLocations, const TArray<AActor*>& Players, FVector& OutLocation) const;
+	bool FindSafePlayerSpawnInternal(const ACharacter* Character, AActor* IgnoredActor, const TArray<AActor*>& IgnoredPlayers, const TArray<FVector>& ReservedLocations, FTransform& OutSpawnTransform) const;
 	
 	UPROPERTY(ReplicatedUsing=OnRep_MatchStarted)
 	bool bMatchStarted = false;
+
+	UPROPERTY(ReplicatedUsing=OnRep_SearchingForSpawn)
+	bool bSearchingForSpawn = false;
+
+	UPROPERTY(Transient)
+	TArray<FTBPendingSpawnRequest> PendingSpawnRequests;
+	FTimerHandle MatchSpawnRetryTimer;
+	FTimerHandle PendingSpawnRetryTimer;
+	int32 MatchRetryCount = 0;
+	int32 PendingRetryCount = 0;
 	
 	bool bLocalCityReady = false;
 };

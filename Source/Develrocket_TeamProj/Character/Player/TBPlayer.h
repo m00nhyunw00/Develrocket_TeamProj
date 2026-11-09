@@ -111,8 +111,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> ReloadAction;
 	
-	// 상호작용 액션 ----------------------
-	
+	// 상호작용 입력 액션 ----------------------
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> InteractAction;
 

@@ -43,6 +43,7 @@ void UTBMatchWaitWidget::NativeConstruct()
     // 구독 (위젯 = 받는 쪽)
     Manager->OnLocalCityReadyEvent.AddUObject(this, &UTBMatchWaitWidget::HandleCityReady);
     Manager->OnMatchStartedEvent.AddUObject(this, &UTBMatchWaitWidget::HandleMatchStarted);
+	Manager->OnSpawnSearchChangedEvent.AddUObject(this, &UTBMatchWaitWidget::HandleCityReady);
 
     // 대기 중: 입력은 UI만, 커서 표시
     if (APlayerController* PC = GetOwningPlayer())
@@ -61,6 +62,7 @@ void UTBMatchWaitWidget::NativeDestruct()
     {
         Manager->OnLocalCityReadyEvent.RemoveAll(this);
         Manager->OnMatchStartedEvent.RemoveAll(this);
+		Manager->OnSpawnSearchChangedEvent.RemoveAll(this);
     }
 
     Super::NativeDestruct();
@@ -98,6 +100,12 @@ void UTBMatchWaitWidget::RefreshUI()
 {
     ATBLevelManager* Manager = LevelManager.Get();
     const bool bReady = Manager && Manager->IsLocalCityReady();
+	if (Manager && Manager->IsSearchingForSpawn())
+	{
+		StatusText->SetText(FText::FromString(TEXT("SEARCHING FOR SAFE SPAWN...")));
+		StartButton->SetVisibility(ESlateVisibility::Collapsed);
+		return;
+	}
 
     if (!bReady)
     {

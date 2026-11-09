@@ -193,6 +193,7 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		EnhancedInput->BindAction(ReloadAction, ETriggerEvent::Started, this, &ATBPlayer::InputReloadStarted);
 	}
 	
+	// 상호작용 입력 시작을 전달
 	if (InteractAction)
 	{
 		EnhancedInput->BindAction(InteractAction, ETriggerEvent::Started, this, &ATBPlayer::InputInteractStarted);
@@ -455,7 +456,15 @@ void ATBPlayer::InputReloadStarted()
 
 void ATBPlayer::InputInteractStarted()
 {
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
 	
+	if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+	{
+		ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Interaction);
+	}
 }
 
 void ATBPlayer::InitializeWeaponMeshes()
