@@ -15,12 +15,16 @@ class DEVELROCKET_TEAMPROJ_API ATBMonsterAIController : public AAIController
 	
 public:
 	 ATBMonsterAIController();
+
+	void InvestigateDamageSource(const AActor* DamageSource);
+	void TryStartPendingInvestigation();
 	
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void OnUnPossess() override;
+	virtual void OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result) override;
 	
 	UFUNCTION()
 	void HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
@@ -50,7 +54,7 @@ protected:
 	float PeripheralVisionAngle = 60.f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception", meta = (ClampMin = "0.0", Units = "s"))
-	float LostSightMemorySeconds = 10.0f;
+	float LostSightMemorySeconds = 5.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception|Debug")
 	bool bDrawSightDebug = true;
@@ -60,5 +64,9 @@ protected:
 
 private:
 	void DrawSightDebug();
+	void FinishInvestigation(bool bStopMove);
+	TOptional<FVector> PendingInvestigationLocation;
+	FAIRequestID InvestigationRequestID;
+	bool bPausedBrainForInvestigation = false;
 	FTimerHandle SightDebugTimer;
 };

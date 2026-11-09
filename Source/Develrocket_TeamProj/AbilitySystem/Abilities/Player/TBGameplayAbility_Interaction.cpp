@@ -1,4 +1,4 @@
-#include "AbilitySystem/Abilities/TBGameplayAbility_Interaction.h"
+#include "AbilitySystem/Abilities/Player/TBGameplayAbility_Interaction.h"
 
 #include "TBGameplayTags.h"
 #include "Components/TBInteractionComponent.h"
