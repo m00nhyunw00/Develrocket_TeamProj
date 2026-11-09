@@ -7,6 +7,7 @@
 
 class UCapsuleComponent;
 class USkeletalMeshComponent;
+class UTBDialogueWidget;
 
 /**
  * 대기실(L_MatchWait) 세계관 설명 NPC
@@ -53,4 +54,18 @@ protected:
 	// HUD에 띄울 문구
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction")
 	FText InteractPrompt;
+	
+	// 대화 ----------------------------
+	
+	// 띄울 대화 위젯
+	UPROPERTY(EditDefaultsOnly, Category = "Dialogue")
+	TSubclassOf<UTBDialogueWidget> DialogueWidgetClass;
+	
+	// 이 NPC의 대사
+	UPROPERTY(EditAnywhere, Category = "Dialogue", meta=(MultiLine = true))
+	TArray<FText> DialogueLines;
+	
+private:
+	// 지금 떠 있는 대화 위젯 (중복 생성 방지)
+	TWeakObjectPtr<UTBDialogueWidget> ActiveDialogue;
 };
