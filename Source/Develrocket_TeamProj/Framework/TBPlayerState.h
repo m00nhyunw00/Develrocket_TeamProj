@@ -30,8 +30,21 @@ public:
 	// 서버 혈액 회복 ----------------------
 
 	void ApplyBloodRecovery();
+	
 
 protected:
+	// 기본 공격 피해량
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|PrimaryAttack", meta = (ClampMin = "0.0"))
+	float PrimaryAttackDamage = 10.0f;
+
+	// 기본 공격 사거리(cm)
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|PrimaryAttack", meta = (ClampMin = "1.0"))
+	float PrimaryAttackRange = 10000.0f;
+
+	// 서버 공격 판정 표시
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|PrimaryAttack")
+	bool bDrawPrimaryAttackTrace = true;
+	
 	// GAS 구성 ----------------------
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
@@ -52,8 +65,43 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|Blood")
 	TSubclassOf<UGameplayEffect> BloodRecoveryEffect;
+	
+	// 플레이어 피해 효과 ----------------------
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|Damage")
+	TSubclassOf<UGameplayEffect> DamageEffectClass;
 
 private:
 	// 반복 초기화에 따른 자원 재설정 및 중복 부여 방지
 	bool bGameplayDataInitialized = false;
+	
+public:
+	// 게임플레이 데이터 초기화 완료 여부
+	bool IsGameplayDataInitialized() const
+	{
+		return bGameplayDataInitialized;
+	}
+
+	// 플레이어 피해 효과 조회
+	TSubclassOf<UGameplayEffect> GetDamageEffectClass() const
+	{
+		return DamageEffectClass;
+	}
+	
+	// 기본 공격 피해량 조회
+	float GetPrimaryAttackDamage() const
+	{
+		return PrimaryAttackDamage;
+	}
+
+	// 기본 공격 사거리 조회
+	float GetPrimaryAttackRange() const
+	{
+		return PrimaryAttackRange;
+	}
+
+	// 공격 판정 디버그 표시 여부
+	bool ShouldDrawPrimaryAttackTrace() const
+	{
+		return bDrawPrimaryAttackTrace;
+	}
 };
