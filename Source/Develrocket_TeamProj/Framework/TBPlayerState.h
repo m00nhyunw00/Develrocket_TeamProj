@@ -45,6 +45,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|PrimaryAttack")
 	bool bDrawPrimaryAttackTrace = true;
 	
+	// 일반 공격 간격(초)
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|PrimaryAttack", meta = (ClampMin = "0.01"))
+	float PrimaryAttackInterval = 0.1f;
+	
 	// GAS 구성 ----------------------
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
@@ -70,6 +74,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|Damage")
 	TSubclassOf<UGameplayEffect> DamageEffectClass;
 
+	// 일반 공격 쿨다운 효과 ----------------------
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|PrimaryAttack")
+	TSubclassOf<UGameplayEffect> PrimaryAttackCooldownEffectClass;
+	
 private:
 	// 반복 초기화에 따른 자원 재설정 및 중복 부여 방지
 	bool bGameplayDataInitialized = false;
@@ -103,5 +111,15 @@ public:
 	bool ShouldDrawPrimaryAttackTrace() const
 	{
 		return bDrawPrimaryAttackTrace;
+	}
+	
+	float GetPrimaryAttackInterval() const
+	{
+		return PrimaryAttackInterval;
+	}
+
+	TSubclassOf<UGameplayEffect> GetPrimaryAttackCooldownEffectClass() const
+	{
+		return PrimaryAttackCooldownEffectClass;
 	}
 };

@@ -38,6 +38,12 @@ protected:
 
 	virtual void HandleActionMontageCompleted();
 	virtual void HandleActionMontageInterrupted();
+	
+	// 몽타주 완료까지 Ability를 유지할지 여부 ----------------------
+	virtual bool ShouldWaitForMontageEnd() const
+	{
+		return true;
+	}
 
 	// 로컬 플레이어의 선택적 1인칭 연출 ----------------------
 

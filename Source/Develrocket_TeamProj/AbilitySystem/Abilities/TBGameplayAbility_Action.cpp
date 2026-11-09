@@ -58,6 +58,19 @@ void UTBGameplayAbility_Action::ActivateAbility(const FGameplayAbilitySpecHandle
             AnimInstance->Montage_Play(FirstPersonMontage);
         }
     }
+    
+    // 완료를 기다리지 않는 액션은 몽타주 재생 후 자식으로 복귀
+    if (!ShouldWaitForMontageEnd())
+    {
+        const float PlayedDuration = ASC->PlayMontage(this, ActivationInfo, ThirdPersonMontage, 1.0f, NAME_None, 0.0f);
+
+        if (PlayedDuration <= 0.0f)
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+        }
+
+        return;
+    }
 
     // ASC를 통한 공통 전신 몽타주 재생
     MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, ThirdPersonMontage, 1.0f, NAME_None, true);
@@ -126,8 +139,10 @@ void UTBGameplayAbility_Action::EndAbility(const FGameplayAbilitySpecHandle Hand
         return;
     }
 
-    // 남아 있는 1인칭 몽타주 정리
-    if (FirstPersonMontage)
+    // 완료 대기 액션 또는 취소된 액션의 1인칭 몽타주 정리
+    const bool bShouldStopMontage = ShouldWaitForMontageEnd() || bWasCancelled;
+
+    if (bShouldStopMontage && FirstPersonMontage)
     {
         if (UAnimInstance* AnimInstance = GetFirstPersonAnimInstance())
         {
@@ -138,7 +153,6 @@ void UTBGameplayAbility_Action::EndAbility(const FGameplayAbilitySpecHandle Hand
         }
     }
 
-    // 활성 태스크 종료 및 GAS 상태 정리
     Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 
     MontageTask = nullptr;

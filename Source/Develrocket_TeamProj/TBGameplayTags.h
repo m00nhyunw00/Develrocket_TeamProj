@@ -10,6 +10,10 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Stunned);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_MovementBlocked);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combat);
+	
+	// 쿨다운 ----------------------
+	
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_PrimaryAttack);
 
 	// 전투 Ability ----------------------
 

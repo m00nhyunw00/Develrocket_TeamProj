@@ -1,4 +1,4 @@
-﻿#include "AbilitySystem/Abilities/TBGameplayAbility_PrimaryAttack.h"
+﻿#include "AbilitySystem/Abilities/Player/TBGameplayAbility_PrimaryAttack.h"
 
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "Character/Player/TBPlayer.h"
