@@ -1,6 +1,7 @@
 #include "TBMonster.h"
 
 #include "AIController.h"
+#include "AI/TBMonsterAIController.h"
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBMonsterAttributeSet.h"
@@ -226,6 +227,10 @@ void ATBMonster::HandleAbilityEnded(const FAbilityEndedData& EndedData)
 			}
 			bPausedBrainForStagger = false;
 		}
+		if (ATBMonsterAIController* MonsterController = Cast<ATBMonsterAIController>(GetController()))
+		{
+			MonsterController->TryStartPendingInvestigation();
+		}
 	}
 }
 
@@ -306,7 +311,15 @@ void ATBMonster::HandleDeath()
 bool ATBMonster::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource,
 	const FHitResult& HitResult)
 {
-	return ApplyGASDamage(Damage, DamageSource);
+	const bool bApplied = ApplyGASDamage(Damage, DamageSource);
+	if (bApplied && !IsDead() && IsValid(DamageSource))
+	{
+		if (ATBMonsterAIController* MonsterController = Cast<ATBMonsterAIController>(GetController()))
+		{
+			MonsterController->InvestigateDamageSource(DamageSource);
+		}
+	}
+	return bApplied;
 }
 
 void ATBMonster::EndPlay(const EEndPlayReason::Type EndPlayReason)

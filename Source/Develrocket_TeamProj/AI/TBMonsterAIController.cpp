@@ -4,11 +4,13 @@
 #include "Perception/AISenseConfig_Sight.h"
 #include "Perception/AISense_Sight.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "BrainComponent.h"
 #include "Character/Player/TBPlayer.h"
 #include "Character/Monster/TBMonster.h"
 #include "DrawDebugHelpers.h"
 #include "EngineUtils.h"
 #include "TimerManager.h"
+#include "Navigation/PathFollowingComponent.h"
 
 ATBMonsterAIController::ATBMonsterAIController()
 {
@@ -86,6 +88,8 @@ void ATBMonsterAIController::OnPossess(APawn* InPawn)
 
 void ATBMonsterAIController::OnUnPossess()
 {
+	PendingInvestigationLocation.Reset();
+	FinishInvestigation(true);
 	if (ATBMonster* Monster = Cast<ATBMonster>(GetPawn()))
 	{
 		Monster->OnMonsterDied.RemoveDynamic(this, &ThisClass::HandleMonsterDied);
@@ -100,6 +104,8 @@ void ATBMonsterAIController::OnUnPossess()
 void ATBMonsterAIController::HandleMonsterDied(ATBMonster* Monster)
 {
 	if (!HasAuthority() || Monster != GetPawn()) return;
+	PendingInvestigationLocation.Reset();
+	FinishInvestigation(true);
 	GetWorldTimerManager().ClearTimer(TargetMemoryTimer);
 	GetWorldTimerManager().ClearTimer(SightDebugTimer);
 	ClearTrackedTarget();
@@ -109,6 +115,75 @@ void ATBMonsterAIController::HandleMonsterDied(ATBMonster* Monster)
 		Perception->SetSenseEnabled(UAISense_Sight::StaticClass(), false);
 		Perception->ForgetAll();
 	}
+}
+
+void ATBMonsterAIController::InvestigateDamageSource(const AActor* DamageSource)
+{
+	const ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
+	const UBlackboardComponent* BlackboardComponent = GetBlackboardComponent();
+	if (!HasAuthority() || !IsValid(Monster) || Monster->IsDead() || !IsValid(DamageSource) || DamageSource == Monster || !BlackboardComponent) return;
+	if (BlackboardComponent->GetValueAsObject(TEXT("TargetActor"))) return;
+
+	PendingInvestigationLocation = DamageSource->GetActorLocation();
+	TryStartPendingInvestigation();
+}
+
+void ATBMonsterAIController::TryStartPendingInvestigation()
+{
+	ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
+	UBlackboardComponent* BlackboardComponent = GetBlackboardComponent();
+	UBrainComponent* Brain = GetBrainComponent();
+	if (!HasAuthority() || !PendingInvestigationLocation.IsSet() || !IsValid(Monster) || Monster->IsDead() || !BlackboardComponent) return;
+	if (BlackboardComponent->GetValueAsObject(TEXT("TargetActor")))
+	{
+		PendingInvestigationLocation.Reset();
+		return;
+	}
+	if (Monster->IsMovementBlocked() || (Brain && Brain->IsPaused() && !bPausedBrainForInvestigation)) return;
+
+	const FVector Location = PendingInvestigationLocation.GetValue();
+	PendingInvestigationLocation.Reset();
+	FinishInvestigation(true);
+	if (Brain && Brain->IsRunning() && !Brain->IsPaused())
+	{
+		Brain->PauseLogic(TEXT("Investigating damage source"));
+		bPausedBrainForInvestigation = true;
+	}
+	FAIMoveRequest Request(Location);
+	Request.SetAcceptanceRadius(150.0f);
+	Request.SetUsePathfinding(true);
+	Request.SetProjectGoalLocation(true);
+	const FPathFollowingRequestResult MoveResult = MoveTo(Request);
+	if (MoveResult.Code == EPathFollowingRequestResult::RequestSuccessful)
+	{
+		InvestigationRequestID = MoveResult.MoveId;
+	}
+	else
+	{
+		FinishInvestigation(false);
+	}
+}
+
+void ATBMonsterAIController::FinishInvestigation(bool bStopMove)
+{
+	const bool bHadMove = InvestigationRequestID.IsValid();
+	InvestigationRequestID = FAIRequestID::InvalidRequest;
+	if (bStopMove && bHadMove) StopMovement();
+	if (bPausedBrainForInvestigation)
+	{
+		bPausedBrainForInvestigation = false;
+		const ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
+		if (IsValid(Monster) && !Monster->IsDead())
+		{
+			if (UBrainComponent* Brain = GetBrainComponent()) Brain->ResumeLogic(TEXT("Damage investigation finished"));
+		}
+	}
+}
+
+void ATBMonsterAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
+{
+	Super::OnMoveCompleted(RequestID, Result);
+	if (InvestigationRequestID.IsValid() && RequestID == InvestigationRequestID) FinishInvestigation(false);
 }
 
 void ATBMonsterAIController::DrawSightDebug()
@@ -222,4 +297,9 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 		}
 	}
 	BlackboardComponent->SetValueAsObject(TEXT("TargetActor"), ClosestPlayer);
+	if (ClosestPlayer)
+	{
+		PendingInvestigationLocation.Reset();
+		FinishInvestigation(true);
+	}
 }
