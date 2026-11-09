@@ -47,28 +47,36 @@ void UTBGameplayAbility_PrimaryAttack::ActivateAbility(
 	const FGameplayAbilityActivationInfo ActivationInfo,
 	const FGameplayEventData* TriggerEventData)
 {
-	// 기존 비용 처리와 몽타주 재생
-	Super::ActivateAbility(
-		Handle, ActorInfo, ActivationInfo, TriggerEventData);
+	// 기존 비용 처리 및 몽타주 재생
+	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
-	// 비용 부족 등으로 취소된 경우
+	// 비용 부족 또는 실행 중 종료 여부 확인
 	if (!IsActive() || !ActorInfo)
 	{
 		return;
 	}
 
-	const ATBPlayer* Player =
-		Cast<ATBPlayer>(ActorInfo->AvatarActor.Get());
+	ATBPlayer* Player = Cast<ATBPlayer>(ActorInfo->AvatarActor.Get());
 
-	// 소유 플레이어 화면에서만 발사 알림 발생
-	if (!Player || !Player->IsLocallyControlled())
+	if (!IsValid(Player))
 	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
-	if (UTBAbilitySystemComponent* TBASC = Cast<UTBAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get()))
+	// 서버 적중 판정 및 피해 적용
+	if (ActorInfo->IsNetAuthority())
 	{
-		TBASC->OnPrimaryShotFired.Broadcast();
+		Player->PerformPrimaryAttackTrace();
+	}
+
+	// 소유 플레이어 화면의 발사 알림
+	if (Player->IsLocallyControlled())
+	{
+		if (UTBAbilitySystemComponent* TBASC = Cast<UTBAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get()))
+		{
+			TBASC->OnPrimaryShotFired.Broadcast();
+		}
 	}
 }
 

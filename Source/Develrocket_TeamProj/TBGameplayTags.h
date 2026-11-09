@@ -18,12 +18,13 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_Reload);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Death);
 	
-	// 상호작용 ----------------------
+	// 상호작용 Ability ----------------------
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Interaction);
 	
-	// 데이터 타입 ----------------------
+	// 데미지 타입 ----------------------
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Type_Bullet);
 	
-	// 재장전 GE에 전달할 보유 혈액 차감량과 탄창 충전량
+	// 데이터 타입 (SetByCaller용) ----------------------
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Reload_BloodCost);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Reload_LoadedGain);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Damage);
