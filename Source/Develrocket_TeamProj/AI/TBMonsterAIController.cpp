@@ -93,7 +93,7 @@ void ATBMonsterAIController::OnUnPossess()
 	GetWorldTimerManager().ClearTimer(TargetMemoryTimer);
 	GetWorldTimerManager().ClearTimer(SightDebugTimer);
 	ClearTrackedTarget();
-	if (UBlackboardComponent* Blackboard = GetBlackboardComponent()) Blackboard->ClearValue(TEXT("TargetActor"));
+	if (UBlackboardComponent* BlackboardComponent = GetBlackboardComponent()) BlackboardComponent->ClearValue(TEXT("TargetActor"));
 	Super::OnUnPossess();
 }
 
@@ -103,7 +103,7 @@ void ATBMonsterAIController::HandleMonsterDied(ATBMonster* Monster)
 	GetWorldTimerManager().ClearTimer(TargetMemoryTimer);
 	GetWorldTimerManager().ClearTimer(SightDebugTimer);
 	ClearTrackedTarget();
-	if (UBlackboardComponent* Blackboard = GetBlackboardComponent()) Blackboard->ClearValue(TEXT("TargetActor"));
+	if (UBlackboardComponent* BlackboardComponent = GetBlackboardComponent()) BlackboardComponent->ClearValue(TEXT("TargetActor"));
 	if (UAIPerceptionComponent* Perception = GetPerceptionComponent())
 	{
 		Perception->SetSenseEnabled(UAISense_Sight::StaticClass(), false);
