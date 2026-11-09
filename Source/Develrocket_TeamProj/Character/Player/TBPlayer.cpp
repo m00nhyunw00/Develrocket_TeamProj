@@ -1,6 +1,7 @@
 #include "TBPlayer.h"
 
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "Camera/CameraComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "EnhancedInputComponent.h"
@@ -9,6 +10,7 @@
 #include "InputActionValue.h"
 #include "TBGameplayTags.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
+#include "Character/Monster/TBMonster.h"
 #include "Math/RotationMatrix.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -86,9 +88,149 @@ void ATBPlayer::Tick(float DeltaSeconds)
 	FirstPersonCamera->SetRelativeLocation(CameraLocation);
 }
 
+bool ATBPlayer::IsDead() const
+{
+	const UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+
+	return IsValid(ASC) && ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
+}
+
 bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
 {
-	return true;
+	const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
+	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponent();
+
+	// PlayerState 초기화 및 현재 캐릭터의 ASC 연결 검증
+	if (!HasAuthority() || !IsValid(PS) || !PS->IsGameplayDataInitialized()
+		|| !IsValid(PlayerASC) || PlayerASC != PS->GetAbilitySystemComponent()
+		|| PlayerASC->GetAvatarActor() != this)
+	{
+		return false;
+	}
+
+	const TSubclassOf<UGameplayEffect> DamageEffectClass = PS->GetDamageEffectClass();
+
+	// 사망 상태 및 피해 값 검증
+	if (IsDead() || !FMath::IsFinite(Damage) || Damage <= 0.0f || !DamageEffectClass)
+	{
+		return false;
+	}
+
+	UAbilitySystemComponent* SourceASC = IsValid(DamageSource) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DamageSource) : nullptr;
+	UAbilitySystemComponent* SpecASC = IsValid(SourceASC) ? SourceASC : PlayerASC;
+
+	FGameplayEffectContextHandle Context = SpecASC->MakeEffectContext();
+
+	if (IsValid(DamageSource))
+	{
+		Context.AddSourceObject(DamageSource);
+
+		if (!IsValid(SourceASC))
+		{
+			Context.AddInstigator(DamageSource, DamageSource);
+		}
+	}
+
+	const FGameplayEffectSpecHandle Spec = SpecASC->MakeOutgoingSpec(DamageEffectClass, 1.0f, Context);
+
+	if (!Spec.IsValid())
+	{
+		return false;
+	}
+
+	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);
+	const bool bApplied = PlayerASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
+
+	return bApplied;
+}
+
+bool ATBPlayer::PerformPrimaryAttackTrace()
+{
+	// 서버 판정 및 사망 상태 검증
+	if (!HasAuthority() || IsDead())
+	{
+		return false;
+	}
+
+	const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
+	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponent();
+	UWorld* World = GetWorld();
+
+	// PlayerState 초기화 및 ASC 유효성 검증
+	if (!IsValid(PS) || !PS->IsGameplayDataInitialized() || !IsValid(PlayerASC) || !World || !GetController())
+	{
+		return false;
+	}
+
+	// 현재 캐릭터의 ASC 연결 검증
+	if (PlayerASC != PS->GetAbilitySystemComponent() || PlayerASC->GetAvatarActor() != this)
+	{
+		return false;
+	}
+
+	const float Damage = PS->GetPrimaryAttackDamage();
+	const float TraceRange = PS->GetPrimaryAttackRange();
+
+	// 공격 설정 검증
+	if (!FMath::IsFinite(Damage) || Damage <= 0.0f || !FMath::IsFinite(TraceRange) || TraceRange <= 0.0f)
+	{
+		return false;
+	}
+
+	// 서버의 눈 위치 및 조준 방향
+	FVector TraceStart;
+	FRotator TraceRotation;
+	GetActorEyesViewPoint(TraceStart, TraceRotation);
+
+	const FVector TraceEnd = TraceStart + TraceRotation.Vector() * TraceRange;
+
+	// 공격자 자신과 자신의 컴포넌트 제외
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(TBPrimaryAttackTrace), false);
+	QueryParams.AddIgnoredActor(this);
+
+	// 프로젝트 설정의 WeaponTrace 채널
+	constexpr ECollisionChannel WeaponTraceChannel = ECC_GameTraceChannel2;
+
+	FHitResult HitResult;
+	const bool bBlockingHit = World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, WeaponTraceChannel, QueryParams);
+
+	// 서버 판정 결과 표시
+	if (PS->ShouldDrawPrimaryAttackTrace())
+	{
+		const FVector DebugEnd = bBlockingHit ? HitResult.ImpactPoint : TraceEnd;
+
+		DrawDebugLine(World, TraceStart, DebugEnd, bBlockingHit ? FColor::Red : FColor::Green, false, 2.0f, 0, 1.5f);
+
+		if (bBlockingHit)
+		{
+			DrawDebugPoint(World, HitResult.ImpactPoint, 12.0f, FColor::Yellow, false, 2.0f);
+		}
+	}
+
+	if (!bBlockingHit)
+	{
+		return false;
+	}
+
+	AActor* HitActor = HitResult.GetActor();
+
+	if (!IsValid(HitActor))
+	{
+		return false;
+	}
+
+	// Player 또는 Monster만 피해 대상 허용
+	const bool bDamageTarget = HitActor->IsA<ATBPlayer>() || HitActor->IsA<ATBMonster>();
+
+	if (!bDamageTarget || !HitActor->Implements<UTBHitInterface>())
+	{
+		return false;
+	}
+
+	// 피격 대상의 인터페이스 구현 호출
+	const bool bApplied = ITBHitInterface::Execute_ReceiveAttackHit(HitActor, TBGameplayTags::Damage_Type_Bullet, Damage, this, HitResult);
+
+	return bApplied;
 }
 
 // 빙의 및 네트워크 초기화 ----------------------

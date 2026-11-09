@@ -24,9 +24,16 @@ public:
 	
 	virtual void Tick(float DeltaSeconds) override;
 	
-	// 데미지 적용
-	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Monster|Damage")
+	// 사망 상태 조회
+	UFUNCTION(BlueprintPure, Category = "Player|State")
+	bool IsDead() const;
+
+	// 서버 피해 적용
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Player|Damage")
 	bool ApplyDamage(float Damage, AActor* DamageSource);
+	
+	// 서버 기본 공격 판정 및 피해 적용 결과 반환
+	bool PerformPrimaryAttackTrace();
 
 	// 빙의 및 네트워크 초기화 ----------------------
 
