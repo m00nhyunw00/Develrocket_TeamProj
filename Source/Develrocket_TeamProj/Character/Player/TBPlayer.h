@@ -110,6 +110,10 @@ protected:
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> ReloadAction;
+	
+	// 상호작용 입력 액션 ----------------------
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> InteractAction;
 
 private:
 	// 입력 유지 상태 ----------------------
@@ -156,6 +160,9 @@ private:
 	
 	// 재장전 입력 처리 ----------------------
 	void InputReloadStarted();
+	
+	// 상호작용 입력 처리 ----------------------
+	void InputInteractStarted();
 	
 private:
 	// 무기 메시 적용 및 소켓 부착 ----------------------
