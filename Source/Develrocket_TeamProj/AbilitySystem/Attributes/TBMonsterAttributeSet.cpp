@@ -1,4 +1,4 @@
-#include "Character/Monster/GAS/TBMonsterAttributeSet.h"
+#include "AbilitySystem/Attributes/TBMonsterAttributeSet.h"
 #include "GameplayEffectExtension.h"
 #include "Net/UnrealNetwork.h"
 #include "TBGameplayTags.h"
