@@ -12,7 +12,8 @@
 				"UMG",
 				"Engine",
 				"GameplayAbilities",
-				"AIModule"
+				"AIModule",
+				"NiagaraAnimNotifies"
 			]
 		}
 	],

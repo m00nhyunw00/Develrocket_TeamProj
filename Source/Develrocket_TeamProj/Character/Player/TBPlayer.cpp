@@ -14,6 +14,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Framework/TBPlayerState.h"
 #include "UI/TBPlayerHUD.h"
+#include "Components/TBInteractionComponent.h"
 
 class ATBPlayerState;
 
@@ -31,6 +32,9 @@ ATBPlayer::ATBPlayer(const FObjectInitializer& ObjectInitializer)
 
 	// 이동 방향과 관계없이 시선 방향으로 몸체 회전
 	GetCharacterMovement()->bOrientRotationToMovement = false;
+	
+	// 시선 앞 상호작용 대상 탐지
+	InteractionComponent = CreateDefaultSubobject<UTBInteractionComponent>(TEXT("InteractionComponent"));
 
 	// 캡슐을 기준으로 1인칭 카메라 배치
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
@@ -80,6 +84,11 @@ void ATBPlayer::Tick(float DeltaSeconds)
 	CameraLocation.Z = FMath::FInterpTo(CameraLocation.Z, BaseEyeHeight, DeltaSeconds, CameraHeightInterpSpeed);
 
 	FirstPersonCamera->SetRelativeLocation(CameraLocation);
+}
+
+bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
+{
+	return true;
 }
 
 // 빙의 및 네트워크 초기화 ----------------------
@@ -191,6 +200,12 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	if (ReloadAction)
 	{
 		EnhancedInput->BindAction(ReloadAction, ETriggerEvent::Started, this, &ATBPlayer::InputReloadStarted);
+	}
+	
+	// 상호작용 입력 시작을 전달
+	if (InteractAction)
+	{
+		EnhancedInput->BindAction(InteractAction, ETriggerEvent::Started, this, &ATBPlayer::InputInteractStarted);
 	}
 }
 
@@ -448,6 +463,19 @@ void ATBPlayer::InputReloadStarted()
 	}
 }
 
+void ATBPlayer::InputInteractStarted()
+{
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
+	
+	if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+	{
+		ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Interaction);
+	}
+}
+
 void ATBPlayer::InitializeWeaponMeshes()
 {
 	if (!IsValid(WeaponMeshAsset.Get()) || WeaponSocketName.IsNone())
@@ -492,4 +520,10 @@ void ATBPlayer::TryBindLocalHUD()
 	{
 		HUD->BindAbilitySystem(PS->GetAbilitySystemComponent());
 	}
+}
+
+bool ATBPlayer::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource,
+	const FHitResult& HitResult)
+{
+	return ApplyDamage(Damage, DamageSource);
 }

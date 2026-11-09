@@ -7,6 +7,7 @@
 class UInputAction;
 struct FInputActionValue;
 class UCameraComponent;
+class UTBInteractionComponent;
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBPlayer : public ATBCharacterBase
@@ -22,6 +23,10 @@ public:
 	ATBPlayer(const FObjectInitializer& ObjectInitializer);
 	
 	virtual void Tick(float DeltaSeconds) override;
+	
+	// 데미지 적용
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Monster|Damage")
+	bool ApplyDamage(float Damage, AActor* DamageSource);
 
 	// 빙의 및 네트워크 초기화 ----------------------
 
@@ -110,6 +115,14 @@ protected:
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> ReloadAction;
+	
+	// 상호작용 입력 액션 ----------------------
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> InteractAction;
+	
+	// 상호작용 탐지 ----------------------
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
+	TObjectPtr<UTBInteractionComponent> InteractionComponent;
 
 private:
 	// 입력 유지 상태 ----------------------
@@ -157,10 +170,16 @@ private:
 	// 재장전 입력 처리 ----------------------
 	void InputReloadStarted();
 	
+	// 상호작용 입력 처리 ----------------------
+	void InputInteractStarted();
+	
 private:
 	// 무기 메시 적용 및 소켓 부착 ----------------------
 	void InitializeWeaponMeshes();
 	
 	// 
 	void TryBindLocalHUD();
+	
+private:
+	virtual bool ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult) override;
 };
