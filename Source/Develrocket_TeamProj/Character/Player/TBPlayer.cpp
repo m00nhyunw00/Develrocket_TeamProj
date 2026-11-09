@@ -14,6 +14,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Framework/TBPlayerState.h"
 #include "UI/TBPlayerHUD.h"
+#include "Components/TBInteractionComponent.h"
 
 class ATBPlayerState;
 
@@ -31,6 +32,9 @@ ATBPlayer::ATBPlayer(const FObjectInitializer& ObjectInitializer)
 
 	// 이동 방향과 관계없이 시선 방향으로 몸체 회전
 	GetCharacterMovement()->bOrientRotationToMovement = false;
+	
+	// 시선 앞 상호작용 대상 탐지
+	InteractionComponent = CreateDefaultSubobject<UTBInteractionComponent>(TEXT("InteractionComponent"));
 
 	// 캡슐을 기준으로 1인칭 카메라 배치
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
