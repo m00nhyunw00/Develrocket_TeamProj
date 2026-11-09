@@ -25,9 +25,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Interaction", meta = (ClampMin = "0.0", Units = "cm"))
 	float InteractRange = 300.0f;
 
-	// 시선 빔의 굵기(구 반지름): 클수록 대충 바라봐도 잡힘
-	UPROPERTY(EditDefaultsOnly, Category = "Interaction", meta = (ClampMin = "0.0", Units = "cm"))
-	float TraceRadius = 25.0f;
+	// 시야 원뿔 반각: 시선 기준 좌우 이 각도 안의 대상만 후보
+	UPROPERTY(EditDefaultsOnly, Category = "Interaction", meta = (ClampMin = "1.0", ClampMax = "90.0", Units = "deg"))
+	float ViewHalfAngle = 30.0f;
 
 	// 탐지 주기
 	UPROPERTY(EditDefaultsOnly, Category = "Interaction", meta = (ClampMin = "0.01", Units = "s"))
@@ -44,7 +44,7 @@ private:
 	void ScanForTarget();
 
 	// 탐지 결과 디버그 표시
-	void DrawScanDebug(const FVector& Start, const FVector& End, const FHitResult& Hit, bool bHasTarget) const;
+	void DrawScanDebug(const FVector& ViewLocation, const FVector& ViewDir, const AActor* Target) const;
 
 	// 약한 참조: 대상이 파괴되면 자동으로 null
 	TWeakObjectPtr<AActor> FocusedActor;

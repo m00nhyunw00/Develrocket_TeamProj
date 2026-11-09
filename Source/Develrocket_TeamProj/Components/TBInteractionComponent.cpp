@@ -6,6 +6,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Interface/TBInteractable.h"
 #include "TimerManager.h"
+#include "Engine/OverlapResult.h"
 
 UTBInteractionComponent::UTBInteractionComponent()
 {
@@ -35,7 +36,7 @@ void UTBInteractionComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void UTBInteractionComponent::ScanForTarget()
 {
-	// ① 내가 조종하는 캐릭터만 탐지 (다른 플레이어의 캐릭터 인스턴스는 무시)
+	// ① 내가 조종하는 캐릭터만
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (!OwnerPawn || !OwnerPawn->IsLocallyControlled())
 	{
@@ -48,65 +49,96 @@ void UTBInteractionComponent::ScanForTarget()
 		return;
 	}
 
-	// ② 시선: 실제 화면에 그려지는 카메라 위치와 방향
 	FVector ViewLocation;
 	FRotator ViewRotation;
 	PC->GetPlayerViewPoint(ViewLocation, ViewRotation);
+	const FVector ViewDir = ViewRotation.Vector();
 
-	const FVector TraceEnd = ViewLocation + ViewRotation.Vector() * InteractRange;
+	// ② 주변 반경 안의 후보 수집 (Visibility에 Block/Overlap 반응하는 것)
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TBInteractionOverlap), false);
+	Params.AddIgnoredActor(OwnerPawn);
 
-	// ③ Sphere Sweep: 구를 시작점에서 끝점까지 밀어서 처음 닿는 물체 찾기
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(TBInteractionTrace), false);
-	Params.AddIgnoredActor(OwnerPawn);   // 내 캡슐에 맞지 않도록
+	TArray<FOverlapResult> Overlaps;
+	GetWorld()->OverlapMultiByChannel(
+		Overlaps, ViewLocation, FQuat::Identity, ECC_Visibility,
+		FCollisionShape::MakeSphere(InteractRange), Params);
 
-	FHitResult Hit;
-	const bool bHit = GetWorld()->SweepSingleByChannel(
-		Hit,
-		ViewLocation,
-		TraceEnd,
-		FQuat::Identity,                              // 구는 회전이 의미 없음
-		ECC_Visibility,
-		FCollisionShape::MakeSphere(TraceRadius),
-		Params);
+	// 시야 원뿔 기준값: cos(반각)
+	const float MinDot = FMath::Cos(FMath::DegreesToRadians(ViewHalfAngle));
 
-	// ④ 맞은 액터가 문장(인터페이스)을 달았고, 지금 상호작용 가능한지
-	AActor* NewTarget = nullptr;
-	AActor* HitActor = Hit.GetActor();
+	AActor* BestTarget = nullptr;
+	float BestDot = MinDot;
 
-	if (bHit && HitActor
-		&& HitActor->Implements<UTBInteractable>()    // 계약 여부 검사는 U 클래스
-		&& ITBInteractable::Execute_CanInteract(HitActor, OwnerPawn))   // 호출은 I 클래스의 Execute_
+	// 한 액터에 콜리전 컴포넌트가 여러 개면 중복으로 들어오므로 걸러냄
+	TSet<AActor*> Checked;
+
+	for (const FOverlapResult& Overlap : Overlaps)
 	{
-		NewTarget = HitActor;
+		AActor* Candidate = Overlap.GetActor();
+		if (!Candidate || Checked.Contains(Candidate))
+		{
+			continue;
+		}
+		Checked.Add(Candidate);
+
+		// ③ 문장 + 지금 상호작용 가능
+		if (!Candidate->Implements<UTBInteractable>()
+			|| !ITBInteractable::Execute_CanInteract(Candidate, OwnerPawn))
+		{
+			continue;
+		}
+
+		// ④ 시야 원뿔 안인지: 시선 방향과 대상 방향의 내적
+		const FVector TargetCenter = Candidate->GetComponentsBoundingBox().GetCenter();
+		const FVector ToTarget = (TargetCenter - ViewLocation).GetSafeNormal();
+		const float Dot = FVector::DotProduct(ViewDir, ToTarget);
+
+		if (Dot < BestDot)   // 원뿔 밖이거나, 이미 찾은 것보다 덜 정면
+		{
+			continue;
+		}
+
+		// ⑤ 벽에 가려지지 않았는지
+		FHitResult SightHit;
+		const bool bBlocked = GetWorld()->LineTraceSingleByChannel(
+			SightHit, ViewLocation, TargetCenter, ECC_Visibility, Params);
+
+		if (bBlocked && SightHit.GetActor() != Candidate)
+		{
+			continue;
+		}
+
+		// 가장 정면에 가까운 대상 갱신
+		BestDot = Dot;
+		BestTarget = Candidate;
 	}
 
-	// ⑤ 대상이 바뀌었을 때만 갱신 + 로그
-	if (NewTarget != FocusedActor.Get())
+	// ⑥ 대상이 바뀌었을 때만 갱신 + 로그
+	if (BestTarget != FocusedActor.Get())
 	{
-		FocusedActor = NewTarget;
-		UE_LOG(LogTemp, Log, TEXT("[Interaction] Focus: %s"), *GetNameSafe(NewTarget));
+		FocusedActor = BestTarget;
+		UE_LOG(LogTemp, Log, TEXT("[Interaction] Focus: %s"), *GetNameSafe(BestTarget));
 	}
 
-	// ⑥ 디버그 표시
 	if (bDrawDebug)
 	{
-		DrawScanDebug(ViewLocation, TraceEnd, Hit, NewTarget != nullptr);
+		DrawScanDebug(ViewLocation, ViewDir, BestTarget);
 	}
 }
 
-void UTBInteractionComponent::DrawScanDebug(const FVector& Start, const FVector& End, const FHitResult& Hit, bool bHasTarget) const
+void UTBInteractionComponent::DrawScanDebug(const FVector& ViewLocation, const FVector& ViewDir, const AActor* Target) const
 {
-	const FColor Color = bHasTarget ? FColor::Green : FColor::Red;
+	const FColor Color = Target ? FColor::Green : FColor::Red;
+	const float HalfAngleRad = FMath::DegreesToRadians(ViewHalfAngle);
 
-	// 시선 방향 선
-	DrawDebugLine(GetWorld(), Start, End, Color, false, ScanInterval);
+	// 시야 원뿔
+	DrawDebugCone(GetWorld(), ViewLocation, ViewDir, InteractRange,
+		HalfAngleRad, HalfAngleRad, 16, Color, false, ScanInterval);
 
-	// 끝점의 구: 판정 굵기 확인용
-	DrawDebugSphere(GetWorld(), End, TraceRadius, 12, Color, false, ScanInterval);
-
-	// 실제로 닿은 지점
-	if (Hit.bBlockingHit)
+	// 선택된 대상까지 선
+	if (Target)
 	{
-		DrawDebugPoint(GetWorld(), Hit.ImpactPoint, 10.0f, FColor::Yellow, false, ScanInterval);
+		DrawDebugLine(GetWorld(), ViewLocation,
+			Target->GetComponentsBoundingBox().GetCenter(), FColor::Yellow, false, ScanInterval, 0, 2.0f);
 	}
 }

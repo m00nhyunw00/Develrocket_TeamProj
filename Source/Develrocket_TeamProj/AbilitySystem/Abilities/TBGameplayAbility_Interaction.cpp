@@ -1,6 +1,8 @@
 #include "AbilitySystem/Abilities/TBGameplayAbility_Interaction.h"
 
 #include "TBGameplayTags.h"
+#include "Components/TBInteractionComponent.h"
+#include "Interface/TBInteractable.h"
 
 UTBGameplayAbility_Interaction::UTBGameplayAbility_Interaction()
 {
@@ -23,14 +25,29 @@ void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
 	const FGameplayEventData* TriggerEventData)
 {
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
-	
-	// 1단계 확인용: Avatar(실제 캐릭터) 이름 출력
-	UE_LOG(LogTemp, Log, TEXT("[Interaction] Activated by %s"),
-		*GetNameSafe(GetAvatarActorFromActorInfo()));
-	
-	// 2단계: 감지 컴포넌트에서 대상을 찾아 Execute_Interact 호출
-	
-	// 즉시 종료해야 다음 F 입력에서 다시 실행가능
-	// (beReplicateEndAbility, bWasCancelled) -> 정상종료이므로 취소 아님
+
+	// ① 실제 캐릭터(Avatar)
+	AActor* Avatar = GetAvatarActorFromActorInfo();
+
+	// ② 캐릭터에 붙은 정찰병 찾기
+	const UTBInteractionComponent* InteractionComp =
+		Avatar ? Avatar->FindComponentByClass<UTBInteractionComponent>() : nullptr;
+
+	// ③ 정찰병이 지금 보고 있는 대상
+	AActor* Target = InteractionComp ? InteractionComp->GetFocusedActor() : nullptr;
+
+	// ④ 대상이 없으면 취소 종료
+	if (!Target)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[Interaction] No target"));
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
+	// ⑤ 대상에게 상호작용 요청 (BP 구현까지 호출되도록 Execute_ 사용)
+	UE_LOG(LogTemp, Log, TEXT("[Interaction] %s -> %s"), *GetNameSafe(Avatar), *GetNameSafe(Target));
+	ITBInteractable::Execute_Interact(Target, Avatar);
+
+	// ⑥ 정상 종료
 	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 }

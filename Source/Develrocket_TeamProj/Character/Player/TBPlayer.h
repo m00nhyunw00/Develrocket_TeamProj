@@ -7,6 +7,7 @@
 class UInputAction;
 struct FInputActionValue;
 class UCameraComponent;
+class UTBInteractionComponent;
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBPlayer : public ATBCharacterBase
@@ -114,6 +115,10 @@ protected:
 	// 상호작용 입력 액션 ----------------------
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> InteractAction;
+	
+	// 상호작용 탐지 ----------------------
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
+	TObjectPtr<UTBInteractionComponent> InteractionComponent;
 
 private:
 	// 입력 유지 상태 ----------------------
