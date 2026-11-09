@@ -6,6 +6,7 @@
 #include "TBMonsterAIController.generated.h"
 
 class UAISenseConfig_Sight;
+class ATBMonster;
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBMonsterAIController : public AAIController
@@ -17,6 +18,9 @@ public:
 	
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void OnPossess(APawn* InPawn) override;
+	virtual void OnUnPossess() override;
 	
 	UFUNCTION()
 	void HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
@@ -24,8 +28,14 @@ protected:
 	UFUNCTION()
 	void HandleTargetDestroyed(AActor* DestroyedActor);
 
-	void UpdateTarget(AActor* ExcludedActor = nullptr);
+	UFUNCTION()
+	void HandleMonsterDied(ATBMonster* Monster);
+
+	void UpdateTarget(AActor* ExcludedActor = nullptr, bool bMemoryExpired = false);
+	void HandleTargetMemoryExpired();
+	void ClearTrackedTarget();
 	TWeakObjectPtr<AActor> TrackedTarget;
+	FTimerHandle TargetMemoryTimer;
 	
 	UPROPERTY(VisibleAnywhere, Category = "AI|Perception")
 	TObjectPtr<UAISenseConfig_Sight> SightConfig;
@@ -38,4 +48,17 @@ protected:
 	
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception")
 	float PeripheralVisionAngle = 60.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception", meta = (ClampMin = "0.0", Units = "s"))
+	float LostSightMemorySeconds = 10.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception|Debug")
+	bool bDrawSightDebug = true;
+
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception|Debug", meta = (ClampMin = "0.05", Units = "s", EditCondition = "bDrawSightDebug"))
+	float SightDebugInterval = 0.2f;
+
+private:
+	void DrawSightDebug();
+	FTimerHandle SightDebugTimer;
 };

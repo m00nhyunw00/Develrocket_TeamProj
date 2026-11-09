@@ -10,6 +10,8 @@
 #include "PCG/CityLayoutCoordinator.h"
 #include "TimerManager.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogMonsterSpawn, Log, All);
+
 ATBMonsterSpawnManager::ATBMonsterSpawnManager()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -22,24 +24,26 @@ void ATBMonsterSpawnManager::BeginPlay()
 
 	if (!MonsterClass)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s: MonsterClass is not configured."), *GetName());
+		UE_LOG(LogMonsterSpawn, Warning, TEXT("%s: MonsterClass is not configured."), *GetName());
 		return;
 	}
 
 	City = Cast<ACityLayoutCoordinator>(UGameplayStatics::GetActorOfClass(this, ACityLayoutCoordinator::StaticClass()));
 	if (!City)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s: CityLayoutCoordinator was not found."), *GetName());
+		UE_LOG(LogMonsterSpawn, Warning, TEXT("%s: CityLayoutCoordinator was not found."), *GetName());
 		return;
 	}
 
 	City->OnLocalCityReady.AddDynamic(this, &ThisClass::HandleCityReady);
+	UE_LOG(LogMonsterSpawn, Log, TEXT("%s: Waiting for city generation. Class=%s, desired=%d, point tag=%s"), *GetName(), *GetNameSafe(MonsterClass.Get()), DesiredMonsterCount, *PatrolPointTag.ToString());
 	if (City->bLocalCityReady) HandleCityReady(City->Layout.Seed, City->Layout.Revision);
 }
 
 void ATBMonsterSpawnManager::HandleCityReady(int32 Seed, int32 Revision)
 {
 	if (!HasAuthority()) return;
+	UE_LOG(LogMonsterSpawn, Log, TEXT("%s: City ready. Seed=%d, revision=%d"), *GetName(), Seed, Revision);
 	if (!bCityReady)
 	{
 		bCityReady = true;
@@ -62,7 +66,7 @@ void ATBMonsterSpawnManager::TrySpawn()
 	{
 		if (++ConsecutiveFailures % 10 == 0)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("%s: No suitable patrol point found; retrying. Check PCG points, NavMesh and clearance."), *GetName());
+			UE_LOG(LogMonsterSpawn, Warning, TEXT("%s: No suitable patrol point found after %d attempts; retrying. Check PCG points, NavMesh and clearance."), *GetName(), ConsecutiveFailures);
 		}
 		return;
 	}
@@ -70,13 +74,21 @@ void ATBMonsterSpawnManager::TrySpawn()
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
 	ATBMonster* Monster = World->SpawnActor<ATBMonster>(MonsterClass, SpawnTransform, Params);
-	if (!Monster) return;
+	if (!Monster)
+	{
+		if (++ConsecutiveFailures % 10 == 1)
+		{
+			UE_LOG(LogMonsterSpawn, Warning, TEXT("%s: SpawnActor failed for %s at %s; retrying. Failures=%d"), *GetName(), *GetNameSafe(MonsterClass.Get()), *SpawnTransform.GetLocation().ToString(), ConsecutiveFailures);
+		}
+		return;
+	}
 	ConsecutiveFailures = 0;
 
 	LivingMonsters.Add(Monster);
 	Monster->OnMonsterDied.AddDynamic(this, &ThisClass::HandleMonsterDied);
 	Monster->OnDestroyed.AddDynamic(this, &ThisClass::HandleMonsterDestroyed);
 	SpawnReadyTimes.RemoveAtSwap(ReadyIndex);
+	UE_LOG(LogMonsterSpawn, Log, TEXT("%s: Spawned %s at %s. Living=%d, pending=%d"), *GetName(), *GetNameSafe(Monster), *Monster->GetActorLocation().ToString(), LivingMonsters.Num(), SpawnReadyTimes.Num());
 }
 
 bool ATBMonsterSpawnManager::FindSpawnTransform(FTransform& OutTransform) const
@@ -142,6 +154,7 @@ void ATBMonsterSpawnManager::RemoveMonster(ATBMonster* Monster)
 	Monster->OnMonsterDied.RemoveDynamic(this, &ThisClass::HandleMonsterDied);
 	Monster->OnDestroyed.RemoveDynamic(this, &ThisClass::HandleMonsterDestroyed);
 	SpawnReadyTimes.Add(GetWorld()->GetTimeSeconds() + FMath::Max(0.0f, RespawnDelay));
+	UE_LOG(LogMonsterSpawn, Log, TEXT("%s: %s removed from living count; respawn scheduled in %.1f seconds. Living=%d, pending=%d"), *GetName(), *GetNameSafe(Monster), FMath::Max(0.0f, RespawnDelay), LivingMonsters.Num(), SpawnReadyTimes.Num());
 }
 
 void ATBMonsterSpawnManager::EndPlay(const EEndPlayReason::Type EndPlayReason)

@@ -163,6 +163,7 @@ bool ATBMonster::ApplyGASDamage(float Damage,AActor* DamageSource)
 		return false;
 	}
 	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);
+	
 	const bool bApplied = MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
 	if (bApplied && !IsDead() && !MonsterASC->HasMatchingGameplayTag(TBGameplayTags::State_Stunned))
 	{
@@ -305,7 +306,6 @@ void ATBMonster::HandleDeath()
 bool ATBMonster::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource,
 	const FHitResult& HitResult)
 {
-	
 	return ApplyGASDamage(Damage, DamageSource);
 }
 
