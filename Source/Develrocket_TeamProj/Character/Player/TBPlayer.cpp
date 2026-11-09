@@ -86,6 +86,11 @@ void ATBPlayer::Tick(float DeltaSeconds)
 	FirstPersonCamera->SetRelativeLocation(CameraLocation);
 }
 
+bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
+{
+	return true;
+}
+
 // 빙의 및 네트워크 초기화 ----------------------
 
 void ATBPlayer::PossessedBy(AController* NewController)
@@ -515,4 +520,10 @@ void ATBPlayer::TryBindLocalHUD()
 	{
 		HUD->BindAbilitySystem(PS->GetAbilitySystemComponent());
 	}
+}
+
+bool ATBPlayer::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource,
+	const FHitResult& HitResult)
+{
+	return ApplyDamage(Damage, DamageSource);
 }

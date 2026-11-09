@@ -23,6 +23,10 @@ public:
 	ATBPlayer(const FObjectInitializer& ObjectInitializer);
 	
 	virtual void Tick(float DeltaSeconds) override;
+	
+	// 데미지 적용
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Monster|Damage")
+	bool ApplyDamage(float Damage, AActor* DamageSource);
 
 	// 빙의 및 네트워크 초기화 ----------------------
 
@@ -175,4 +179,7 @@ private:
 	
 	// 
 	void TryBindLocalHUD();
+	
+private:
+	virtual bool ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult) override;
 };
