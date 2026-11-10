@@ -264,6 +264,7 @@ void ATBPlayerHUD::EndPlay(
     const EEndPlayReason::Type EndPlayReason)
 {
     UnbindAbilitySystem();
+    UnBindInteraction();
 
     if (HUDWidget)
     {

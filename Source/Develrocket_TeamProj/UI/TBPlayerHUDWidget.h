@@ -46,6 +46,6 @@ protected:
 	TObjectPtr<UTBLowHealthOverlayWidget> LowHealthOverlay;
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTBSkillBarWidget> SkillBar;
-	UPROPERTY(meta=(BindWidgetOptinal))
+	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTBInteractPromptWidget> InteractPrompt;
 };
