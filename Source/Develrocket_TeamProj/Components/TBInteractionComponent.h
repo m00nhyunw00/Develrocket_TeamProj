@@ -13,6 +13,8 @@
  *
  * 판정 규칙은 FindBestTarget 하나로 통일해서 클라이언트와 서버가 같은 기준을 사용함
  */
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnFocusedActorChanged, AActor* /*NewFocus*/);
+
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class DEVELROCKET_TEAMPROJ_API UTBInteractionComponent : public UActorComponent
 {
@@ -30,6 +32,8 @@ public:
 	// [서버 → 소유 클라이언트] 상호작용이 처리되었음을 알리고 대상의 InteractLocal 실행
 	UFUNCTION(Client, Reliable)
 	void Client_NotifyInteracted(AActor* Target);
+	
+	FOnFocusedActorChanged OnFocusedActorChanged;
 
 protected:
 	virtual void BeginPlay() override;

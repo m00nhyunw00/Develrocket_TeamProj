@@ -6,6 +6,7 @@
 #include "UI/TBHealthBarWidget.h"
 #include "UI/TBAmmoWidget.h"
 #include "UI/TBHitMarkerWidget.h"
+#include "UI/TBInteractPromptWidget.h"
 
 void UTBPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {
@@ -81,4 +82,22 @@ void UTBPlayerHUDWidget::StartSkillCooldown(int32 Index, float Duration)
 	}
 	SkillBar->StartSkillCooldown(Index, Duration);
 }
+
+void UTBPlayerHUDWidget::ShowInteractPrompt(const FText& Key, const FText& Prompt)
+{
+	if (InteractPrompt)
+	{
+		InteractPrompt->ShowPrompt(Key, Prompt);
+	}
+}
+
+void UTBPlayerHUDWidget::HideInteractPrompt()
+{
+	if (InteractPrompt)
+	{
+		InteractPrompt->HidePrompt();
+	}
+}
+
+
 
