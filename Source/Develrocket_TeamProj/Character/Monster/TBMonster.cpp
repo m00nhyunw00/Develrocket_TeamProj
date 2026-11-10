@@ -267,7 +267,12 @@ void ATBMonster::Die()
 
 void ATBMonster::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
-	if (NewCount <= 0 || bDeathHandled)
+	if (NewCount <= 0)
+	{
+		if (bDeathHandled) RestorePoolVisualState();
+		return;
+	}
+	if (bDeathHandled)
 	{
 		return;
 	}
@@ -308,6 +313,46 @@ void ATBMonster::HandleDeath()
 	OnMonsterDied.Broadcast(this);
 }
 
+void ATBMonster::RestorePoolVisualState()
+{
+	// 사망 처리 플래그와 메시·캡슐 충돌 및 이동 모드를 재사용 가능한 상태로 복구합니다.
+	bDeathHandled = false;
+	bPausedBrainForStagger = false;
+	const ATBMonster* Defaults = GetClass()->GetDefaultObject<ATBMonster>();
+	if (Defaults)
+	{
+		GetCapsuleComponent()->SetCollisionEnabled(Defaults->GetCapsuleComponent()->GetCollisionEnabled());
+		GetMesh()->SetSimulatePhysics(false);
+		GetMesh()->SetCollisionEnabled(Defaults->GetMesh()->GetCollisionEnabled());
+		GetMesh()->SetRelativeTransform(Defaults->GetMesh()->GetRelativeTransform());
+	}
+	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+}
+
+void ATBMonster::OnPoolActivated_Implementation()
+{
+	// 서버에서 사망했던 몬스터를 재사용할 때 GAS 상태와 체력을 초기화합니다.
+	if (!HasAuthority() || !bDeathHandled || !MonsterASC || !MonsterAttributes) return;
+	SetLifeSpan(0.0f);
+	MonsterASC->CancelAllAbilities();
+	// 현재 구현은 활성 Gameplay Effect를 모두 제거합니다.
+	MonsterASC->RemoveActiveEffects(FGameplayEffectQuery());
+	MonsterASC->UnBlockAbilitiesWithTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat));
+	RestorePoolVisualState();
+	MonsterAttributes->SetStagger(0.0f);
+	MonsterAttributes->SetIncomingDamage(0.0f);
+	MonsterAttributes->SetBlood(MonsterAttributes->GetMaxBlood());
+	if (ATBMonsterAIController* AI = Cast<ATBMonsterAIController>(GetController())) AI->ReactivateFromPool();
+	ForceNetUpdate();
+}
+
+void ATBMonster::OnPoolDeactivated_Implementation()
+{
+	// 풀 반환 전에 서버에서 이동과 실행 중인 Ability를 중지합니다.
+	if (!HasAuthority()) return;
+	GetCharacterMovement()->StopMovementImmediately();
+	if (MonsterASC) MonsterASC->CancelAllAbilities();
+}
 bool ATBMonster::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource,
 	const FHitResult& HitResult)
 {
