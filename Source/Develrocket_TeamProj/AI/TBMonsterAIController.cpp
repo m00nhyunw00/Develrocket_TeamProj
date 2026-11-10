@@ -117,6 +117,21 @@ void ATBMonsterAIController::HandleMonsterDied(ATBMonster* Monster)
 	}
 }
 
+void ATBMonsterAIController::ReactivateFromPool()
+{
+	// 재사용 시 기존 감지 정보를 지우고 시야 및 AI Brain을 다시 시작합니다.
+	if (!HasAuthority()) return;
+	if (UAIPerceptionComponent* Perception = GetPerceptionComponent())
+	{
+		Perception->ForgetAll();
+		Perception->SetSenseEnabled(UAISense_Sight::StaticClass(), true);
+		Perception->RequestStimuliListenerUpdate();
+	}
+	if (UBrainComponent* Brain = GetBrainComponent()) Brain->RestartLogic();
+#if ENABLE_DRAW_DEBUG
+	if (bDrawSightDebug) GetWorldTimerManager().SetTimer(SightDebugTimer, this, &ThisClass::DrawSightDebug, FMath::Max(0.05f, SightDebugInterval), true);
+#endif
+}
 void ATBMonsterAIController::InvestigateDamageSource(const AActor* DamageSource)
 {
 	const ATBMonster* Monster = Cast<ATBMonster>(GetPawn());

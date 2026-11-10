@@ -28,8 +28,7 @@ void UTBGameplayAbility_Action::ActivateAbility(const FGameplayAbilitySpecHandle
         return;
     }
 
-    UAbilitySystemComponent* ASC =
-        ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
+    UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
 
     // Player·Monster 공통 실행 대상 검증
     if (!ActorInfo
@@ -90,8 +89,7 @@ void UTBGameplayAbility_Action::ActivateAbility(const FGameplayAbilitySpecHandle
 
 UAnimInstance* UTBGameplayAbility_Action::GetFirstPersonAnimInstance() const
 {
-    const ATBPlayer* Player =
-        CurrentActorInfo ? Cast<ATBPlayer>(CurrentActorInfo->AvatarActor.Get()) : nullptr;
+    const ATBPlayer* Player = CurrentActorInfo ? Cast<ATBPlayer>(CurrentActorInfo->AvatarActor.Get()) : nullptr;
 
     // 몬스터 또는 다른 플레이어에게는 1인칭 연출 생략
     if (!IsValid(Player) || !Player->IsLocallyControlled())
