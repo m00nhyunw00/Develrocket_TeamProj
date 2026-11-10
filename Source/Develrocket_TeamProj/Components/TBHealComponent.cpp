@@ -11,18 +11,16 @@ UTBHealComponent::UTBHealComponent()
 	// RPC 없음: 서버에서 GE를 적용하면 Blood는 GAS가 알아서 복제
 }
 
-bool UTBHealComponent::ApplyHeal(float Amount)
+bool UTBHealComponent::ApplyHeal()
 {
 	AActor* Owner = GetOwner();
 
-	// 서버 + 유효한 값 + GE 설정 확인
-	if (!Owner || !Owner->HasAuthority() || !HealEffectClass
-		|| !FMath::IsFinite(Amount) || Amount <= 0.0f)
+	// 서버 + GE 설정 확인 (Amount 검사 제거)
+	if (!Owner || !Owner->HasAuthority() || !HealEffectClass)
 	{
 		return false;
 	}
 
-	// ASC는 호출할 때 가져오기 (플레이어 ASC는 PlayerState에 있어서 BeginPlay엔 아직 없을 수 있음)
 	UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Owner);
 	if (!ASC || ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
 	{
@@ -38,8 +36,7 @@ bool UTBHealComponent::ApplyHeal(float Amount)
 		return false;
 	}
 
-	// 회복량 싣기
-	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Heal, Amount);
+	// SetSetByCallerMagnitude 줄 삭제: 회복량은 GE에 고정
 
 	return ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
 }
