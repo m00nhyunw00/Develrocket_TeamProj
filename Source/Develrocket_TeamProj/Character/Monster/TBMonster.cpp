@@ -329,7 +329,7 @@ void ATBMonster::RestorePoolVisualState()
 	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 }
 
-void ATBMonster::OnPoolActivated_Implementation()
+void ATBMonster::OnPoolActivated()
 {
 	// 서버에서 사망했던 몬스터를 재사용할 때 GAS 상태와 체력을 초기화합니다.
 	if (!HasAuthority() || !bDeathHandled || !MonsterASC || !MonsterAttributes) return;
@@ -346,7 +346,7 @@ void ATBMonster::OnPoolActivated_Implementation()
 	ForceNetUpdate();
 }
 
-void ATBMonster::OnPoolDeactivated_Implementation()
+void ATBMonster::OnPoolDeactivated()
 {
 	// 풀 반환 전에 서버에서 이동과 실행 중인 Ability를 중지합니다.
 	if (!HasAuthority()) return;

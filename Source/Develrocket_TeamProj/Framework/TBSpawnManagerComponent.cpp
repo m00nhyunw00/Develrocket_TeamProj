@@ -1,7 +1,7 @@
 #include "Framework/TBSpawnManagerComponent.h"
 
 #include "Framework/TBLevelManager.h"
-#include "Framework/TBPoolable.h"
+#include "Interface/TBPoolable.h"
 #include "Framework/TBSpawnPoolData.h"
 #include "Character/Monster/TBMonster.h"
 #include "Components/CapsuleComponent.h"
