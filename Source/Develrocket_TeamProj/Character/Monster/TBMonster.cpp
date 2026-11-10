@@ -109,19 +109,22 @@ void ATBMonster::InitializeGameplayData()
 
 	// 기존 단일 근접 Ability 설정과 새 초기 Ability 목록의 중복 방지
 	TArray<TSubclassOf<UGameplayAbility>> Abilities = StartupAbilities;
-	if (MeleeAbilityClass)
-	{
-		Abilities.AddUnique(MeleeAbilityClass);
-	}
-	if (StaggerAbilityClass)
-	{
-		Abilities.AddUnique(StaggerAbilityClass);
-	}
-	if (DeathAbilityClass)
-	{
-		Abilities.AddUnique(DeathAbilityClass);
-	}
-	MonsterASC->AddCharacterAbilities(Abilities);
+	
+	MonsterASC->AddCharacterAbilities(StartupAbilities);
+	
+	// if (MeleeAbilityClass)
+	// {
+	// 	Abilities.AddUnique(MeleeAbilityClass);
+	// }
+	// if (StaggerAbilityClass)
+	// {
+	// 	Abilities.AddUnique(StaggerAbilityClass);
+	// }
+	// if (DeathAbilityClass)
+	// {
+	// 	Abilities.AddUnique(DeathAbilityClass);
+	// }
+	// MonsterASC->AddCharacterAbilities(Abilities);
 }
 
 float ATBMonster::GetHealth() const
@@ -292,7 +295,7 @@ void ATBMonster::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 		}
 	}
 	HandleDeath();
-	if (DeathAbilityClass && !MonsterASC->TryActivateAbilityByClass(DeathAbilityClass))
+	if (!MonsterASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Death))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s: 사망 어빌리티를 활성화하지 못했습니다."), *GetName());
 	}

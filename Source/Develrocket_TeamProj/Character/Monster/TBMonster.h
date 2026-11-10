@@ -69,10 +69,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Abilities")
 	TSubclassOf<UGameplayAbility> StaggerAbilityClass;
 
-	// 사망 시 실행할 블루프린트 어빌리티
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Abilities")
-	TSubclassOf<UGameplayAbility> DeathAbilityClass;
-
 	// 데미지를 받는 게임플레이 이펙트
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Damage")
 	TSubclassOf<UGameplayEffect> DamageEffectClass;
