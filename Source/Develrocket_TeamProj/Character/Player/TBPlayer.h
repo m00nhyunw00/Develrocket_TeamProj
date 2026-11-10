@@ -127,6 +127,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> InteractAction;
 	
+	// 일시정지 입력 액션 ----------------------
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> PauseAction;
+	
 	// 상호작용 탐지 ----------------------
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
 	TObjectPtr<UTBInteractionComponent> InteractionComponent;
@@ -179,6 +183,9 @@ private:
 	
 	// 상호작용 입력 처리 ----------------------
 	void InputInteractStarted();
+	
+	// 일시정지 입력 처리 ----------------------
+	void InputPauseStarted();
 	
 private:
 	// 무기 메시 적용 및 소켓 부착 ----------------------
