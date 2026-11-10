@@ -28,12 +28,6 @@ public:
 	virtual void OnPoolDeactivated_Implementation() override;
 	void RestorePoolVisualState();
 
-	UFUNCTION(BlueprintPure, Category = "Monster|Health")
-	float GetHealth() const;
-
-	UFUNCTION(BlueprintPure, Category = "Monster|Health")
-	float GetMaxHealth() const;
-
 	UFUNCTION(BlueprintPure, Category = "Monster|State")
 	bool IsDead() const;
 
@@ -65,10 +59,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Abilities")
 	TArray<TSubclassOf<UGameplayAbility>> StartupAbilities;
 
-	// 최대 그로기 수치 도달 시 실행할 어빌리티
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Abilities")
-	TSubclassOf<UGameplayAbility> StaggerAbilityClass;
-
 	// 데미지를 받는 게임플레이 이펙트
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Damage")
 	TSubclassOf<UGameplayEffect> DamageEffectClass;
@@ -76,10 +66,6 @@ protected:
 	// 사망 상태 태그를 부여할 블루프린트 Gameplay Effect
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|State")
 	TSubclassOf<UGameplayEffect> DeathEffectClass;
-
-	// 기존 몬스터 BP에 사망 연출을 연결할 확장 지점
-	UFUNCTION(BlueprintImplementableEvent, Category = "Monster|State", meta = (DisplayName = "On Death"))
-	void ReceiveDeath();
 
 private:
 	void InitializeMonsterAbilitySystem();

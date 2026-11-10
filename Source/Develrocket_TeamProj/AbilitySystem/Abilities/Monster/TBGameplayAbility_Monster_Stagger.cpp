@@ -10,6 +10,7 @@ UTBGameplayAbility_Monster_Stagger::UTBGameplayAbility_Monster_Stagger()
 
 	// 어빌리티가 유지되는 동안 그로기 상태 부여
 	ActivationOwnedTags.AddTag(TBGameplayTags::State_Stunned);
+	ActivationOwnedTags.AddTag(TBGameplayTags::State_MovementBlocked);
 
 	// 사망 중이거나 이미 그로기 상태일 때 활성화 방지
 	ActivationBlockedTags.AddTag(TBGameplayTags::State_Dead);

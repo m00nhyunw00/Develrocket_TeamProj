@@ -5,13 +5,13 @@
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBMonsterAttributeSet.h"
+#include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Stagger.h"
 #include "BrainComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Abilities/GameplayAbility.h"
 #include "TBGameplayTags.h"
-#include "Elements/Metadata/PCGMetadataOpElementBase.h"
 
 ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
@@ -24,7 +24,7 @@ ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(Obje
 	MonsterASC->AddAttributeSetSubobject(MonsterAttributes.Get());
 
 	// 기본 AIController 사용 및 서버의 자동 빙의 설정
-	AIControllerClass = AAIController::StaticClass();
+	AIControllerClass = ATBMonsterAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 
 	// 이동 방향을 따라 몸체 회전
@@ -108,33 +108,7 @@ void ATBMonster::InitializeGameplayData()
 	}
 
 	// 기존 단일 근접 Ability 설정과 새 초기 Ability 목록의 중복 방지
-	TArray<TSubclassOf<UGameplayAbility>> Abilities = StartupAbilities;
-	
 	MonsterASC->AddCharacterAbilities(StartupAbilities);
-	
-	// if (MeleeAbilityClass)
-	// {
-	// 	Abilities.AddUnique(MeleeAbilityClass);
-	// }
-	// if (StaggerAbilityClass)
-	// {
-	// 	Abilities.AddUnique(StaggerAbilityClass);
-	// }
-	// if (DeathAbilityClass)
-	// {
-	// 	Abilities.AddUnique(DeathAbilityClass);
-	// }
-	// MonsterASC->AddCharacterAbilities(Abilities);
-}
-
-float ATBMonster::GetHealth() const
-{
-	return MonsterAttributes ? MonsterAttributes->GetBlood() : 0.0f;
-}
-
-float ATBMonster::GetMaxHealth() const
-{
-	return MonsterAttributes ? MonsterAttributes->GetMaxBlood() : 0.0f;
 }
 
 bool ATBMonster::IsDead() const
@@ -194,6 +168,15 @@ void ATBMonster::HandleStaggerFull()
 	}
 	GetCharacterMovement()->StopMovementImmediately();
 
+	TSubclassOf<UGameplayAbility> StaggerAbilityClass;
+	for (const TSubclassOf<UGameplayAbility>& AbilityClass : StartupAbilities)
+	{
+		if (AbilityClass && AbilityClass->IsChildOf(UTBGameplayAbility_Monster_Stagger::StaticClass()))
+		{
+			StaggerAbilityClass = AbilityClass;
+			break;
+		}
+	}
 	if (!StaggerAbilityClass || !MonsterASC->TryActivateAbilityByClass(StaggerAbilityClass))
 	{
 		if (bPausedBrainForStagger)
@@ -215,8 +198,9 @@ void ATBMonster::HandleStaggerFull()
 
 void ATBMonster::HandleAbilityEnded(const FAbilityEndedData& EndedData)
 {
-	if (HasAuthority() && !IsDead() && MonsterAttributes && StaggerAbilityClass
-		&& EndedData.AbilityThatEnded && EndedData.AbilityThatEnded->GetClass() == StaggerAbilityClass)
+	if (HasAuthority() && !IsDead() && MonsterAttributes
+		&& IsValid(EndedData.AbilityThatEnded)
+		&& EndedData.AbilityThatEnded->IsA<UTBGameplayAbility_Monster_Stagger>())
 	{
 		MonsterAttributes->SetStagger(0.0f);
 		if (bPausedBrainForStagger)
@@ -312,7 +296,6 @@ void ATBMonster::HandleDeath()
 	GetCharacterMovement()->DisableMovement();
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	ReceiveDeath();
 	OnMonsterDied.Broadcast(this);
 }
 

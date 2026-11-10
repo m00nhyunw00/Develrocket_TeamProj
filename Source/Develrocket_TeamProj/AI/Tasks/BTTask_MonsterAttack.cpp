@@ -11,7 +11,7 @@ UBTTask_MonsterAttack::UBTTask_MonsterAttack()
 {
 	NodeName = TEXT("TB Monster Attack");
 	bCreateNodeInstance = true;
-	BlackboardKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(ThisClass, BlackboardKey), ATBPlayer::StaticClass());
+	BlackboardKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(ThisClass, BlackboardKey), AActor::StaticClass());
 	BlackboardKey.SelectedKeyName = TEXT("TargetActor");
 }
 
