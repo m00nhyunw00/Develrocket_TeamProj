@@ -356,7 +356,7 @@ void ATBMonster::OnPoolDeactivated_Implementation()
 bool ATBMonster::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource,
 	const FHitResult& HitResult)
 {
-	const bool bApplied = ApplyGASDamage(Damage, DamageSource);
+	const bool bApplied = ApplyDamage(Damage, DamageSource);
 	if (bApplied && !IsDead() && IsValid(DamageSource))
 	{
 		if (ATBMonsterAIController* MonsterController = Cast<ATBMonsterAIController>(GetController()))

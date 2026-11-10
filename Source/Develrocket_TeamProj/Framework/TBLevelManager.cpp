@@ -1,5 +1,5 @@
 #include "Framework/TBLevelManager.h"
-#include "Framework/TBSpawnManagerComponent.h"
+#include "Components/TBSpawnManagerComponent.h"
 #include "Framework/TBSpawnPoolDataAsset.h"
 
 #include "Kismet/GameplayStatics.h"
