@@ -17,7 +17,7 @@ public:
 
 	// [서버] Amount만큼 Blood 회복. 적용 성공 여부 반환
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Heal")
-	bool ApplyHeal(float Amount);
+	bool ApplyHeal();
 
 protected:
 	// Instant, Blood Add, SetByCaller(Data.Heal)인 GE

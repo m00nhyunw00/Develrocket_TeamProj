@@ -36,15 +36,15 @@ protected:
 	//부품 조립을 위한 값
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTBAmmoWidget> Ammo;
-	UPROPERTY(meta=(BindWidget))
+	UPROPERTY(meta=(BindWidgetOptional))
 	TObjectPtr<UTBHealthBarWidget> HealthBar;
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTBCrosshairWidget> Crosshair;
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTBHitMarkerWidget> HitMarker;
-	UPROPERTY(meta=(BindWidget))
+	UPROPERTY(meta=(BindWidgetOptional))
 	TObjectPtr<UTBLowHealthOverlayWidget> LowHealthOverlay;
-	UPROPERTY(meta=(BindWidget))
+	UPROPERTY(meta=(BindWidgetOptional))
 	TObjectPtr<UTBSkillBarWidget> SkillBar;
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTBInteractPromptWidget> InteractPrompt;

@@ -8,6 +8,7 @@
 class UCapsuleComponent;
 class USkeletalMeshComponent;
 class UTBDialogueWidget;
+class UAnimMontage;
 
 /**
  * 대기실(L_MatchWait) 세계관 설명 NPC
@@ -33,7 +34,10 @@ public:
 	virtual void Interact_Implementation(AActor* InteractInstigator) override;
 	virtual void InteractLocal_Implementation(AActor* InteractInstigator) override;
 	virtual FText GetInteractPrompt_Implementation() const override;
-
+	virtual UAnimMontage* GetInteractMontage_Implementation() const override;
+	virtual UAnimMontage* GetInteractFirstPersonMontage_Implementation() const override;
+	virtual bool ShouldResolveOnStart_Implementation() const override;
+	
 protected:
 	// 컴포넌트 ----------------------
 
@@ -54,6 +58,14 @@ protected:
 	// HUD에 띄울 문구
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction")
 	FText InteractPrompt;
+	
+	// 3인칭 몽타주
+	UPROPERTY(EditDefaultsOnly, Category = "Interaction|Animation")
+	TObjectPtr<UAnimMontage>InteractMontage;
+	
+	// 1인칭 몽타주
+	UPROPERTY(EditDefaultsOnly, Category = "Interaction|Animation")
+	TObjectPtr<UAnimMontage> InteractFirstPersonMontage;
 	
 	// 대화 ----------------------------
 	

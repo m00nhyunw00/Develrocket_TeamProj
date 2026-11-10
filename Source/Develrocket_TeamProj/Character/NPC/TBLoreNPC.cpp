@@ -5,6 +5,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "Animation/AnimMontage.h"
 
 
 ATBLoreNPC::ATBLoreNPC()
@@ -79,8 +80,25 @@ FText ATBLoreNPC::GetInteractPrompt_Implementation() const
 	return InteractPrompt;
 }
 
+UAnimMontage* ATBLoreNPC::GetInteractMontage_Implementation() const
+{
+	return InteractMontage;
+}
+
+UAnimMontage* ATBLoreNPC::GetInteractFirstPersonMontage_Implementation() const
+{
+	return InteractFirstPersonMontage;
+}
+
+bool ATBLoreNPC::ShouldResolveOnStart_Implementation() const
+{
+	return true;
+}
+
 void ATBLoreNPC::Interact_Implementation(AActor* InteractInstigator)
 {
 	// [서버] 지금은 바꿀 게임 상태 없음
 	UE_LOG(LogTemp, Log, TEXT("[LoreNPC] Server: %s"), *GetNameSafe(InteractInstigator));
 }
+
+

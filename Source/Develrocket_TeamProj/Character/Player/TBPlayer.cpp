@@ -450,6 +450,11 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	{
 		EnhancedInput->BindAction(InteractAction, ETriggerEvent::Started, this, &ATBPlayer::InputInteractStarted);
 	}
+	
+	if (PauseAction)
+	{
+		EnhancedInput->BindAction(PauseAction, ETriggerEvent::Started, this, &ATBPlayer::InputPauseStarted);
+	}
 }
 
 // 점프·앉기 상태 전환 ----------------------
@@ -783,4 +788,18 @@ bool ATBPlayer::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, 
 	const FHitResult& HitResult)
 {
 	return ApplyDamage(Damage, DamageSource);
+}
+
+void ATBPlayer::InputPauseStarted()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	if (ATBPlayerHUD* HUD = Cast<ATBPlayerHUD>(PC->GetHUD()))
+	{
+		HUD->TogglePauseMenu();
+	}
 }
