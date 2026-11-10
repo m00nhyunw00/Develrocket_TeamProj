@@ -10,6 +10,7 @@ class UTBCrosshairWidget;
 class UTBHitMarkerWidget;
 class UTBLowHealthOverlayWidget;
 class UTBSkillBarWidget;
+class UTBInteractPromptWidget;
 
 /**
  *
@@ -28,6 +29,8 @@ public:
 	void SetAmmo(int32 CurrentAmmo, int32 AmmoAtLastReload, int32 MagazineSize, bool bCanReload);
 	void SetSkill(int32 Index, UTexture2D* Icon, const FText& Key);
 	void StartSkillCooldown(int32 Index, float Duration);
+	void ShowInteractPrompt(const FText& Key, const FText& Prompt);
+	void HideInteractPrompt();
 	
 protected:
 	//부품 조립을 위한 값
@@ -43,4 +46,6 @@ protected:
 	TObjectPtr<UTBLowHealthOverlayWidget> LowHealthOverlay;
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTBSkillBarWidget> SkillBar;
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UTBInteractPromptWidget> InteractPrompt;
 };

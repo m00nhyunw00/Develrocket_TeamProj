@@ -67,6 +67,9 @@ void UTBInteractionComponent::ScanForTarget()
 	if (BestTarget != FocusedActor.Get())
 	{
 		FocusedActor = BestTarget;
+		
+		OnFocusedActorChanged.Broadcast(BestTarget);
+		
 		UE_LOG(LogTemp, Log, TEXT("[Interaction] Focus: %s"), *GetNameSafe(BestTarget));
 	}
 

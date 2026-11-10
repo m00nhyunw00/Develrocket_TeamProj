@@ -9,6 +9,7 @@ class UAbilitySystemComponent;
 class UTBPlayerHUDWidget;
 class UTBPauseMenuWidget;
 class UTBMatchWaitWidget;
+class UTBInteractionComponent;
 
 struct FOnAttributeChangeData;
 
@@ -23,6 +24,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void TogglePauseMenu();
+	
+	void BindInteraction(UTBInteractionComponent* InInteraction);
+	void UnBindInteraction();
 
 protected:
 	virtual void BeginPlay() override;
@@ -49,10 +53,16 @@ private:
 	void HandleAttributeChanged(const FOnAttributeChangeData& Data);
 	void RefreshResourceHUD();
 	void NotifyShotFired();
+	
+	void HandleFocusedActorChanged(AActor* NewFocus);
 
 	TWeakObjectPtr<UAbilitySystemComponent> BoundASC;
 
 	TArray<TPair<FGameplayAttribute, FDelegateHandle>> AttributeBindings;
 
 	FDelegateHandle ShotFiredHandle;
+	
+	TWeakObjectPtr<UTBInteractionComponent> BoundInteraction; //캐릭터와 함께 사라질 수 있음
+	FDelegateHandle FocusChangedHandle;
+	
 };

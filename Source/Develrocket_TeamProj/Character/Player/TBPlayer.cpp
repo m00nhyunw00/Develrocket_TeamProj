@@ -661,6 +661,7 @@ void ATBPlayer::TryBindLocalHUD()
 	if (ATBPlayerHUD* HUD = Cast<ATBPlayerHUD>(PC->GetHUD()))
 	{
 		HUD->BindAbilitySystem(PS->GetAbilitySystemComponent());
+		HUD->BindInteraction(InteractionComponent);
 	}
 }
 
