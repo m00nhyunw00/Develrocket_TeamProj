@@ -2,10 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Framework/TBSpawnPoolData.h"
 #include "TBLevelManager.generated.h"
 
 class ACityLayoutCoordinator;
 class ACharacter;
+class UTBSpawnManagerComponent;
+class UTBSpawnPoolDataAsset;
 
 // 위젯이 구독할 로컬 알림 (일반 멀티캐스트)
 DECLARE_MULTICAST_DELEGATE(FOnTBLocalCityReady);
@@ -29,7 +32,29 @@ class DEVELROCKET_TEAMPROJ_API ATBLevelManager : public AActor
 	
 public:
 	ATBLevelManager();
+
+	// 이전 레벨 인스턴스의 설정을 보존합니다. 데이터 에셋이 지정되지 않을 때 사용합니다.
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="Spawn|Pool", meta=(DisplayName="Legacy Spawn Pools"))
+	TArray<FTBSpawnPoolEntry> SpawnPools;
+
+	// 지정된 데이터 에셋은 기존 레벨 인스턴스 설정보다 우선합니다.
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="Spawn|Pool")
+	TObjectPtr<UTBSpawnPoolDataAsset> SpawnPoolDataAsset;
+
+	// 서버의 현재 매치에서 사용하는 풀 설정 복사본과 액터 목록입니다.
+	UPROPERTY(Transient)
+	TArray<FTBSpawnPoolRuntime> RuntimeSpawnPools;
+
+	// 데이터 에셋이 있으면 그 항목을, 없으면 이전 인스턴스 설정을 확인합니다.
+	bool HasConfiguredSpawnPools() const;
+
+	// 이 레벨 매니저의 런타임 풀을 참조해 스폰과 반환을 관리합니다.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Spawn|Pool")
+	TObjectPtr<UTBSpawnManagerComponent> SpawnManager;
 	
+	// 플레이어와 몬스터가 공유할 바닥 액터, 범위 및 탐색 설정을 반환합니다.
+	bool GetSpawnFloorSearchParameters(AActor*& OutFloor, FBox& OutBounds, int32& OutMaxAttempts, float& OutTraceHeight) const;
+
 	bool IsLocalCityReady() const { return bLocalCityReady; }
 	bool IsMatchStarted() const { return bMatchStarted; }
 	bool IsSearchingForSpawn() const { return bSearchingForSpawn; }
@@ -85,6 +110,9 @@ private:
 
 	UFUNCTION()
 	void OnRep_SearchingForSpawn();
+	// 도시 생성 완료 시 서버에서 설정을 런타임 풀에 한 번 복사합니다.
+	void InitializeSpawnPools();
+	bool bSpawnPoolsInitialized = false;
 	void RetryMatchSpawn();
 	void RetryPendingSpawns();
 
