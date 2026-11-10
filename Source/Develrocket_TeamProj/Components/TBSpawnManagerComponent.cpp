@@ -1,4 +1,4 @@
-#include "Framework/TBSpawnManagerComponent.h"
+#include "Components/TBSpawnManagerComponent.h"
 
 #include "Framework/TBLevelManager.h"
 #include "Interface/TBPoolable.h"

@@ -139,7 +139,7 @@ bool ATBMonster::IsDead() const
 	return MonsterASC && MonsterASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
 }
 
-bool ATBMonster::ApplyGASDamage(float Damage,AActor* DamageSource)
+bool ATBMonster::ApplyDamage(float Damage,AActor* DamageSource)
 {
 	if (!HasAuthority() || !bGameplayDataInitialized || IsDead() || !FMath::IsFinite(Damage) || Damage <= 0.0f || !DamageEffectClass)
 	{
@@ -329,7 +329,7 @@ void ATBMonster::RestorePoolVisualState()
 	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 }
 
-void ATBMonster::OnPoolActivated()
+void ATBMonster::OnPoolActivated_Implementation()
 {
 	// 서버에서 사망했던 몬스터를 재사용할 때 GAS 상태와 체력을 초기화합니다.
 	if (!HasAuthority() || !bDeathHandled || !MonsterASC || !MonsterAttributes) return;
@@ -346,7 +346,7 @@ void ATBMonster::OnPoolActivated()
 	ForceNetUpdate();
 }
 
-void ATBMonster::OnPoolDeactivated()
+void ATBMonster::OnPoolDeactivated_Implementation()
 {
 	// 풀 반환 전에 서버에서 이동과 실행 중인 Ability를 중지합니다.
 	if (!HasAuthority()) return;
