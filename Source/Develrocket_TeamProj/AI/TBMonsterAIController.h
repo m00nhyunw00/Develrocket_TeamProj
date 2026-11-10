@@ -18,6 +18,7 @@ public:
 
 	void InvestigateDamageSource(const AActor* DamageSource);
 	void TryStartPendingInvestigation();
+	void ReactivateFromPool();
 	
 protected:
 	virtual void BeginPlay() override;

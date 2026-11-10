@@ -1,4 +1,6 @@
 #include "Framework/TBLevelManager.h"
+#include "Framework/TBSpawnManagerComponent.h"
+#include "Framework/TBSpawnPoolDataAsset.h"
 
 #include "Kismet/GameplayStatics.h"
 #include "Components/CapsuleComponent.h"
@@ -14,6 +16,7 @@
 
 ATBLevelManager::ATBLevelManager()
 {
+	SpawnManager = CreateDefaultSubobject<UTBSpawnManagerComponent>(TEXT("SpawnManager"));
 	bReplicates = true;
 	bAlwaysRelevant = true;
 	PrimaryActorTick.bCanEverTick = false;
@@ -68,11 +71,51 @@ void ATBLevelManager::HandleCityReady(int32 Seed, int32 Revision)
 	}
 
 	bLocalCityReady = true;
+	if (HasAuthority() && SpawnManager)
+	{
+		// 도시 생성 완료 후 서버에서 풀을 준비하고 스폰 검사를 시작합니다.
+		InitializeSpawnPools();
+		SpawnManager->StartSpawning();
+	}
 	UE_LOG(LogTemp, Log, TEXT("[TBLevel] Local city ready (Seed=%d, Rev=%d)"), Seed, Revision);
 
 	OnLocalCityReadyEvent.Broadcast();   // 위젯: "START 활성화해도 됨"
 }
 
+bool ATBLevelManager::HasConfiguredSpawnPools() const
+{
+	// 데이터 에셋이 있으면 빈 배열이어도 이전 설정을 대신 사용하지 않습니다.
+	return SpawnPoolDataAsset ? !SpawnPoolDataAsset->SpawnEntries.IsEmpty() : !SpawnPools.IsEmpty();
+}
+
+void ATBLevelManager::InitializeSpawnPools()
+{
+	// 이미 생성된 런타임 풀의 액터 목록을 잃지 않도록 한 번만 초기화합니다.
+	if (!HasAuthority() || bSpawnPoolsInitialized) return;
+	bSpawnPoolsInitialized = true;
+	if (SpawnPoolDataAsset)
+	{
+		if (!SpawnPools.IsEmpty())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[TBLevel] Spawn pool data asset takes precedence over legacy instance settings."));
+		}
+		for (const FTBSpawnPoolConfig& Config : SpawnPoolDataAsset->SpawnEntries)
+		{
+			RuntimeSpawnPools.AddDefaulted_GetRef().Config = Config;
+		}
+		return;
+	}
+	// 데이터 에셋이 없을 때만 이전 레벨 인스턴스의 설정을 복사합니다.
+	for (const FTBSpawnPoolEntry& Legacy : SpawnPools)
+	{
+		FTBSpawnPoolConfig& Config = RuntimeSpawnPools.AddDefaulted_GetRef().Config;
+		Config.ActorClass = Legacy.ActorClass;
+		Config.MaxActiveCount = Legacy.MaxActiveCount;
+		Config.PoolSize = Legacy.PoolSize;
+		Config.SpawnInterval = Legacy.SpawnInterval;
+		Config.SpawnPointTag = Legacy.SpawnPointTag;
+	}
+}
 bool ATBLevelManager::StartMatch()
 {
 	// 서버만, 한 번만, 도시가 준비된 뒤에만
@@ -217,25 +260,33 @@ void ATBLevelManager::RetryPendingSpawns()
 	}
 }
 
+bool ATBLevelManager::GetSpawnFloorSearchParameters(AActor*& OutFloor, FBox& OutBounds, int32& OutMaxAttempts, float& OutTraceHeight) const
+{
+	OutFloor = SpawnFloor.Get();
+	if (!IsValid(OutFloor))
+	{
+		TArray<AActor*> Floors;
+		if (!SpawnFloorTag.IsNone()) UGameplayStatics::GetAllActorsWithTag(this, SpawnFloorTag, Floors);
+		if (Floors.Num() != 1) return false;
+		OutFloor = Floors[0];
+	}
+	if (!IsValid(OutFloor)) return false;
+	OutBounds = OutFloor->GetComponentsBoundingBox(false, false);
+	if (!OutBounds.IsValid || OutBounds.GetExtent().X <= 1.0 || OutBounds.GetExtent().Y <= 1.0) return false;
+	OutMaxAttempts = MaxSpawnAttempts;
+	OutTraceHeight = TraceHeightAboveCity;
+	return true;
+}
 bool ATBLevelManager::FindSafePlayerSpawnInternal(const ACharacter* Character, AActor* IgnoredActor, const TArray<AActor*>& IgnoredPlayers, const TArray<FVector>& ReservedLocations, FTransform& OutSpawnTransform) const
 {
 	UWorld* World = GetWorld();
 	if (!World || !Character || !Character->GetCapsuleComponent()) return false;
 
-	AActor* Floor = SpawnFloor.Get();
-	if (!IsValid(Floor))
-	{
-		TArray<AActor*> Floors;
-		if (!SpawnFloorTag.IsNone()) UGameplayStatics::GetAllActorsWithTag(this, SpawnFloorTag, Floors);
-		if (Floors.Num() != 1)
-		{
-			return false;
-		}
-		Floor = Floors[0];
-	}
-	// 실제 Floor의 월드 경계를 기준으로 후보를 생성
-	const FBox FloorBounds = Floor->GetComponentsBoundingBox(false, false);
-	if (!FloorBounds.IsValid || FloorBounds.GetExtent().X <= 1.0 || FloorBounds.GetExtent().Y <= 1.0) return false;
+	AActor* Floor = nullptr;
+	FBox FloorBounds(ForceInit);
+	int32 SearchAttempts = 0;
+	float TraceHeight = 0.0f;
+	if (!GetSpawnFloorSearchParameters(Floor, FloorBounds, SearchAttempts, TraceHeight)) return false;
 
 	const UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
 	const float Radius = Capsule->GetScaledCapsuleRadius();
@@ -243,12 +294,12 @@ bool ATBLevelManager::FindSafePlayerSpawnInternal(const ACharacter* Character, A
 	FCollisionQueryParams Query(SCENE_QUERY_STAT(CityPlayerSpawn), false);
 	Query.AddIgnoredActors(IgnoredPlayers);
 	if (IsValid(IgnoredActor)) Query.AddIgnoredActor(IgnoredActor);
-	for (int32 Attempt = 0; Attempt < MaxSpawnAttempts; ++Attempt)
+	for (int32 Attempt = 0; Attempt < SearchAttempts; ++Attempt)
 	{
 		const double X = FMath::FRandRange(FloorBounds.Min.X, FloorBounds.Max.X);
 		const double Y = FMath::FRandRange(FloorBounds.Min.Y, FloorBounds.Max.Y);
 		FHitResult Hit;
-		const FVector Top(X, Y, FloorBounds.Max.Z + TraceHeightAboveCity);
+		const FVector Top(X, Y, FloorBounds.Max.Z + TraceHeight);
 		const FVector Bottom(X, Y, FloorBounds.Min.Z - 1000.0);
 		if (!World->LineTraceSingleByChannel(Hit, Top, Bottom, ECC_Visibility, Query) || Hit.GetActor() != Floor) continue;
 		const FVector Location = Hit.ImpactPoint + FVector(0, 0, HalfHeight + 3.0f);

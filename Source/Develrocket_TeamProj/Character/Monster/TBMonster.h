@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Character/TBCharacterBase.h"
+#include "Framework/TBPoolable.h"
 #include "TBMonster.generated.h"
 
 class UGameplayAbility;
@@ -16,7 +17,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTBMonsterDied, ATBMonster*, Monster
 
 // 자체 ASC를 소유하는 GAS 기반 AI 몬스터
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API ATBMonster : public ATBCharacterBase
+class DEVELROCKET_TEAMPROJ_API ATBMonster : public ATBCharacterBase, public ITBPoolable
 {
 	GENERATED_BODY()
 
@@ -24,6 +25,9 @@ public:
 	ATBMonster(const FObjectInitializer& ObjectInitializer);
 
 	virtual void PossessedBy(AController* NewController) override;
+	virtual void OnPoolActivated_Implementation() override;
+	virtual void OnPoolDeactivated_Implementation() override;
+	void RestorePoolVisualState();
 
 	UFUNCTION(BlueprintPure, Category = "Monster|Health")
 	float GetHealth() const;
