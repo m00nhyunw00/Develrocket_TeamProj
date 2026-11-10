@@ -21,18 +21,6 @@ void UTBMonsterAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 	RESET_REPLIFETIME_CONDITION(UTBAttributeSetBase, MaxBlood, COND_None);
 }
 
-void UTBMonsterAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
-{
-	Super::PreAttributeChange(Attribute, NewValue);
-	ClampAttribute(Attribute, NewValue);
-}
-
-void UTBMonsterAttributeSet::PreAttributeBaseChange(const FGameplayAttribute& Attribute, float& NewValue) const
-{
-	Super::PreAttributeBaseChange(Attribute, NewValue);
-	ClampAttribute(Attribute, NewValue);
-}
-
 bool UTBMonsterAttributeSet::HasDied() const
 {
 	const UAbilitySystemComponent* ASC = GetOwningAbilitySystemComponent();
@@ -57,11 +45,6 @@ void UTBMonsterAttributeSet::AddStagger(float Damage)
 	{
 		OnStaggerFull.Broadcast();
 	}
-}
-
-void UTBMonsterAttributeSet::ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const
-{
-	Super::ClampAttribute(Attribute, NewValue);
 }
 
 void UTBMonsterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
