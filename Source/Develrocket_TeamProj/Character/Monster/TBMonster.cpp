@@ -139,7 +139,7 @@ bool ATBMonster::IsDead() const
 	return MonsterASC && MonsterASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
 }
 
-bool ATBMonster::ApplyGASDamage(float Damage,AActor* DamageSource)
+bool ATBMonster::ApplyDamage(float Damage,AActor* DamageSource)
 {
 	if (!HasAuthority() || !bGameplayDataInitialized || IsDead() || !FMath::IsFinite(Damage) || Damage <= 0.0f || !DamageEffectClass)
 	{

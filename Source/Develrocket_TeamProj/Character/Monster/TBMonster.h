@@ -2,7 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "Character/TBCharacterBase.h"
-#include "Framework/TBPoolable.h"
 #include "TBMonster.generated.h"
 
 class UGameplayAbility;
@@ -17,7 +16,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTBMonsterDied, ATBMonster*, Monster
 
 // 자체 ASC를 소유하는 GAS 기반 AI 몬스터
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API ATBMonster : public ATBCharacterBase, public ITBPoolable
+class DEVELROCKET_TEAMPROJ_API ATBMonster : public ATBCharacterBase
 {
 	GENERATED_BODY()
 
@@ -40,7 +39,7 @@ public:
 
 	// 서버에서 피해 GE를 적용하는 공통 진입점; 클라이언트 RPC가 아닌 권한 검사 함수
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Monster|Damage")
-	bool ApplyGASDamage(float Damage, AActor* DamageSource);
+	bool ApplyDamage(float Damage, AActor* DamageSource);
 
 	UPROPERTY(BlueprintAssignable, Category = "Monster|State")
 	FTBMonsterDied OnMonsterDied;
