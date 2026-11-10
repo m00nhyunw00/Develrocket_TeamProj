@@ -13,6 +13,8 @@
 #include "UI/TBMatchWaitWidget.h"
 #include "Framework/TBLevelManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/TBInteractionComponent.h"
+#include "Interface/TBInteractable.h"
 
 void ATBPlayerHUD::BeginPlay()
 {
@@ -170,6 +172,24 @@ void ATBPlayerHUD::NotifyShotFired()
     }
 }
 
+void ATBPlayerHUD::HandleFocusedActorChanged(AActor* NewFocus)
+{
+    if (!HUDWidget)
+    {
+        return;
+    }
+    
+    if (NewFocus && NewFocus->Implements<UTBInteractable>())
+    {
+        const FText Prompt = ITBInteractable::Execute_GetInteractPrompt(NewFocus);
+        HUDWidget->ShowInteractPrompt(FText::FromString(TEXT("F")), Prompt);
+    }
+    else
+    {
+        HUDWidget->HideInteractPrompt();
+    }
+}
+
 void ATBPlayerHUD::UnbindAbilitySystem()
 {
     if (UAbilitySystemComponent* ASC = BoundASC.Get())
@@ -206,6 +226,39 @@ void ATBPlayerHUD::TogglePauseMenu()
         PauseWidget->OpenPauseMenu();
     }
 }
+
+void ATBPlayerHUD::BindInteraction(UTBInteractionComponent* InInteraction)
+{
+    if (!HUDWidget || !IsValid(InInteraction) || BoundInteraction.Get() == InInteraction)
+    {
+        return;
+    }
+    
+    UnBindInteraction();
+    BoundInteraction = InInteraction;
+    
+    FocusChangedHandle = InInteraction->OnFocusedActorChanged.AddUObject(this, &ATBPlayerHUD::HandleFocusedActorChanged);
+    
+    HandleFocusedActorChanged(InInteraction->GetFocusedActor());
+}
+
+void ATBPlayerHUD::UnBindInteraction()
+{
+    if (UTBInteractionComponent* Interaction = BoundInteraction.Get())
+    {
+        Interaction->OnFocusedActorChanged.Remove(FocusChangedHandle);
+    }
+    
+    FocusChangedHandle.Reset();
+    BoundInteraction.Reset();
+    
+    if (HUDWidget)
+    {
+        HUDWidget->HideInteractPrompt();
+    }
+}
+
+
 
 void ATBPlayerHUD::EndPlay(
     const EEndPlayReason::Type EndPlayReason)
