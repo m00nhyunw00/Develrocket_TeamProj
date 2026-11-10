@@ -28,6 +28,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Player|State")
 	bool IsDead() const;
 
+	void Die();
+
+	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
+	
 	// 서버 피해 적용
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Player|Damage")
 	bool ApplyDamage(float Damage, AActor* DamageSource);
@@ -136,6 +140,11 @@ private:
 
 	// 실제 앉기 상태와 별도로 보관하는 Ctrl 입력 의도
 	bool bCrouchInputHeld = false;
+	
+	
+	// 사망 처리 상태 ----------------------
+
+	bool bDeathHandled = false;
 
 	// GAS 초기화 ----------------------
 

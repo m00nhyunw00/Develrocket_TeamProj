@@ -5,6 +5,8 @@
 #include "GameFramework/PlayerState.h"
 #include "TBPlayerState.generated.h"
 
+struct FGameplayTag;
+struct FOnAttributeChangeData;
 class UTBPlayerAttributeSet;
 class UAbilitySystemComponent;
 class UTBAbilitySystemComponent;
@@ -26,6 +28,9 @@ public:
 	// 초기 데이터 적용 ----------------------
 
 	void InitializeGameplayData();
+	
+	// 현재 PlayerState의 사망 관련 이벤트를 한 번만 연결
+	void InitializeDeathEvents();
 
 	// 서버 혈액 회복 ----------------------
 
@@ -78,10 +83,19 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|PrimaryAttack")
 	TSubclassOf<UGameplayEffect> PrimaryAttackCooldownEffectClass;
 	
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|Death")
+	TSubclassOf<UGameplayEffect> DeathEffectClass;
+	
 private:
 	// 반복 초기화에 따른 자원 재설정 및 중복 부여 방지
 	bool bGameplayDataInitialized = false;
 	
+	bool bDeathEventsBound = false;
+	
+private:
+	void HandleBloodChanged(const FOnAttributeChangeData& Data);
+	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
+
 public:
 	// 게임플레이 데이터 초기화 완료 여부
 	bool IsGameplayDataInitialized() const
@@ -93,6 +107,11 @@ public:
 	TSubclassOf<UGameplayEffect> GetDamageEffectClass() const
 	{
 		return DamageEffectClass;
+	}
+	
+	TSubclassOf<UGameplayEffect> GetDeathEffectClass() const
+	{
+		return DeathEffectClass;
 	}
 	
 	// 기본 공격 피해량 조회
