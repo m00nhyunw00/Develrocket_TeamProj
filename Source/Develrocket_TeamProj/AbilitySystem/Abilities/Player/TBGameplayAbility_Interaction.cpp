@@ -6,18 +6,9 @@
 
 UTBGameplayAbility_Interaction::UTBGameplayAbility_Interaction()
 {
-	// 플레이어(ASC)마다 인스턴스 하나를 만들어 재사용
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-
-	// 판정과 실행은 서버에서만
-	// 클라이언트에서 TryActivateAbilityByTag를 호출하면 GAS가 자동으로 서버에 활성화 요청을 보냄
-	// 클라이언트 쪽 반응(UI/연출)은 서버 처리 후 Client RPC로 전달
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::ServerOnly;
-
-	// 이 GA의 이름표: 입력에서 이 태그로 찾음
+	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
+	
 	SetAssetTags(FGameplayTagContainer(TBGameplayTags::Ability_Interaction));
-
-	// 죽은 상태에서는 상호작용 불가
 	ActivationBlockedTags.AddTag(TBGameplayTags::State_Dead);
 }
 
@@ -25,41 +16,82 @@ void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
 	const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,
 	const FGameplayEventData* TriggerEventData)
 {
+	// 1. 대상 찾기(서버는 판정용, 클라이언트는 보여주기 용)
+	AActor* Avatar = ActorInfo ? ActorInfo->AvatarActor.Get() : nullptr;
+	UTBInteractionComponent* InteractionComp = Avatar ? Avatar->FindComponentByClass<UTBInteractionComponent>(): nullptr;
+	
+	AActor* Target = nullptr;
+	if (InteractionComp)
+	{
+		Target = HasAuthority(&ActivationInfo) ? InteractionComp->FindTargetForServer() : InteractionComp->GetFocusedActor();
+	}
+	CurrentTarget = Target;
+	
+	// 2. 몽타주 채우기 (대상이 없으면 반드시 비우기)
+	ThirdPersonMontage = Target ? ITBInteractable::Execute_GetInteractMontage(Target) : nullptr;
+	FirstPersonMontage = Target ? ITBInteractable::Execute_GetInteractFirstPersonMontage(Target) : nullptr;
+	
+	if (!ThirdPersonMontage)
+	{
+		if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+		{
+			EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+			return;
+		}
+		
+		if (HasAuthority(&ActivationInfo) && Target)
+		{
+			ResolveInteraction();
+		}
+		
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
+		return;
+	}
+	
+	// 3. 부모: 검증 + Commit + 몽타주 재생	
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
-
-	// 안전장치: ServerOnly 정책이지만 서버 권한이 없으면 아무것도 하지 않음
-	if (!HasAuthority(&ActivationInfo))
+	
+	// 4. 부모가 종료시켰으면 중단
+	if (!IsActive())
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
-
-	// ① 실제 캐릭터(Avatar)
-	AActor* Avatar = GetAvatarActorFromActorInfo();
-
-	// ② 캐릭터에 붙은 상호작용 컴포넌트 (Client RPC 호출이 필요하므로 non-const)
-	UTBInteractionComponent* InteractionComp =
-		Avatar ? Avatar->FindComponentByClass<UTBInteractionComponent>() : nullptr;
-
-	// ③ 클라이언트의 FocusedActor를 믿지 않고, 서버가 직접 다시 탐지한 대상 사용 (치트 방지)
-	AActor* Target = InteractionComp ? InteractionComp->FindTargetForServer() : nullptr;
-
-	// ④ 대상이 없으면 취소 종료
-	if (!Target)
+	
+	// 5. 대화 : 시작 시 결과 (서버만)
+	if (HasAuthority(&ActivationInfo)&&ITBInteractable::Execute_ShouldResolveOnStart(Target))
 	{
-		UE_LOG(LogTemp, Log, TEXT("[Interaction] Server: No target (%s)"), *GetNameSafe(Avatar));
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
+		ResolveInteraction();
 	}
+}
 
-	UE_LOG(LogTemp, Log, TEXT("[Interaction] Server: %s -> %s"), *GetNameSafe(Avatar), *GetNameSafe(Target));
+void UTBGameplayAbility_Interaction::HandleActionMontageCompleted()
+{
+    AActor* Target = CurrentTarget.Get();
 
-	// ⑤ [서버] 게임 상태를 바꾸는 상호작용 (아이템 획득, 문 열기 등)
-	ITBInteractable::Execute_Interact(Target, Avatar);
+    // 흡혈: 몽타주 완료 시 결과 (서버만)
+	if (CurrentActorInfo && CurrentActorInfo->IsNetAuthority() && Target && !ITBInteractable::Execute_ShouldResolveOnStart(Target))
+    {
+        ResolveInteraction();
+    }
 
-	// ⑥ [그 플레이어의 클라이언트] UI / 연출 등 로컬 반응
-	InteractionComp->Client_NotifyInteracted(Target);
+    Super::HandleActionMontageCompleted();
+}
 
-	// ⑦ 정상 종료
-	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
+void UTBGameplayAbility_Interaction::ResolveInteraction()
+{
+    AActor* Target = CurrentTarget.Get();
+    AActor* Avatar = GetAvatarActorFromActorInfo();     // 매개변수 없이 Avatar 얻는 함수
+    UTBInteractionComponent* InteractionComp =
+        Avatar ? Avatar->FindComponentByClass<UTBInteractionComponent>() : nullptr;
+
+    if (!Target || !InteractionComp)
+    {
+        return;
+    }
+
+    // [서버] 게임 상태 결과
+    ITBInteractable::Execute_Interact(Target, Avatar);
+
+    // [서버 → 그 플레이어] 로컬 결과 (대화 자막 등)
+    InteractionComp->Client_NotifyInteracted(Target);
 }
