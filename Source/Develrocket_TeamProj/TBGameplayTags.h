@@ -32,4 +32,5 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Reload_BloodCost);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Reload_LoadedGain);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Damage);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Heal);
 }
