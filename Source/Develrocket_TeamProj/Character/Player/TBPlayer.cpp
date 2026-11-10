@@ -10,6 +10,7 @@
 #include "InputActionValue.h"
 #include "TBGameplayTags.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
+#include "AbilitySystem/Attributes/TBAttributeSetBase.h"
 #include "Character/Monster/TBMonster.h"
 #include "Math/RotationMatrix.h"
 #include "Components/CapsuleComponent.h"
@@ -93,6 +94,106 @@ bool ATBPlayer::IsDead() const
 	const UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 
 	return IsValid(ASC) && ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
+}
+
+void ATBPlayer::Die()
+{
+	ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
+	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponent();
+
+	if (!HasAuthority() || !IsValid(PS)
+		|| !PS->IsGameplayDataInitialized()
+		|| !IsValid(PlayerASC)
+		|| PlayerASC != PS->GetAbilitySystemComponent()
+		|| PlayerASC->GetAvatarActor() != this
+		|| IsDead())
+	{
+		return;
+	}
+
+	const TSubclassOf<UGameplayEffect> DeathEffectClass = PS->GetDeathEffectClass();
+
+	if (!DeathEffectClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("%s: DeathEffectClass is not set."), *GetName());
+		return;
+	}
+
+	const FGameplayEffectSpecHandle Spec = PlayerASC->MakeOutgoingSpec(DeathEffectClass, 1.0f, PlayerASC->MakeEffectContext());
+
+	if (!Spec.IsValid())
+	{
+		return;
+	}
+
+	const FActiveGameplayEffectHandle AppliedHandle = PlayerASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+
+	if (!AppliedHandle.WasSuccessfullyApplied() || !IsDead())
+	{
+		if (AppliedHandle.IsValid())
+		{
+			PlayerASC->RemoveActiveGameplayEffect(AppliedHandle);
+		}
+
+		UE_LOG(LogTemp, Error, TEXT("%s: Death GE failed to grant State.Dead."), *GetName());
+		return;
+	}
+
+	PS->ForceNetUpdate();
+	ForceNetUpdate();
+}
+
+void ATBPlayer::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	if (NewCount <= 0 || bDeathHandled)
+	{
+		return;
+	}
+
+	UTBAbilitySystemComponent* PlayerASC = GetTBAbilitySystemComponent();
+
+	if (!IsValid(PlayerASC) || PlayerASC->GetAvatarActor() != this)
+	{
+		return;
+	}
+
+	// 취소 콜백 등에 의한 중복 처리 방지
+	bDeathHandled = true;
+
+	if (HasAuthority())
+	{
+		PlayerASC->CancelAllAbilities();
+	}
+
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+
+	// 카메라 회전이 몸체에 반영되지 않도록 설정
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationRoll = false;
+	
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	if (IsValid(FirstPersonMesh.Get()))
+	{
+		FirstPersonMesh->SetHiddenInGame(true, true);
+	}
+
+	if (IsValid(FirstPersonWeaponMesh.Get()))
+	{
+		FirstPersonWeaponMesh->SetHiddenInGame(true, true);
+	}
+
+	// 부여된 어빌리티 중 Ability.Death 태그로 검색 및 실행
+	if (HasAuthority())
+	{
+		if (!PlayerASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Death))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("%s: Death ability activation failed."), *GetName());
+		}
+	}
 }
 
 bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
@@ -436,13 +537,26 @@ void ATBPlayer::InitializeFromPlayerState()
 		return;
 	}
 
-	// OwnerActor: PlayerState / AvatarActor: 현재 Player
 	InitializeAbilitySystem(TBPlayerState->GetAbilitySystemComponent(), TBPlayerState);
 
-	// 서버에서 최초 한 번 자원 및 Ability 설정
+	TBPlayerState->InitializeDeathEvents();
 	TBPlayerState->InitializeGameplayData();
-	
-	// 
+
+	// 이벤트 등록 전에 도착한 사망 상태 반영
+	if (IsDead())
+	{
+		HandleDeadTagChanged(TBGameplayTags::State_Dead, 1);
+	}
+	else if (HasAuthority() && TBPlayerState->IsGameplayDataInitialized())
+	{
+		UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponent();
+
+		if (IsValid(PlayerASC) && PlayerASC->GetNumericAttribute(UTBAttributeSetBase::GetBloodAttribute()) <= 0.0f)
+		{
+			Die();
+		}
+	}
+
 	TryBindLocalHUD();
 }
 
