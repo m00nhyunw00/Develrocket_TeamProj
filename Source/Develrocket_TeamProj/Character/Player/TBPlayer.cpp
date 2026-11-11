@@ -285,7 +285,7 @@ bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
 	return bApplied;
 }
 
-bool ATBPlayer::PerformPrimaryAttackTrace()
+bool ATBPlayer::PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag)
 {
 	// 서버 판정 및 사망 상태 검증
 	if (!HasAuthority() || IsDead())
@@ -335,6 +335,24 @@ bool ATBPlayer::PerformPrimaryAttackTrace()
 	FHitResult HitResult;
 	const bool bBlockingHit = World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, WeaponTraceChannel, QueryParams);
 
+	// 충돌 시 표면 위치, 미충돌 시 최대 사거리 끝점 사용
+	const FVector TrailEnd = bBlockingHit ? HitResult.ImpactPoint : TraceEnd;
+
+	// 피해 대상 여부와 관계없이 발사 궤적 실행
+	if (TrailCueTag.IsValid())
+	{
+		FGameplayCueParameters CueParameters;
+		CueParameters.Location = TrailEnd;
+		CueParameters.Instigator = this;
+		CueParameters.EffectCauser = this;
+
+		// 서버에서만 실행하는 Cue가 발사자에게도 전달되도록 예측 키 분리
+		FScopedPredictionWindow CuePredictionWindow(
+			PlayerASC, FPredictionKey(), false);
+
+		PlayerASC->ExecuteGameplayCue(TrailCueTag, CueParameters);
+	}
+	
 	// 서버 판정 결과 표시
 	if (PS->ShouldDrawPrimaryAttackTrace())
 	{
@@ -382,6 +400,23 @@ void ATBPlayer::PossessedBy(AController* NewController)
 
 	// 서버에서 PlayerState ASC 연결
 	InitializeFromPlayerState();
+}
+
+bool ATBPlayer::TryGetWeaponSocketLocation(FName SocketName, FVector& OutLocation) const
+{
+	// weapon_end 소켓을 보유한 캐릭터 메시 선택
+	// 본인은 1인칭 메시, 다른 플레이어는 3인칭 메시 사용
+	const USkeletalMeshComponent* SocketMesh =
+		IsLocallyControlled() ? FirstPersonMesh.Get() : GetMesh();
+
+	if (!IsValid(SocketMesh) || !SocketMesh->DoesSocketExist(SocketName))
+	{
+		return false;
+	}
+
+	// 애니메이션이 반영된 소켓의 월드 좌표 반환
+	OutLocation = SocketMesh->GetSocketLocation(SocketName);
+	return true;
 }
 
 void ATBPlayer::BeginPlay()

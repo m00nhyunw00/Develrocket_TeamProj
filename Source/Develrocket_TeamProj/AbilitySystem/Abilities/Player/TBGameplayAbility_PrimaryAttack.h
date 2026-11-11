@@ -15,6 +15,10 @@ public:
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 
 protected:
+	// 일반 공격에 사용할 총격 궤적 Cue
+	UPROPERTY(EditDefaultsOnly, Category = "Effects", meta = (Categories = "GameplayCue"))
+	FGameplayTag BulletTrailCueTag;
+	
 	// 한 발당 기본 반동 각도
 	UPROPERTY(EditDefaultsOnly, Category = "Camera|Recoil", meta = (ClampMin = "0.0"))
 	float CameraRecoilPitch = 0.25f;

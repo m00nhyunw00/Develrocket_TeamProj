@@ -21,6 +21,8 @@ UTBGameplayAbility_PrimaryAttack::UTBGameplayAbility_PrimaryAttack()
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Combat);
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Dead);
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Stunned);
+    
+    BulletTrailCueTag = TBGameplayTags::GameplayCue_Weapon_BloodTrail;
 }
 
 const FGameplayTagContainer* UTBGameplayAbility_PrimaryAttack::GetCooldownTags() const
@@ -97,10 +99,10 @@ void UTBGameplayAbility_PrimaryAttack::ActivateAbility(const FGameplayAbilitySpe
         return;
     }
 
-    // 서버 적중 판정 및 피해 적용
+    // 서버 트레이스에 이번 공격의 궤적 Cue 전달
     if (ActorInfo->IsNetAuthority())
     {
-        Player->PerformPrimaryAttackTrace();
+        Player->PerformPrimaryAttackTrace(BulletTrailCueTag);
     }
 
     // 소유 플레이어 화면의 발사 반동 및 알림
