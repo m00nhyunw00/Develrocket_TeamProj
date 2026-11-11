@@ -7,6 +7,8 @@
 
 class UAISenseConfig_Sight;
 class ATBMonster;
+class UAbilitySystemComponent;
+struct FGameplayTag;
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBMonsterAIController : public AAIController
@@ -38,8 +40,11 @@ protected:
 
 	void UpdateTarget(AActor* ExcludedActor = nullptr, bool bMemoryExpired = false);
 	void HandleTargetMemoryExpired();
+	void HandleTargetDeadTagChanged(FGameplayTag Tag, int32 NewCount);
 	void ClearTrackedTarget();
 	TWeakObjectPtr<AActor> TrackedTarget;
+	TWeakObjectPtr<UAbilitySystemComponent> TrackedTargetASC;
+	FDelegateHandle TargetDeadTagHandle;
 	FTimerHandle TargetMemoryTimer;
 	
 	UPROPERTY(VisibleAnywhere, Category = "AI|Perception")

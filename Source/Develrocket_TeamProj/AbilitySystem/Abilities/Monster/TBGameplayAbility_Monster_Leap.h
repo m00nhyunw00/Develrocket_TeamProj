@@ -38,16 +38,15 @@ protected:
 	float AttackDamage = 30.0f;
 
 private:
-	bool FindLandingLocation(const ATBMonster& Monster, const ATBPlayer& Player, FVector& Location) const;
 	void EndLeap(bool bCancelled);
 	void HandleLandingTimeout();
 
 	UFUNCTION()
 	void HandleLanded(const FHitResult& Hit);
 
-	// 한 번의 도약 동안 추적하는 시전자와 BT 타깃
+	// 한 번의 도약 동안 추적하는 시전자와 발동 시점의 목표 위치
 	TWeakObjectPtr<ATBMonster> LeapingMonster;
-	TWeakObjectPtr<const ATBPlayer> LeapTarget;
+	FVector LeapDestination = FVector::ZeroVector;
 	TWeakObjectPtr<USkeletalMeshComponent> AttackMesh;
 	EVisibilityBasedAnimTickOption PreviousTickOption{};
 	FTimerHandle LandingTimeout;

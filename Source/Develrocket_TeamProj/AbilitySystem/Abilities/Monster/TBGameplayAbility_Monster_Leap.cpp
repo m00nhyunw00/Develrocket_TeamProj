@@ -3,7 +3,6 @@
 #include "AIController.h"
 #include "Character/Monster/TBMonster.h"
 #include "Character/Player/TBPlayer.h"
-#include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -27,28 +26,40 @@ void UTBGameplayAbility_Monster_Leap::ActivateAbility(FGameplayAbilitySpecHandle
 {
 	ATBMonster* Monster = ActorInfo && ActorInfo->IsNetAuthority() ? Cast<ATBMonster>(ActorInfo->AvatarActor.Get()) : nullptr;
 	const ATBPlayer* Player = TriggerEventData ? Cast<ATBPlayer>(TriggerEventData->Target.Get()) : nullptr;
-	// 쿨다운 GE와 착지 후보가 유효한 경우에만 도약 준비
+	// 도약 시작 조건과 타깃까지의 장애물 확인
 	const UGameplayEffect* Cooldown = GetCooldownGameplayEffect();
-	FVector LandingLocation;
 	if (!IsValid(Monster) || !IsValid(Player) || !bCommitOnActivate || !Cooldown
 		|| Cooldown->DurationPolicy != EGameplayEffectDurationType::HasDuration
 		|| !Cooldown->GetGrantedTags().HasTagExact(TBGameplayTags::Cooldown_MonsterLeap)
-		|| !FindLandingLocation(*Monster, *Player, LandingLocation))
+		|| Monster->IsDead() || Player->IsDead() || !Monster->GetWorld()
+		|| Player->GetWorld() != Monster->GetWorld()
+		|| !Monster->GetCharacterMovement()->IsMovingOnGround()
+		|| !FMath::IsFinite(FlightTime) || FlightTime <= 0.0f
+		|| FVector::DistSquared(Monster->GetActorLocation(), Player->GetActorLocation()) > FMath::Square(MaxLeapRange))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(MonsterLeapPath), false, Monster);
+	Query.AddIgnoredActor(Player);
+	if (Monster->GetWorld()->LineTraceTestByChannel(Monster->GetActorLocation(), Player->GetActorLocation(), ECC_Visibility, Query))
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
+	// 발동 시점의 플레이어 위치를 도약 목표로 고정
+	LeapDestination = Player->GetActorLocation();
 	// 실제 착지 콜백 등록 및 추격 이동 중단
 	LeapingMonster = Monster;
-	LeapTarget = Player;
 	if (AAIController* Controller = Cast<AAIController>(Monster->GetController()))
 	{
 		Controller->StopMovement();
 	}
 	Monster->GetCharacterMovement()->StopMovementImmediately();
 	Monster->LandedDelegate.AddUniqueDynamic(this, &ThisClass::HandleLanded);
-	Monster->SetActorRotation(FRotator(0.0f, (LandingLocation - Monster->GetActorLocation()).Rotation().Yaw, 0.0f));
+	Monster->SetActorRotation(FRotator(0.0f, (LeapDestination - Monster->GetActorLocation()).Rotation().Yaw, 0.0f));
 
 	// 화면 밖에서도 서버가 이륙 Notify를 처리하도록 메시 틱 설정 변경
 	USkeletalMeshComponent* Mesh = Monster->GetMesh();
@@ -59,60 +70,14 @@ void UTBGameplayAbility_Monster_Leap::ActivateAbility(FGameplayAbilitySpecHandle
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 }
 
-bool UTBGameplayAbility_Monster_Leap::FindLandingLocation(const ATBMonster& Monster, const ATBPlayer& Player, FVector& Location) const
-{
-	const UCharacterMovementComponent* Movement = Monster.GetCharacterMovement();
-	UWorld* World = Monster.GetWorld();
-	if (!World || Monster.IsDead() || Player.IsDead() || Player.GetWorld() != World
-		|| !Movement->IsMovingOnGround() || !FMath::IsFinite(FlightTime) || FlightTime <= 0.0f
-		|| FVector::DistSquared(Monster.GetActorLocation(), Player.GetActorLocation()) > FMath::Square(MaxLeapRange))
-	{
-		return false;
-	}
-
-	const UCapsuleComponent* Capsule = Monster.GetCapsuleComponent();
-	const float HalfHeight = Capsule->GetScaledCapsuleHalfHeight();
-	FCollisionQueryParams Query(SCENE_QUERY_STAT(MonsterLeapLanding), false, &Monster);
-	Query.AddIgnoredActor(&Player);
-
-	// 두 캡슐 반경만큼 타깃 앞에 착지 후보 배치
-	const FVector ToPlayer = Player.GetActorLocation() - Monster.GetActorLocation();
-	const float StopDistance = Capsule->GetScaledCapsuleRadius() + Player.GetCapsuleComponent()->GetScaledCapsuleRadius();
-	const FVector Target = Player.GetActorLocation() - ToPlayer.GetSafeNormal2D() * FMath::Min(StopDistance, ToPlayer.Size2D());
-	FHitResult Ground;
-	if (!World->LineTraceSingleByProfile(Ground, Target + FVector(0, 0, HalfHeight), Target - FVector(0, 0, HalfHeight * 3.0f), Capsule->GetCollisionProfileName(), Query)
-		|| !Movement->IsWalkable(Ground))
-	{
-		return false;
-	}
-
-	// 지면 위에 몬스터 캡슐이 들어갈 공간 확인
-	Location = Ground.ImpactPoint + FVector(0, 0, HalfHeight + 2.0f);
-	return !World->OverlapBlockingTestByProfile(Location, FQuat::Identity, Capsule->GetCollisionProfileName(),
-		FCollisionShape::MakeCapsule(Capsule->GetScaledCapsuleRadius(), HalfHeight), Query);
-}
-
 void UTBGameplayAbility_Monster_Leap::LaunchLeap()
 {
 	ATBMonster* Monster = LeapingMonster.Get();
-	const ATBPlayer* Player = LeapTarget.Get();
 	if (!IsActive() || bLaunched || !IsValid(Monster)) return;
 
-	FVector LandingLocation;
-	if (!IsValid(Player) || !FindLandingLocation(*Monster, *Player, LandingLocation))
-	{
-		EndLeap(true);
-		return;
-	}
-
-	// 이륙 시점의 착지 후보와 중력을 반영한 발사 속도 계산
-	FVector Velocity = (LandingLocation - Monster->GetActorLocation()) / FlightTime;
-	Velocity.Z -= 0.5f * Monster->GetCharacterMovement()->GetGravityZ() * FlightTime;
-	if (Velocity.Z <= 0.0f)
-	{
-		EndLeap(true);
-		return;
-	}
+	// 고정된 목표 위치와 중력을 반영한 발사 속도 계산
+	FVector Velocity = (LeapDestination - Monster->GetActorLocation()) / FlightTime;
+	Velocity.Z = FMath::Max(0.0f, Velocity.Z) - 0.5f * Monster->GetCharacterMovement()->GetGravityZ() * FlightTime;
 
 	bLaunched = true;
 	Monster->SetActorRotation(FRotator(0.0f, Velocity.Rotation().Yaw, 0.0f));
@@ -181,7 +146,7 @@ void UTBGameplayAbility_Monster_Leap::EndAbility(FGameplayAbilitySpecHandle Hand
 	// 원래 메시 틱 설정과 다음 도약을 위한 실행 상태 복구
 	if (USkeletalMeshComponent* Mesh = AttackMesh.Get()) Mesh->VisibilityBasedAnimTickOption = PreviousTickOption;
 	LeapingMonster.Reset();
-	LeapTarget.Reset();
+	LeapDestination = FVector::ZeroVector;
 	AttackMesh.Reset();
 	bLaunched = false;
 	bLanded = false;

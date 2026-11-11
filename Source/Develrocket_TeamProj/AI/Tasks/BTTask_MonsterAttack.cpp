@@ -46,7 +46,7 @@ EBTNodeResult::Type UBTTask_MonsterAttack::ExecuteTask(UBehaviorTreeComponent& O
 	{
 		return EBTNodeResult::Failed;
 	}
-	// 도약은 착지 후보 검증 후 어빌리티에서 이동 중단
+	// 도약은 발동 조건 검증 후 어빌리티에서 이동 중단
 	if (!bUseLeap)
 	{
 		Controller->StopMovement();
