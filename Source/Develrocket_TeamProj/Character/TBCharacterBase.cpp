@@ -50,6 +50,7 @@ UTBAbilitySystemComponent* ATBCharacterBase::GetTBAbilitySystemComponent() const
 void ATBCharacterBase::InitializeAbilitySystem(UAbilitySystemComponent* InASC, AActor* InOwnerActor)
 {
     UTBAbilitySystemComponent* TBASC = Cast<UTBAbilitySystemComponent>(InASC);
+
     if (!IsValid(TBASC) || !IsValid(InOwnerActor))
     {
         return;
@@ -63,15 +64,20 @@ void ATBCharacterBase::InitializeAbilitySystem(UAbilitySystemComponent* InASC, A
 
     AbilitySystemComponent = TBASC;
 
-    // ASC의 Owner와 실제 Ability 수행 대상인 현재 캐릭터를 ActorInfo에 등록
+    // ASC의 소유 액터와 현재 캐릭터 연결
     if (AbilitySystemComponent->GetOwnerActor() != InOwnerActor || AbilitySystemComponent->GetAvatarActor() != this)
     {
         AbilitySystemComponent->InitAbilityActorInfo(InOwnerActor, this);
     }
     else
     {
-        // 컨트롤러 등 변경된 ActorInfo 정보 갱신
         AbilitySystemComponent->RefreshAbilityActorInfo();
+    }
+
+    // 서버에서 고정 타입 태그 적용 및 클라이언트 복제
+    if (HasAuthority() && CharacterTypeTag.IsValid())
+    {
+        AbilitySystemComponent->SetLooseGameplayTagCount(CharacterTypeTag, 1, EGameplayTagReplicationState::TagOnly);
     }
 }
 

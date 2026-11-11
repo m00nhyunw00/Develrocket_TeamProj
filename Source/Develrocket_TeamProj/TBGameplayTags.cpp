@@ -4,7 +4,7 @@ namespace TBGameplayTags
 {
 	UE_DEFINE_GAMEPLAY_TAG(Character_Type_Player, "Character.Type.Player");
 	UE_DEFINE_GAMEPLAY_TAG(Character_Type_Monster, "Character.Type.Monster");
-	UE_DEFINE_GAMEPLAY_TAG(Character_Type_NPC, "Character.Type.NPC");
+	UE_DEFINE_GAMEPLAY_TAG(Character_Type_Human, "Character.Type.Human");
 	
 	
 	UE_DEFINE_GAMEPLAY_TAG(State_Dead, "State.Dead");

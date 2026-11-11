@@ -16,6 +16,9 @@
 
 ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
+	// 몬스터 타입 지정
+	CharacterTypeTag = TBGameplayTags::Character_Type_Monster;
+	
 	// 몬스터가 직접 소유하는 ASC 생성
 	AbilitySystemComponent = CreateDefaultSubobject<UTBAbilitySystemComponent>(TEXT("MonsterASC"));
 	AbilitySystemComponent->SetIsReplicated(true);

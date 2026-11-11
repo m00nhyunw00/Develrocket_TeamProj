@@ -53,4 +53,8 @@ protected:
 	// 몬스터는 직접 생성하고 플레이어는 PlayerState에서 연결하는 공통 ASC 참조
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
 	TObjectPtr<UTBAbilitySystemComponent> AbilitySystemComponent;
+	
+	// 자식 클래스에서 지정하는 고정 캐릭터 타입
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "GAS|Type")
+	FGameplayTag CharacterTypeTag;
 };
