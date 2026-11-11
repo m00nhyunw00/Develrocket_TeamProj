@@ -7,7 +7,7 @@
 
 struct FAbilityEndedData;
 
-// Requests the monster's configured melee ability for the current target.
+// 블랙보드 타깃에 대한 공격 어빌리티 실행 및 종료 대기
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API UBTTask_MonsterAttack : public UBTTask_BlackboardBase
 {

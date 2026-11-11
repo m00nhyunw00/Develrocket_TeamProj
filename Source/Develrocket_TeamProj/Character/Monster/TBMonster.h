@@ -7,6 +7,7 @@
 class UGameplayAbility;
 class UGameplayEffect;
 class UTBMonsterAttributeSet;
+class UTBGameplayAbility_Monster_Leap;
 class ATBMonster;
 struct FAbilityEndedData;
 struct FGameplayTag;
@@ -31,6 +32,7 @@ public:
 	bool IsDead() const;
 
 	TSubclassOf<UGameplayAbility> GetMeleeAbilityClass() const { return MeleeAbilityClass; }
+	TSubclassOf<UTBGameplayAbility_Monster_Leap> GetLeapAbilityClass() const { return LeapAbilityClass; }
 
 	// 서버에서 피해 GE를 적용하는 공통 진입점; 클라이언트 RPC가 아닌 권한 검사 함수
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Monster|Damage")
@@ -45,6 +47,10 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Combat")
 	TSubclassOf<UGameplayAbility> MeleeAbilityClass;
+
+	// 몬스터 BP에서 지정하는 선택형 도약 어빌리티
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Combat")
+	TSubclassOf<UTBGameplayAbility_Monster_Leap> LeapAbilityClass;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
 	TObjectPtr<UTBMonsterAttributeSet> MonsterAttributes;

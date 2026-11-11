@@ -8,8 +8,10 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(State_Combat, "State.Combat");
 	
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_PrimaryAttack, "Cooldown.PrimaryAttack");
+	UE_DEFINE_GAMEPLAY_TAG(Cooldown_MonsterLeap, "Cooldown.MonsterLeap");
 
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat, "Ability.Combat");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_MonsterLeap, "Ability.Combat.MonsterLeap");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_PrimaryAttack, "Ability.Combat.PrimaryAttack");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_Reload, "Ability.Combat.Reload");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Death, "Ability.Death");
