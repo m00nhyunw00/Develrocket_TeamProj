@@ -41,4 +41,7 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Reload_LoadedGain);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Damage);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Heal);
+	
+	// 총격 연출 ----------------------
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_BloodTrail);
 }
