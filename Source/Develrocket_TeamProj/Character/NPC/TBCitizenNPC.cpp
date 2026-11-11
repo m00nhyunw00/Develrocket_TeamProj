@@ -5,6 +5,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "AI/NPC/TBCitizenAIController.h"             // 도망 AI
 #include "Framework/TBPlayerState.h"              // ApplyBloodRecovery
+#include "AbilitySystem/TBAbilitySystemComponent.h"   // 시민 전용 ASC
+#include "TBGameplayTags.h"                           // 사망 태그
 
 // 생성자 =====================
 ATBCitizenNPC::ATBCitizenNPC(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)                    
@@ -19,6 +21,11 @@ ATBCitizenNPC::ATBCitizenNPC(const FObjectInitializer& ObjectInitializer) : Supe
 	bUseControllerRotationYaw = false;            // 컨트롤러 회전 대신 이동 방향 회전 사용
 
 	InteractPrompt = FText::FromString(TEXT("흡혈하기"));
+	
+	// 시민이 직접 소유하는 ASC 생성 (부모의 이동 차단 판정이 "ASC 연결됨"을 요구하기 때문)
+	AbilitySystemComponent = CreateDefaultSubobject<UTBAbilitySystemComponent>(TEXT("CitizenASC"));
+	AbilitySystemComponent->SetIsReplicated(true);                                      // 태그를 클라이언트에도 복제
+	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal); // AI용: 최소한만 복제 (몬스터와 동일)
 }
 
 // 복제 등록 =====================
@@ -97,6 +104,7 @@ void ATBCitizenNPC::SetCitizenState(ETBCitizenState NewState)
 	// 서버 전용 처리
 	if (NewState == ETBCitizenState::Dead)
 	{
+		AbilitySystemComponent->AddLooseGameplayTag(TBGameplayTags::State_Dead);
 		if (ATBCitizenAIController* CitizenAI = Cast<ATBCitizenAIController>(GetController()))
 		{
 			CitizenAI->StopFleeing();              // 도망 AI 정지
@@ -125,4 +133,20 @@ void ATBCitizenNPC::OnRep_CitizenState()
 	default:
 		break;
 	}
+}
+
+void ATBCitizenNPC::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// 서버와 클라이언트 모두에서 시민 자신을 ASC의 Owner·Avatar로 연결 → IsMovementBlocked()가 false가 됨
+	InitializeAbilitySystem(AbilitySystemComponent.Get(), this);
+}
+
+void ATBCitizenNPC::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	// 서버에서 AI 컨트롤러가 빙의한 뒤 ASC가 컨트롤러 정보를 갱신하도록 다시 호출 (이미 연결돼 있으면 Refresh만 함)
+	InitializeAbilitySystem(AbilitySystemComponent.Get(), this);
 }

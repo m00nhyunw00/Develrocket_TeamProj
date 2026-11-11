@@ -70,6 +70,9 @@ EBTNodeResult::Type UBTTask_FindFleeLocation::ExecuteTask(UBehaviorTreeComponent
 	const bool bFound =
 		NavSys->ProjectPointToNavigation(DesiredLocation, NavLocation, FVector(ProjectExtent))
 		|| NavSys->GetRandomReachablePointInRadius(MyLocation, FleeDistance, NavLocation);
+		
+		
+	UE_LOG(LogTemp, Warning, TEXT("[Citizen] FleeLocation found=%d"), bFound);   // NavMesh 위 지점을 찾았는지
 
 	if (!bFound)
 	{

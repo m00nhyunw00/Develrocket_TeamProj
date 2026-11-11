@@ -75,7 +75,10 @@ void ATBCitizenAIController::OnPossess(APawn* InPawn)
 void ATBCitizenAIController::OnUnPossess()
 {
 	VisibleThreats.Reset();
-	Super::OnUnPossess();
+	LostThreatTimes.Reset();
+	GetWorldTimerManager().ClearTimer(ForgetTimer);
+	
+	Super::OnUnPossess();	
 }
 
 void ATBCitizenAIController::StopFleeing()
@@ -98,25 +101,36 @@ void ATBCitizenAIController::StopFleeing()
 	{
 		Perception->SetSenseEnabled(UAISense_Sight::StaticClass(), false);
 	}
+	
+	LostThreatTimes.Reset();
+	GetWorldTimerManager().ClearTimer(ForgetTimer);    // 정리 코드
 }
 
 void ATBCitizenAIController::HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus)
 {
+	UE_LOG(LogTemp, Warning, TEXT("[Citizen] Perceived %s / Sensed=%d / Threat=%d"), *GetNameSafe(Actor), Stimulus.WasSuccessfullySensed(), IsThreat(Actor));   // 감지 이벤트가 오는지, 위협으로 판정되는지
+	
 	if (!IsThreat(Actor))
 	{
 		return;
 	}
 
-	if (Stimulus.WasSuccessfullySensed())         // 새로 보임
+	if (Stimulus.WasSuccessfullySensed())         // 다시 보임
 	{
 		VisibleThreats.AddUnique(Actor);
+		LostThreatTimes.Remove(Actor);            // 다시 보였으니 "잃어버린 시각" 기록 삭제
 	}
-	else                                          // 시야에서 사라짐
+	else                                          // 시야에서 사라짐 → 바로 지우지 않고 시각만 기록
 	{
-		VisibleThreats.Remove(Actor);
+		LostThreatTimes.Add(Actor, GetWorld()->GetTimeSeconds());
+
+		if (!GetWorldTimerManager().IsTimerActive(ForgetTimer))   // 0.5초마다 만료 검사 시작
+		{
+			GetWorldTimerManager().SetTimer(ForgetTimer, this, &ThisClass::ForgetExpiredThreats, 0.5f, true);
+		}
 	}
 
-	RefreshThreatKey();                           // 목록이 바뀌었으니 블랙보드 갱신 → BT 데코레이터가 반응
+	RefreshThreatKey();
 }
 
 bool ATBCitizenAIController::IsThreat(const AActor* Actor) const
@@ -172,4 +186,25 @@ void ATBCitizenAIController::RefreshThreatKey()
 	{
 		BB->ClearValue(ThreatActorKey);                  // 평상시 분기로 복귀
 	}
+}
+
+void ATBCitizenAIController::ForgetExpiredThreats()
+{
+	const double Now = GetWorld()->GetTimeSeconds();
+
+	for (auto It = LostThreatTimes.CreateIterator(); It; ++It)        // 순회하면서 안전하게 지우려면 이터레이터 사용
+	{
+		if (!It.Key().IsValid() || Now - It.Value() >= ThreatMemorySeconds)
+		{
+			VisibleThreats.Remove(It.Key());      // 기억 시간이 지났으니 위협 목록에서 제거
+			It.RemoveCurrent();
+		}
+	}
+
+	if (LostThreatTimes.IsEmpty())                // 더 검사할 것이 없으면 타이머 정지
+	{
+		GetWorldTimerManager().ClearTimer(ForgetTimer);
+	}
+
+	RefreshThreatKey();                           // 남은 위협 기준으로 블랙보드 갱신 (없으면 ClearValue)
 }
