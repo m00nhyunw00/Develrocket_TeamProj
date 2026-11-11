@@ -30,6 +30,9 @@ public:
 	virtual bool ShouldResolveOnStart_Implementation() const override;                    // false = 몽타주가 끝나야 결과
 	
 protected:
+	virtual void BeginPlay() override;                        // 서버·클라이언트 모두에서 ASC 연결
+   	virtual void PossessedBy(AController* NewController) override;   // 서버에서 AI가 빙의한 뒤 ASC 정보 갱신
+
 	// 상호작용 데이터 ----------------------
 	UPROPERTY(EditAnywhere, Category = "Interaction")
 	FText InteractPrompt;
@@ -47,7 +50,7 @@ protected:
 	float MaxDrainDistance = 250.f;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen", meta=(Units="s"))
-	float CorpseLifeSpan;
+	float CorpseLifeSpan = 10.f;
 	
 	// 상태 --------------------
 	// 값이 바뀌면 클라이언트에서 OnRep_CitizenState 자동호출
