@@ -28,6 +28,9 @@ ATBPlayer::ATBPlayer(const FObjectInitializer& ObjectInitializer)
 {
 	PrimaryActorTick.bCanEverTick = true;
 	
+	// 플레이어 타입 지정
+	CharacterTypeTag = TBGameplayTags::Character_Type_Player;
+	
 	// Controller의 좌우 회전만 캐릭터 몸체에 반영
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = true;

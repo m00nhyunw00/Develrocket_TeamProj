@@ -7,7 +7,7 @@ namespace TBGameplayTags
 	// 캐릭터 종류
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Character_Type_Player);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Character_Type_Monster);
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Character_Type_NPC);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Character_Type_Human);
 	
 	// 캐릭터 상태 ----------------------
 
