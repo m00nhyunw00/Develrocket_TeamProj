@@ -16,12 +16,12 @@
 ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	// 몬스터가 직접 소유하는 ASC 생성
-	MonsterASC = CreateDefaultSubobject<UTBAbilitySystemComponent>(TEXT("MonsterASC"));
-	MonsterASC->SetIsReplicated(true);
-	MonsterASC->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
+	AbilitySystemComponent = CreateDefaultSubobject<UTBAbilitySystemComponent>(TEXT("MonsterASC"));
+	AbilitySystemComponent->SetIsReplicated(true);
+	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 
 	MonsterAttributes = CreateDefaultSubobject<UTBMonsterAttributeSet>(TEXT("MonsterAttributes"));
-	MonsterASC->AddAttributeSetSubobject(MonsterAttributes.Get());
+	AbilitySystemComponent->AddAttributeSetSubobject(MonsterAttributes.Get());
 
 	// 기본 AIController 사용 및 서버의 자동 빙의 설정
 	AIControllerClass = ATBMonsterAIController::StaticClass();
@@ -57,10 +57,10 @@ void ATBMonster::PossessedBy(AController* NewController)
 
 void ATBMonster::InitializeMonsterAbilitySystem()
 {
-	InitializeAbilitySystem(MonsterASC.Get(), this);
+	InitializeAbilitySystem(AbilitySystemComponent.Get(), this);
 	if (!DeadTagChangedHandle.IsValid())
 	{
-		DeadTagChangedHandle = MonsterASC->RegisterGameplayTagEvent(TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleDeadTagChanged);
+		DeadTagChangedHandle = AbilitySystemComponent->RegisterGameplayTagEvent(TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleDeadTagChanged);
 		if (IsDead())
 		{
 			HandleDeadTagChanged(TBGameplayTags::State_Dead, 1);
@@ -76,7 +76,7 @@ void ATBMonster::InitializeMonsterAbilitySystem()
 	}
 	if (!AbilityEndedHandle.IsValid())
 	{
-		AbilityEndedHandle = MonsterASC->OnAbilityEnded.AddUObject(this, &ThisClass::HandleAbilityEnded);
+		AbilityEndedHandle = AbilitySystemComponent->OnAbilityEnded.AddUObject(this, &ThisClass::HandleAbilityEnded);
 	}
 	InitializeGameplayData();
 }
@@ -91,15 +91,15 @@ void ATBMonster::InitializeGameplayData()
 	bGameplayDataInitialized = true;
 	if (InitialAttributesEffect)
 	{
-		FGameplayEffectContextHandle Context = MonsterASC->MakeEffectContext();
+		FGameplayEffectContextHandle Context = AbilitySystemComponent->MakeEffectContext();
 		Context.AddSourceObject(this);
-		const FGameplayEffectSpecHandle Spec = MonsterASC->MakeOutgoingSpec(InitialAttributesEffect, 1.0f, Context);
+		const FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(InitialAttributesEffect, 1.0f, Context);
 		if (!Spec.IsValid())
 		{
 			bGameplayDataInitialized = false;
 			return;
 		}
-		MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+		AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 	}
 
 	if (IsDead())
@@ -108,12 +108,12 @@ void ATBMonster::InitializeGameplayData()
 	}
 
 	// 기존 단일 근접 Ability 설정과 새 초기 Ability 목록의 중복 방지
-	MonsterASC->AddCharacterAbilities(StartupAbilities);
+	AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
 }
 
 bool ATBMonster::IsDead() const
 {
-	return MonsterASC && MonsterASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
+	return AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
 }
 
 bool ATBMonster::ApplyDamage(float Damage,AActor* DamageSource)
@@ -124,7 +124,7 @@ bool ATBMonster::ApplyDamage(float Damage,AActor* DamageSource)
 	}
 
 	UAbilitySystemComponent* SourceASC = IsValid(DamageSource) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DamageSource) : nullptr;
-	UAbilitySystemComponent* SpecASC = SourceASC ? SourceASC : MonsterASC.Get();
+	UAbilitySystemComponent* SpecASC = SourceASC ? SourceASC : AbilitySystemComponent.Get();
 	FGameplayEffectContextHandle Context = SpecASC->MakeEffectContext();
 	if (IsValid(DamageSource))
 	{
@@ -142,8 +142,8 @@ bool ATBMonster::ApplyDamage(float Damage,AActor* DamageSource)
 	}
 	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);
 	
-	const bool bApplied = MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
-	if (bApplied && !IsDead() && !MonsterASC->HasMatchingGameplayTag(TBGameplayTags::State_Stunned))
+	const bool bApplied = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
+	if (bApplied && !IsDead() && !AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Stunned))
 	{
 		MonsterAttributes->AddStagger(Damage);
 	}
@@ -152,7 +152,7 @@ bool ATBMonster::ApplyDamage(float Damage,AActor* DamageSource)
 
 void ATBMonster::HandleStaggerFull()
 {
-	if (!HasAuthority() || IsDead() || !MonsterASC || !MonsterAttributes)
+	if (!HasAuthority() || IsDead() || !AbilitySystemComponent || !MonsterAttributes)
 	{
 		return;
 	}
@@ -177,7 +177,7 @@ void ATBMonster::HandleStaggerFull()
 			break;
 		}
 	}
-	if (!StaggerAbilityClass || !MonsterASC->TryActivateAbilityByClass(StaggerAbilityClass))
+	if (!StaggerAbilityClass || !AbilitySystemComponent->TryActivateAbilityByClass(StaggerAbilityClass))
 	{
 		if (bPausedBrainForStagger)
 		{
@@ -223,7 +223,7 @@ void ATBMonster::HandleAbilityEnded(const FAbilityEndedData& EndedData)
 
 void ATBMonster::Die()
 {
-	if (!HasAuthority() || IsDead() || !MonsterASC)
+	if (!HasAuthority() || IsDead() || !AbilitySystemComponent)
 	{
 		return;
 	}
@@ -233,18 +233,18 @@ void ATBMonster::Die()
 		UE_LOG(LogTemp, Error, TEXT("%s: DeathEffectClass가 설정되지 않아 사망 처리에 실패했습니다."), *GetName());
 		return;
 	}
-	const FGameplayEffectSpecHandle Spec = MonsterASC->MakeOutgoingSpec(DeathEffectClass, 1.0f, MonsterASC->MakeEffectContext());
+	const FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(DeathEffectClass, 1.0f, AbilitySystemComponent->MakeEffectContext());
 	if (!Spec.IsValid())
 	{
 		UE_LOG(LogTemp, Error, TEXT("%s: 사망 GE Spec을 생성하지 못했습니다."), *GetName());
 		return;
 	}
-	const FActiveGameplayEffectHandle AppliedHandle = MonsterASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+	const FActiveGameplayEffectHandle AppliedHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 	if (!AppliedHandle.WasSuccessfullyApplied() || !IsDead())
 	{
 		if (AppliedHandle.IsValid())
 		{
-			MonsterASC->RemoveActiveGameplayEffect(AppliedHandle);
+			AbilitySystemComponent->RemoveActiveGameplayEffect(AppliedHandle);
 		}
 		UE_LOG(LogTemp, Error, TEXT("%s: 사망 GE 적용에 실패했거나 State.Dead를 부여하지 않았습니다."), *GetName());
 		return;
@@ -268,8 +268,8 @@ void ATBMonster::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 		HandleDeath();
 		return;
 	}
-	MonsterASC->BlockAbilitiesWithTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat));
-	MonsterASC->CancelAllAbilities();
+	AbilitySystemComponent->BlockAbilitiesWithTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat));
+	AbilitySystemComponent->CancelAllAbilities();
 	if (AAIController* AIController = Cast<AAIController>(GetController()))
 	{
 		AIController->StopMovement();
@@ -279,7 +279,7 @@ void ATBMonster::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 		}
 	}
 	HandleDeath();
-	if (!MonsterASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Death))
+	if (!AbilitySystemComponent->TryActivateAbilityByTag(TBGameplayTags::Ability_Death))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s: 사망 어빌리티를 활성화하지 못했습니다."), *GetName());
 	}
@@ -318,12 +318,12 @@ void ATBMonster::RestorePoolVisualState()
 void ATBMonster::OnPoolActivated_Implementation()
 {
 	// 서버에서 사망했던 몬스터를 재사용할 때 GAS 상태와 체력을 초기화합니다.
-	if (!HasAuthority() || !bDeathHandled || !MonsterASC || !MonsterAttributes) return;
+	if (!HasAuthority() || !bDeathHandled || !AbilitySystemComponent || !MonsterAttributes) return;
 	SetLifeSpan(0.0f);
-	MonsterASC->CancelAllAbilities();
+	AbilitySystemComponent->CancelAllAbilities();
 	// 현재 구현은 활성 Gameplay Effect를 모두 제거합니다.
-	MonsterASC->RemoveActiveEffects(FGameplayEffectQuery());
-	MonsterASC->UnBlockAbilitiesWithTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat));
+	AbilitySystemComponent->RemoveActiveEffects(FGameplayEffectQuery());
+	AbilitySystemComponent->UnBlockAbilitiesWithTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat));
 	RestorePoolVisualState();
 	MonsterAttributes->SetStagger(0.0f);
 	MonsterAttributes->SetIncomingDamage(0.0f);
@@ -337,7 +337,7 @@ void ATBMonster::OnPoolDeactivated_Implementation()
 	// 풀 반환 전에 서버에서 이동과 실행 중인 Ability를 중지합니다.
 	if (!HasAuthority()) return;
 	GetCharacterMovement()->StopMovementImmediately();
-	if (MonsterASC) MonsterASC->CancelAllAbilities();
+	if (AbilitySystemComponent) AbilitySystemComponent->CancelAllAbilities();
 }
 bool ATBMonster::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource,
 	const FHitResult& HitResult)
@@ -365,19 +365,19 @@ void ATBMonster::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		MonsterAttributes->OnStaggerFull.Remove(StaggerFullHandle);
 		StaggerFullHandle.Reset();
 	}
-	if (MonsterASC)
+	if (AbilitySystemComponent)
 	{
 		if (DeadTagChangedHandle.IsValid())
 		{
-			MonsterASC->UnregisterGameplayTagEvent(DeadTagChangedHandle, TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved);
+			AbilitySystemComponent->UnregisterGameplayTagEvent(DeadTagChangedHandle, TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved);
 			DeadTagChangedHandle.Reset();
 		}
 		if (AbilityEndedHandle.IsValid())
 		{
-			MonsterASC->OnAbilityEnded.Remove(AbilityEndedHandle);
+			AbilitySystemComponent->OnAbilityEnded.Remove(AbilityEndedHandle);
 			AbilityEndedHandle.Reset();
 		}
-		MonsterASC->RemoveCharacterAbilities();
+		AbilitySystemComponent->RemoveCharacterAbilities();
 	}
 	Super::EndPlay(EndPlayReason);
 }

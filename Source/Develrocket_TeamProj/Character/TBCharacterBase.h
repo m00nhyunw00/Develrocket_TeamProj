@@ -47,10 +47,10 @@ protected:
 	// 전달받은 ASC의 Owner와 현재 캐릭터의 Avatar 역할 연결
 	void InitializeAbilitySystem(UAbilitySystemComponent* InASC, AActor* InOwnerActor);
 
-	// 현재 캐릭터의 ASC 연결과 캐시 해제
+	// Avatar 연결 해제 및 외부 소유 ASC 참조 정리
 	void UninitializeAbilitySystem();
 
-	// 외부에서 전달받아 현재 캐릭터에 연결한 ASC 참조
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, Category = "GAS")
-	TObjectPtr<UAbilitySystemComponent> CachedASC;
+	// 몬스터는 직접 생성하고 플레이어는 PlayerState에서 연결하는 공통 ASC 참조
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
+	TObjectPtr<UTBAbilitySystemComponent> AbilitySystemComponent;
 };

@@ -370,10 +370,10 @@ void ATBPlayer::OnRep_Controller()
 	Super::OnRep_Controller();
 
 	// 현재 캐릭터에 연결된 ASC만 갱신하여 다른 Avatar의 정보 변경 방지
-	if (IsValid(CachedASC.Get()) && CachedASC->GetAvatarActor() == this)
+	if (IsValid(AbilitySystemComponent.Get()) && AbilitySystemComponent->GetAvatarActor() == this)
 	{
 		// Controller 복제 이후 ASC에 저장된 관련 참조 갱신
-		CachedASC->RefreshAbilityActorInfo();
+		AbilitySystemComponent->RefreshAbilityActorInfo();
 	}
 	
 	TryBindLocalHUD();

@@ -39,61 +39,70 @@ ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
 
 UAbilitySystemComponent* ATBCharacterBase::GetAbilitySystemComponent() const
 {
-    return CachedASC.Get();
+    return AbilitySystemComponent.Get();
 }
 
 UTBAbilitySystemComponent* ATBCharacterBase::GetTBAbilitySystemComponent() const
 {
-    return Cast<UTBAbilitySystemComponent>(CachedASC.Get());
+    return AbilitySystemComponent.Get();
 }
 
 void ATBCharacterBase::InitializeAbilitySystem(UAbilitySystemComponent* InASC, AActor* InOwnerActor)
 {
-    if (!IsValid(InASC) || !IsValid(InOwnerActor))
+    UTBAbilitySystemComponent* TBASC = Cast<UTBAbilitySystemComponent>(InASC);
+    if (!IsValid(TBASC) || !IsValid(InOwnerActor))
     {
         return;
     }
 
     // 다른 ASC로 교체하기 전에 기존 캐릭터 연결 정리
-    if (CachedASC && CachedASC.Get() != InASC)
+    if (AbilitySystemComponent && AbilitySystemComponent.Get() != InASC)
     {
         UninitializeAbilitySystem();
     }
 
-    CachedASC = InASC;
+    AbilitySystemComponent = TBASC;
 
     // ASC의 Owner와 실제 Ability 수행 대상인 현재 캐릭터를 ActorInfo에 등록
-    if (CachedASC->GetOwnerActor() != InOwnerActor || CachedASC->GetAvatarActor() != this)
+    if (AbilitySystemComponent->GetOwnerActor() != InOwnerActor || AbilitySystemComponent->GetAvatarActor() != this)
     {
-        CachedASC->InitAbilityActorInfo(InOwnerActor, this);
+        AbilitySystemComponent->InitAbilityActorInfo(InOwnerActor, this);
     }
     else
     {
         // 컨트롤러 등 변경된 ActorInfo 정보 갱신
-        CachedASC->RefreshAbilityActorInfo();
+        AbilitySystemComponent->RefreshAbilityActorInfo();
     }
 }
 
 void ATBCharacterBase::UninitializeAbilitySystem()
 {
-    if (IsValid(CachedASC.Get()) && CachedASC->GetAvatarActor() == this)
+    if (IsValid(AbilitySystemComponent.Get()) && AbilitySystemComponent->GetAvatarActor() == this)
     {
         // 이전 Pawn에서 실행 중인 전투 Ability 취소
         const FGameplayTagContainer CombatTags(TBGameplayTags::Ability_Combat);
-        CachedASC->CancelAbilities(&CombatTags);
+        AbilitySystemComponent->CancelAbilities(&CombatTags);
 
-        // PlayerState ASC는 유지하고 Avatar 연결만 해제
-        CachedASC->SetAvatarActor(nullptr);
+        // ASC를 유지하고 현재 캐릭터의 Avatar 연결만 해제
+        AbilitySystemComponent->SetAvatarActor(nullptr);
     }
 
-    CachedASC = nullptr;
+    // 직접 소유한 ASC는 유지하고 PlayerState 등 외부 소유 ASC의 참조만 해제
+    if (!IsValid(AbilitySystemComponent.Get()) || AbilitySystemComponent->GetOwner() != this)
+    {
+        AbilitySystemComponent = nullptr;
+    }
 }
 
 void ATBCharacterBase::UnPossessed()
 {
     Super::UnPossessed();
 
-    UninitializeAbilitySystem();
+    // 직접 소유한 ASC는 빙의가 해제되어도 캐릭터와 함께 유지
+    if (!IsValid(AbilitySystemComponent.Get()) || AbilitySystemComponent->GetOwner() != this)
+    {
+        UninitializeAbilitySystem();
+    }
 }
 
 void ATBCharacterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -105,15 +114,15 @@ void ATBCharacterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 bool ATBCharacterBase::IsMovementBlocked() const
 {
-    if (!IsValid(CachedASC.Get()) || CachedASC->GetAvatarActor() != this)
+    if (!IsValid(AbilitySystemComponent.Get()) || AbilitySystemComponent->GetAvatarActor() != this)
     {
         // ASC가 유효하지 않거나 현재 캐릭터가 Avatar로 연결되지 않은 동안 이동 차단 판정
         return true;
     }
 
-    return CachedASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-        || CachedASC->HasMatchingGameplayTag(TBGameplayTags::State_Stunned)
-        || CachedASC->HasMatchingGameplayTag(TBGameplayTags::State_MovementBlocked);
+    return AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
+        || AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Stunned)
+        || AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_MovementBlocked);
 }
 
 void ATBCharacterBase::StartPrimaryAttack()

@@ -6,7 +6,6 @@
 
 class UGameplayAbility;
 class UGameplayEffect;
-class UTBAbilitySystemComponent;
 class UTBMonsterAttributeSet;
 class ATBMonster;
 struct FAbilityEndedData;
@@ -43,9 +42,6 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
-	TObjectPtr<UTBAbilitySystemComponent> MonsterASC;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Combat")
 	TSubclassOf<UGameplayAbility> MeleeAbilityClass;
