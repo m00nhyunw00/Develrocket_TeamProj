@@ -5,39 +5,21 @@
 #include "TBPlayer.generated.h"
 
 class UInputAction;
-struct FInputActionValue;
 class UCameraComponent;
 class UTBInteractionComponent;
+struct FInputActionValue;
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBPlayer : public ATBCharacterBase
 {
 	GENERATED_BODY()
-	
-protected:
-	// 앉기·일어서기 시 카메라 높이 전환 속도
-	UPROPERTY(EditDefaultsOnly, Category = "Camera", meta = (ClampMin = "0.1"))
-	float CameraHeightInterpSpeed = 20.0f;
 
 public:
+	// 생성 및 갱신 ----------------------
+
 	ATBPlayer(const FObjectInitializer& ObjectInitializer);
-	
+
 	virtual void Tick(float DeltaSeconds) override;
-	
-	// 사망 상태 조회
-	UFUNCTION(BlueprintPure, Category = "Player|State")
-	bool IsDead() const;
-
-	void Die();
-
-	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
-	
-	// 서버 피해 적용
-	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Player|Damage")
-	bool ApplyDamage(float Damage, AActor* DamageSource);
-	
-	// 서버 기본 공격 판정 및 피해 적용 결과 반환
-	bool PerformPrimaryAttackTrace();
 
 	// 빙의 및 네트워크 초기화 ----------------------
 
@@ -63,6 +45,34 @@ public:
 	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
 	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
 
+	// 공격 및 피해 처리 ----------------------
+
+	// 서버 기본 공격 판정 및 피해 적용 결과 반환
+	bool PerformPrimaryAttackTrace();
+
+	// 서버 피해 적용
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Player|Damage")
+	bool ApplyDamage(float Damage, AActor* DamageSource);
+
+	// 사망 상태 및 처리 ----------------------
+
+	UFUNCTION(BlueprintPure, Category = "Player|State")
+	bool IsDead() const;
+
+	void Die();
+
+	// 사망 태그 변화에 따른 캐릭터 상태 갱신
+	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
+
+	// 카메라 반동 ----------------------
+
+	// 어빌리티에서 전달한 설정으로 로컬 카메라 반동 시작
+	UFUNCTION(BlueprintCallable, Category = "Camera|Recoil")
+	void StartCameraRecoil(float InPitch, float InRiseTime, float InReturnTime);
+
+	// 최종 카메라 시점에 반동 적용
+	virtual void CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult) override;
+
 	// 1인칭 메시 접근 ----------------------
 
 	UFUNCTION(BlueprintPure, Category = "Character|Mesh")
@@ -74,17 +84,31 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
-	// 1인칭 카메라 ----------------------
+	// 카메라 및 높이 설정 ----------------------
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<UCameraComponent> FirstPersonCamera;
+
+	// 앉기·일어서기 시 카메라 높이 전환 속도
+	UPROPERTY(EditDefaultsOnly, Category = "Camera", meta = (ClampMin = "0.1"))
+	float CameraHeightInterpSpeed = 20.0f;
+
+	// 카메라 반동 설정 ----------------------
+
+	// 캐릭터별 반동 강도 배율
+	UPROPERTY(EditDefaultsOnly, Category = "Camera|Recoil", meta = (ClampMin = "0.0"))
+	float RecoilMultiplier = 1.0f;
+
+	// 연속 발사 시 최대 누적 반동 각도
+	UPROPERTY(EditDefaultsOnly, Category = "Camera|Recoil", meta = (ClampMin = "0.0"))
+	float MaxRecoilPitch = 1.0f;
 
 	// 1인칭 팔 메시 ----------------------
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mesh")
 	TObjectPtr<USkeletalMeshComponent> FirstPersonMesh;
-	
-	// 무기 메시 ----------------------
+
+	// 무기 메시 및 부착 설정 ----------------------
 
 	// 소유 플레이어에게 표시할 총
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
@@ -102,6 +126,11 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
 	FName WeaponSocketName = TEXT("GunSocket");
 
+	// 상호작용 탐지 ----------------------
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
+	TObjectPtr<UTBInteractionComponent> InteractionComponent;
+
 	// 이동·시점 입력 액션 ----------------------
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
@@ -109,6 +138,8 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> LookAction;
+
+	// 점프·앉기 입력 액션 ----------------------
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> JumpAction;
@@ -123,44 +154,61 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> SkillAction;
-	
+
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> ReloadAction;
-	
-	// 상호작용 입력 액션 ----------------------
+
+	// 상호작용·일시정지 입력 액션 ----------------------
+
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> InteractAction;
-	
-	// 일시정지 입력 액션 ----------------------
+
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> PauseAction;
-	
-	// 상호작용 탐지 ----------------------
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
-	TObjectPtr<UTBInteractionComponent> InteractionComponent;
 
 private:
-	// 입력 유지 상태 ----------------------
-
-	// 실제 앉기 상태와 별도로 보관하는 Ctrl 입력 의도
-	bool bCrouchInputHeld = false;
-	
-	
-	// 사망 처리 상태 ----------------------
-
-	bool bDeathHandled = false;
-
 	// GAS 초기화 ----------------------
 
 	// PlayerState의 ASC를 현재 캐릭터에 연결
 	void InitializeFromPlayerState();
-	
-	// 메시 및 카메라 설정 ----------------------
+
+	// 메시 및 카메라 초기 설정 ----------------------
 
 	// 메시의 표시·애니메이션 모드·충돌 규칙 적용
 	void ConfigurePlayerMeshes();
 
+	// 무기 메시 적용 및 소켓 부착
+	void InitializeWeaponMeshes();
+
+	// 현재 눈높이에 맞춘 카메라 위치 설정
 	void UpdateCameraHeight();
+
+	// 로컬 HUD 연결 ----------------------
+
+	// 소유 플레이어 HUD와 PlayerState의 ASC 연결
+	void TryBindLocalHUD();
+
+	// 피격 및 사망 처리 상태 ----------------------
+
+	// 공격 인터페이스를 통한 피격 처리
+	virtual bool ReceiveAttackHit_Implementation(const FGameplayTag& DamageType,float Damage,AActor* DamageSource,const FHitResult& HitResult) override;
+
+	// 사망 처리 중복 방지
+	bool bDeathHandled = false;
+
+	// 카메라 반동 계산 및 실행 상태 ----------------------
+
+	// 현재 시간의 반동 각도 계산
+	float GetCameraRecoilPitch() const;
+
+	// 현재 반동의 시작 시각과 각도
+	double RecoilStartTime = -1.0;
+	float RecoilStartPitch = 0.0f;
+	float RecoilPeakPitch = 0.0f;
+
+	// 이번 발사에서 전달받은 상승·복귀 시간
+	float ActiveRecoilRiseTime = 0.05f;
+	float ActiveRecoilReturnTime = 0.18f;
 
 	// 이동·시점 입력 처리 ----------------------
 
@@ -172,10 +220,13 @@ private:
 	void InputJumpStarted();
 	void InputJumpStopped();
 
-	// 앉기 입력 처리 ----------------------
+	// 앉기 입력 및 유지 상태 ----------------------
 
 	void InputCrouchStarted();
 	void InputCrouchStopped();
+
+	// 실제 앉기 상태와 별도로 보관하는 Ctrl 입력 의도
+	bool bCrouchInputHeld = false;
 
 	// 기본 공격 입력 처리 ----------------------
 
@@ -186,23 +237,13 @@ private:
 
 	void InputSkillStarted();
 	void InputSkillStopped();
-	
+
 	// 재장전 입력 처리 ----------------------
+
 	void InputReloadStarted();
-	
-	// 상호작용 입력 처리 ----------------------
+
+	// 상호작용·일시정지 입력 처리 ----------------------
+
 	void InputInteractStarted();
-	
-	// 일시정지 입력 처리 ----------------------
 	void InputPauseStarted();
-	
-private:
-	// 무기 메시 적용 및 소켓 부착 ----------------------
-	void InitializeWeaponMeshes();
-	
-	// 
-	void TryBindLocalHUD();
-	
-private:
-	virtual bool ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult) override;
 };

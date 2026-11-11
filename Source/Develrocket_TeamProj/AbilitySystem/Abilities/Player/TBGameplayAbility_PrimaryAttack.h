@@ -15,6 +15,18 @@ public:
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 
 protected:
+	// 한 발당 기본 반동 각도
+	UPROPERTY(EditDefaultsOnly, Category = "Camera|Recoil", meta = (ClampMin = "0.0"))
+	float CameraRecoilPitch = 0.25f;
+
+	// 최고점까지 상승하는 시간
+	UPROPERTY(EditDefaultsOnly, Category = "Camera|Recoil", meta = (ClampMin = "0.01"))
+	float CameraRecoilRiseTime = 0.04f;
+
+	// 최고점에서 복귀하는 시간
+	UPROPERTY(EditDefaultsOnly, Category = "Camera|Recoil", meta = (ClampMin = "0.01"))
+	float CameraRecoilReturnTime = 0.14f;
+	
 	// 일반 공격은 몽타주 완료를 기다리지 않음
 	virtual bool ShouldWaitForMontageEnd() const override
 	{

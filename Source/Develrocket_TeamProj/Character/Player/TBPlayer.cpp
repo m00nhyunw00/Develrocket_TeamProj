@@ -196,6 +196,46 @@ void ATBPlayer::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 	}
 }
 
+void ATBPlayer::StartCameraRecoil(float InPitch, float InRiseTime, float InReturnTime)
+{
+	if (!IsLocallyControlled() || IsDead() || !GetWorld())
+	{
+		return;
+	}
+
+	// 어빌리티 기본 반동에 캐릭터 배율 적용
+	const float ShotPitch = FMath::Max(0.0f, InPitch) * FMath::Max(0.0f, RecoilMultiplier);
+
+	if (ShotPitch <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+
+	// 이전 반동의 현재 위치를 먼저 계산하여 연속 발사 시 튐 방지
+	RecoilStartPitch = GetCameraRecoilPitch();
+
+	RecoilPeakPitch = FMath::Clamp(RecoilStartPitch + ShotPitch,0.0f,FMath::Max(0.0f, MaxRecoilPitch));
+
+	// 이번 어빌리티의 반동 시간 저장
+	ActiveRecoilRiseTime = FMath::Max(InRiseTime, 0.01f);
+	ActiveRecoilReturnTime = FMath::Max(InReturnTime, 0.01f);
+
+	RecoilStartTime = GetWorld()->GetTimeSeconds();
+}
+
+void ATBPlayer::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
+{
+	Super::CalcCamera(DeltaTime, OutResult);
+
+	if (!IsLocallyControlled() || IsDead())
+	{
+		return;
+	}
+
+	// 기존 카메라 시점에 반동 각도 추가
+	OutResult.Rotation.Pitch += GetCameraRecoilPitch();
+}
+
 bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
 {
 	const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
@@ -788,6 +828,41 @@ bool ATBPlayer::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, 
 	const FHitResult& HitResult)
 {
 	return ApplyDamage(Damage, DamageSource);
+}
+
+float ATBPlayer::GetCameraRecoilPitch() const
+{
+	if (!GetWorld() || RecoilStartTime < 0.0)
+	{
+		return 0.0f;
+	}
+
+	const float Elapsed = static_cast<float>(
+		GetWorld()->GetTimeSeconds() - RecoilStartTime);
+
+	// 현재 위치에서 최고점까지 상승
+	if (Elapsed < ActiveRecoilRiseTime)
+	{
+		const float Alpha = FMath::Clamp(
+			Elapsed / ActiveRecoilRiseTime, 0.0f, 1.0f);
+
+		const float SmoothAlpha = Alpha * Alpha * (3.0f - 2.0f * Alpha);
+
+		return FMath::Lerp(RecoilStartPitch, RecoilPeakPitch, SmoothAlpha);
+	}
+
+	// 최고점에서 반동이 없는 상태로 복귀
+	if (Elapsed < ActiveRecoilRiseTime + ActiveRecoilReturnTime)
+	{
+		const float Alpha =
+			(Elapsed - ActiveRecoilRiseTime) / ActiveRecoilReturnTime;
+
+		const float SmoothAlpha = Alpha * Alpha * (3.0f - 2.0f * Alpha);
+
+		return FMath::Lerp(RecoilPeakPitch, 0.0f, SmoothAlpha);
+	}
+
+	return 0.0f;
 }
 
 void ATBPlayer::InputPauseStarted()

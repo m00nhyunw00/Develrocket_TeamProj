@@ -103,9 +103,11 @@ void UTBGameplayAbility_PrimaryAttack::ActivateAbility(const FGameplayAbilitySpe
         Player->PerformPrimaryAttackTrace();
     }
 
-    // 소유 플레이어 화면의 발사 알림
+    // 소유 플레이어 화면의 발사 반동 및 알림
     if (Player->IsLocallyControlled())
     {
+        Player->StartCameraRecoil(CameraRecoilPitch,CameraRecoilRiseTime,CameraRecoilReturnTime);
+
         if (UTBAbilitySystemComponent* TBASC = Cast<UTBAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get()))
         {
             TBASC->OnPrimaryShotFired.Broadcast();
