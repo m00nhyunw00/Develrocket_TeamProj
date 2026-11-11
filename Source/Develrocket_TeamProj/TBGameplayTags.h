@@ -4,6 +4,11 @@
 
 namespace TBGameplayTags
 {
+	// 캐릭터 종류
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Character_Type_Player);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Character_Type_Monster);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Character_Type_NPC);
+	
 	// 캐릭터 상태 ----------------------
 
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Dead);
@@ -14,6 +19,8 @@ namespace TBGameplayTags
 	// 쿨다운 ----------------------
 	
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_PrimaryAttack);
+	// 도약 쿨다운 Gameplay Effect가 부여하는 재사용 제한 태그
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_MonsterLeap);
 
 	// 전투 Ability ----------------------
 
@@ -21,6 +28,7 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_PrimaryAttack);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_Reload);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Death);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_MonsterLeap);
 	
 	// 상호작용 Ability ----------------------
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Interaction);

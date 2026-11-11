@@ -1,5 +1,8 @@
 #include "AI/TBMonsterAIController.h"
 
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
+#include "TBGameplayTags.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
 #include "Perception/AISense_Sight.h"
@@ -232,7 +235,7 @@ void ATBMonsterAIController::DrawSightDebug()
 
 void ATBMonsterAIController::HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus)
 {
-	if (!HasAuthority() || !Cast<ATBPlayer>(Actor) || Stimulus.Type != UAISense::GetSenseID<UAISense_Sight>())
+	if (!HasAuthority() || Stimulus.Type != UAISense::GetSenseID<UAISense_Sight>())
 	{
 		return;
 	}
@@ -243,6 +246,12 @@ void ATBMonsterAIController::HandleTargetPerceptionUpdated(AActor* Actor, FAISti
 void ATBMonsterAIController::HandleTargetDestroyed(AActor* DestroyedActor)
 {
 	UpdateTarget(DestroyedActor, true);
+}
+
+void ATBMonsterAIController::HandleTargetDeadTagChanged(FGameplayTag Tag, int32 NewCount)
+{
+	// 사망 태그가 추가되면 현재 타깃을 제외하고 재선택
+	if (NewCount > 0) UpdateTarget(TrackedTarget.Get(), true);
 }
 
 void ATBMonsterAIController::HandleTargetMemoryExpired()
@@ -256,6 +265,12 @@ void ATBMonsterAIController::ClearTrackedTarget()
 	{
 		PreviousTarget->OnDestroyed.RemoveDynamic(this, &ThisClass::HandleTargetDestroyed);
 	}
+	if (UAbilitySystemComponent* ASC = TrackedTargetASC.Get())
+	{
+		ASC->UnregisterGameplayTagEvent(TargetDeadTagHandle, TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved);
+	}
+	TargetDeadTagHandle.Reset();
+	TrackedTargetASC.Reset();
 	TrackedTarget.Reset();
 }
 
@@ -279,7 +294,9 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 	double ClosestDistanceSquared = TNumericLimits<double>::Max();
 	for (AActor* Candidate : PerceivedActors)
 	{
-		if (!IsValid(Candidate) || Candidate == ExcludedActor || !Candidate->IsA<ATBPlayer>())
+		UAbilitySystemComponent* ASC = IsValid(Candidate) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Candidate) : nullptr;
+		if (!IsValid(ASC) || Candidate == ExcludedActor || ASC->GetAvatarActor() != Candidate
+			|| !ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player) || ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
 		{
 			continue;
 		}
@@ -292,7 +309,11 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 		}
 	}
 
-	if (!ClosestPlayer && !bMemoryExpired && TrackedTarget.IsValid() && TrackedTarget.Get() != ExcludedActor && LostSightMemorySeconds > 0.0f)
+	AActor* PreviousTarget = TrackedTarget.Get();
+	UAbilitySystemComponent* PreviousASC = TrackedTargetASC.Get();
+	if (!ClosestPlayer && !bMemoryExpired && IsValid(PreviousTarget) && IsValid(PreviousASC)
+		&& PreviousASC->GetAvatarActor() == PreviousTarget && PreviousASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
+		&& !PreviousASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead) && PreviousTarget != ExcludedActor && LostSightMemorySeconds > 0.0f)
 	{
 		if (!GetWorldTimerManager().IsTimerActive(TargetMemoryTimer))
 		{
@@ -309,6 +330,9 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 		if (ClosestPlayer)
 		{
 			ClosestPlayer->OnDestroyed.AddUniqueDynamic(this, &ThisClass::HandleTargetDestroyed);
+			UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(ClosestPlayer);
+			TrackedTargetASC = ASC;
+			TargetDeadTagHandle = ASC->RegisterGameplayTagEvent(TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleTargetDeadTagChanged);
 		}
 	}
 	BlackboardComponent->SetValueAsObject(TEXT("TargetActor"), ClosestPlayer);
