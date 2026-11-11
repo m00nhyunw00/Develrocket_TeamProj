@@ -24,6 +24,8 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void OnUnPossess() override;
+	
+	void ForgetExpiredThreats();                  // 기억 시간이 지난 위협을 목록에서 제거
 
 	UFUNCTION()
 	void HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
@@ -45,7 +47,12 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception")
 	float PeripheralVisionAngle = 70.f;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Flee", meta = (ClampMin = "0.0", Units = "s"))
+	float ThreatMemorySeconds = 3.f;              // 시야에서 사라진 뒤에도 이 시간 동안은 계속 도망 
 
 private:
 	TArray<TWeakObjectPtr<AActor>> VisibleThreats;    // 지금 보이는 위협 목록
+	TMap<TWeakObjectPtr<AActor>, double> LostThreatTimes;   // 위협 → 시야에서 사라진 시각
+	FTimerHandle ForgetTimer;                               // 주기적으로 만료 검사
 };
