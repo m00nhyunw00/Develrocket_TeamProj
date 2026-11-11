@@ -1,0 +1,175 @@
+﻿#include "AI/NPC/TBCitizenAIController.h"
+
+#include "Perception/AIPerceptionComponent.h"
+#include "Perception/AISenseConfig_Sight.h"
+#include "Perception/AISense_Sight.h"
+#include "BehaviorTree/BehaviorTree.h"            // RunBehaviorTree에 넘길 에셋 타입
+#include "BehaviorTree/BlackboardComponent.h"     // 블랙보드 값 쓰기
+#include "BrainComponent.h"                       // StopLogic
+#include "Character/Player/TBPlayer.h"
+#include "Character/Monster/TBMonster.h"
+
+const FName ATBCitizenAIController::ThreatActorKey(TEXT("ThreatActor"));   // BB_Citizen의 키 이름과 똑같아야 함
+
+ATBCitizenAIController::ATBCitizenAIController()
+{
+	// Perception 컴포넌트를 만들어 AIController에 등록
+	UAIPerceptionComponent* PerceptionComp = CreateDefaultSubobject<UAIPerceptionComponent>(TEXT("PerceptionComp"));
+	SetPerceptionComponent(*PerceptionComp);
+
+	// 시야 설정 객체를 만들고 Perception에 연결
+	SightConfig = CreateDefaultSubobject<UAISenseConfig_Sight>(TEXT("SightConfig"));
+	PerceptionComp->ConfigureSense(*SightConfig);
+
+	// 여러 감각 중 시야를 대표 감각으로 지정
+	PerceptionComp->SetDominantSense(UAISense_Sight::StaticClass());
+}
+
+void ATBCitizenAIController::BeginPlay()
+{
+	Super::BeginPlay();                           // 부모 BeginPlay 먼저 호출 (필수)
+
+	if (!HasAuthority())                          // AI 판단은 서버에서만 (클라는 결과만 복제받음)
+	{
+		return;
+	}
+
+	// 생성자 시점엔 BP에서 바꾼 값이 반영되지 않으므로 BeginPlay에서 수치 적용 (TBMonsterAIController와 같은 방식)
+	SightConfig->SightRadius = SightRadius;
+	SightConfig->LoseSightRadius = LoseSightRadius;
+	SightConfig->PeripheralVisionAngleDegrees = PeripheralVisionAngle;
+
+	// 팀(Affiliation) 구분을 아직 안 쓰므로 적/중립/아군 모두 감지
+	SightConfig->DetectionByAffiliation.bDetectEnemies = true;
+	SightConfig->DetectionByAffiliation.bDetectNeutrals = true;
+	SightConfig->DetectionByAffiliation.bDetectFriendlies = true;
+
+	GetPerceptionComponent()->ConfigureSense(*SightConfig);    // 바뀐 수치를 다시 등록
+
+	// "무언가 보였다/사라졌다" 이벤트에 내 함수를 연결
+	GetPerceptionComponent()->OnTargetPerceptionUpdated.AddDynamic(this, &ThisClass::HandleTargetPerceptionUpdated);
+}
+
+void ATBCitizenAIController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	// BT 실행: BT 에셋에 지정된 블랙보드(BB_Citizen)도 자동으로 생성·연결됨
+	if (BehaviorTreeAsset)
+	{
+		RunBehaviorTree(BehaviorTreeAsset);
+	}
+
+	// 풀링 재사용 대비: 꺼져 있던 시야 다시 켜기
+	if (UAIPerceptionComponent* Perception = GetPerceptionComponent())
+	{
+		Perception->SetSenseEnabled(UAISense_Sight::StaticClass(), true);
+	}
+}
+
+void ATBCitizenAIController::OnUnPossess()
+{
+	VisibleThreats.Reset();
+	Super::OnUnPossess();
+}
+
+void ATBCitizenAIController::StopFleeing()
+{
+	VisibleThreats.Reset();
+
+	if (UBlackboardComponent* BB = GetBlackboardComponent())
+	{
+		BB->ClearValue(ThreatActorKey);           // 위협 정보 지우기
+	}
+
+	StopMovement();                               // 진행 중인 MoveTo 취소
+
+	if (UBrainComponent* Brain = GetBrainComponent())
+	{
+		Brain->StopLogic(TEXT("Citizen Dead"));   // BT 자체를 정지 (죽은 시민이 다시 움직이지 않게)
+	}
+
+	if (UAIPerceptionComponent* Perception = GetPerceptionComponent())
+	{
+		Perception->SetSenseEnabled(UAISense_Sight::StaticClass(), false);
+	}
+}
+
+void ATBCitizenAIController::HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus)
+{
+	if (!IsThreat(Actor))
+	{
+		return;
+	}
+
+	if (Stimulus.WasSuccessfullySensed())         // 새로 보임
+	{
+		VisibleThreats.AddUnique(Actor);
+	}
+	else                                          // 시야에서 사라짐
+	{
+		VisibleThreats.Remove(Actor);
+	}
+
+	RefreshThreatKey();                           // 목록이 바뀌었으니 블랙보드 갱신 → BT 데코레이터가 반응
+}
+
+bool ATBCitizenAIController::IsThreat(const AActor* Actor) const
+{
+	if (!IsValid(Actor) || Actor == GetPawn())    // 없는 대상이거나 자기 자신이면 위협 아님
+	{
+		return false;
+	}
+
+	if (Actor->IsA<ATBPlayer>())                  // 플레이어는 항상 위협
+	{
+		return true;
+	}
+
+	if (const ATBMonster* Monster = Cast<ATBMonster>(Actor))
+	{
+		return !Monster->IsDead();                // 살아 있는 몬스터만 위협
+	}
+
+	return false; 
+}
+
+void ATBCitizenAIController::RefreshThreatKey()
+{
+	UBlackboardComponent* BB = GetBlackboardComponent();
+	const APawn* MyPawn = GetPawn();
+	if (!BB || !MyPawn)
+	{
+		return;
+	}
+
+	// 사라진 위협 정리
+	VisibleThreats.RemoveAll([](const TWeakObjectPtr<AActor>& Threat) { return !Threat.IsValid(); });
+
+	// 가장 가까운 위협 찾기
+	AActor* Closest = nullptr;
+	float ClosestDistSq = TNumericLimits<float>::Max();
+	for (const TWeakObjectPtr<AActor>& Threat : VisibleThreats)
+	{
+		const float DistSq = FVector::DistSquared(MyPawn->GetActorLocation(), Threat->GetActorLocation());  // 제곱 거리: sqrt 생략으로 비교만 할 때 더 빠름
+		if (DistSq < ClosestDistSq)
+		{
+			ClosestDistSq = DistSq;
+			Closest = Threat.Get();
+		}
+	}
+
+	if (Closest)
+	{
+		BB->SetValueAsObject(ThreatActorKey, Closest);   // 도망 분기 활성화
+	}
+	else
+	{
+		BB->ClearValue(ThreatActorKey);                  // 평상시 분기로 복귀
+	}
+}
