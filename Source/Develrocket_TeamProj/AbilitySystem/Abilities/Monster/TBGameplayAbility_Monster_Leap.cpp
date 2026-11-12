@@ -59,6 +59,7 @@ void UTBGameplayAbility_Monster_Leap::ActivateAbility(FGameplayAbilitySpecHandle
 
 	// 발동 시점의 플레이어 위치를 도약 목표로 고정
 	LeapDestination = Player->GetActorLocation();
+	LeapTarget = Player;
 	// 실제 착지 콜백 등록 및 추격 이동 중단
 	LeapingMonster = Monster;
 	if (AAIController* Controller = Cast<AAIController>(Monster->GetController()))
@@ -90,8 +91,44 @@ void UTBGameplayAbility_Monster_Leap::LaunchLeap()
 	bLaunched = true;
 	Monster->SetActorRotation(FRotator(0.0f, Velocity.Rotation().Yaw, 0.0f));
 	Monster->LaunchCharacter(Velocity, true, true);
+	if (FMath::IsFinite(HomingTurnRate) && HomingTurnRate > 0.0f)
+	{
+		LastHomingUpdateTime = Monster->GetWorld()->GetTimeSeconds();
+		Monster->GetWorldTimerManager().SetTimer(HomingTimer, this, &ThisClass::UpdateLeapHoming, 0.05f, true);
+	}
 	// 착지 이벤트가 누락돼도 BT 태스크가 종료되도록 시간 제한 설정
 	Monster->GetWorldTimerManager().SetTimer(LandingTimeout, this, &ThisClass::HandleLandingTimeout, FlightTime + 1.0f, false);
+}
+
+void UTBGameplayAbility_Monster_Leap::UpdateLeapHoming()
+{
+	ATBMonster* Monster = LeapingMonster.Get();
+	const ATBPlayer* Target = LeapTarget.Get();
+	if (!IsActive() || !bLaunched || bLanded || !IsValid(Monster) || !Monster->HasAuthority()
+		|| Monster->IsDead() || !IsValid(Target) || Target->IsDead() || Target->GetWorld() != Monster->GetWorld())
+	{
+		if (Monster) Monster->GetWorldTimerManager().ClearTimer(HomingTimer);
+		return;
+	}
+	UCharacterMovementComponent* Movement = Monster->GetCharacterMovement();
+	if (!Movement || !Movement->IsFalling()) return;
+
+	const double Now = Monster->GetWorld()->GetTimeSeconds();
+	const float DeltaSeconds = FMath::Clamp(static_cast<float>(Now - LastHomingUpdateTime), 0.0f, 0.1f);
+	LastHomingUpdateTime = Now;
+	const FVector Offset = Target->GetActorLocation() - Monster->GetActorLocation();
+	const float Speed = Movement->Velocity.Size2D();
+	if (!FMath::IsFinite(HomingTurnRate) || HomingTurnRate <= 0.0f || !FMath::IsFinite(HomingStopDistance)
+		|| Speed <= KINDA_SMALL_NUMBER || Offset.SizeSquared2D() <= FMath::Square(FMath::Max(0.0f, HomingStopDistance))) return;
+
+	const float CurrentYaw = Movement->Velocity.Rotation().Yaw;
+	const float TargetYaw = Offset.Rotation().Yaw;
+	const float MaxTurn = HomingTurnRate * DeltaSeconds;
+	const float NewYaw = CurrentYaw + FMath::Clamp(FMath::FindDeltaAngleDegrees(CurrentYaw, TargetYaw), -MaxTurn, MaxTurn);
+	const FVector NewDirection = FRotator(0.0f, NewYaw, 0.0f).Vector();
+	Movement->Velocity.X = NewDirection.X * Speed;
+	Movement->Velocity.Y = NewDirection.Y * Speed;
+	Monster->SetActorRotation(FRotator(0.0f, NewYaw, 0.0f));
 }
 
 void UTBGameplayAbility_Monster_Leap::HandleLanded(const FHitResult& Hit)
@@ -101,6 +138,7 @@ void UTBGameplayAbility_Monster_Leap::HandleLanded(const FHitResult& Hit)
 
 	// 최초 착지만 처리하고 실제 착지 위치 기준으로 피해 대상 판정
 	bLanded = true;
+	Monster->GetWorldTimerManager().ClearTimer(HomingTimer);
 	Monster->GetWorldTimerManager().ClearTimer(LandingTimeout);
 
 	UWorld* World = Monster->GetWorld();
@@ -145,6 +183,7 @@ void UTBGameplayAbility_Monster_Leap::EndAbility(FGameplayAbilitySpecHandle Hand
 	{
 		Monster->LandedDelegate.RemoveDynamic(this, &ThisClass::HandleLanded);
 		Monster->GetWorldTimerManager().ClearTimer(LandingTimeout);
+		Monster->GetWorldTimerManager().ClearTimer(HomingTimer);
 		if (bWasCancelled && bLaunched && !bLanded)
 		{
 			Monster->GetCharacterMovement()->StopMovementImmediately();
@@ -154,6 +193,8 @@ void UTBGameplayAbility_Monster_Leap::EndAbility(FGameplayAbilitySpecHandle Hand
 	// 원래 메시 틱 설정과 다음 도약을 위한 실행 상태 복구
 	if (USkeletalMeshComponent* Mesh = AttackMesh.Get()) Mesh->VisibilityBasedAnimTickOption = PreviousTickOption;
 	LeapingMonster.Reset();
+	LeapTarget.Reset();
+	LastHomingUpdateTime = 0.0;
 	LeapDestination = FVector::ZeroVector;
 	AttackMesh.Reset();
 	bLaunched = false;
