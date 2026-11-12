@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "AIController.h"
+#include "AI/TBBaseAIController.h"
 #include "Perception/AIPerceptionTypes.h"
 #include "TBCitizenAIController.generated.h"
 
@@ -9,7 +9,7 @@ class UAISenseConfig_Sight;
 class UBehaviorTree;
 
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API ATBCitizenAIController : public AAIController
+class DEVELROCKET_TEAMPROJ_API ATBCitizenAIController : public ATBBaseAIController
 {
 	GENERATED_BODY()
 

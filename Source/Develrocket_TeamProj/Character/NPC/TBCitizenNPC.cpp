@@ -24,7 +24,11 @@ ATBCitizenNPC::ATBCitizenNPC(const FObjectInitializer& ObjectInitializer) : Supe
 	MoveComp->bOrientRotationToMovement = true;
 	bUseControllerRotationYaw = false;
 
-	InteractPrompt = FText::FromString(TEXT("흡혈하기"));
+    // 상호작용 탐지(ECC_Visibility 오버랩·트레이스)에 잡히도록 캡슐만 Visibility Block
+    // (TBLoreNPC와 같은 규칙. 메시는 그대로 두어 트레이스 대상은 캡슐 하나로 유지)
+    GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+    
+    InteractPrompt = FText::FromString(TEXT("흡혈하기"));
 
 	AbilitySystemComponent = CreateDefaultSubobject<UTBAbilitySystemComponent>(TEXT("CitizenASC"));
 	AbilitySystemComponent->SetIsReplicated(true);
@@ -73,7 +77,8 @@ void ATBCitizenNPC::BeginInteract_Implementation(AActor* InteractInstigator)
 	}
 
 	DrainInstigator = InteractInstigator;            // 취소·완료가 같은 플레이어에게서 왔는지 확인용
-	SetCitizenState(ETBCitizenState::Draining);
+	SetCitizenState(ETBCitizenState::Draining);      // 1) BT·이동 먼저 정지
+	AlignToFeeder(InteractInstigator);               // 2) 그 다음 위치 맞춤  ← 추가
 }
 
 void ATBCitizenNPC::CancelInteract_Implementation(AActor* InteractInstigator)
@@ -272,4 +277,22 @@ void ATBCitizenNPC::OnPoolDeactivated_Implementation()
 	GetWorldTimerManager().ClearTimer(CorpseTimer);
 	GetCharacterMovement()->StopMovementImmediately();
 	AbilitySystemComponent->CancelAllAbilities();
+}
+
+void ATBCitizenNPC::AlignToFeeder(const AActor* Feeder)
+{
+	if (!HasAuthority() || !IsValid(Feeder))
+	{
+		return;
+	}
+
+	// 플레이어의 수평 정면 (카메라 위아래 각도는 무시)
+	const float FeederYaw = Feeder->GetActorRotation().Yaw;
+	const FVector Forward = FRotator(0.f, FeederYaw, 0.f).Vector();
+
+	FVector NewLocation = Feeder->GetActorLocation() + Forward * FeedAlignDistance;
+	NewLocation.Z = GetActorLocation().Z;            // 시민 자신의 높이 유지
+
+	const FRotator NewRotation(0.f, FeederYaw + FeedAlignYawOffset, 0.f);
+	SetActorLocationAndRotation(NewLocation, NewRotation, false, nullptr, ETeleportType::TeleportPhysics);
 }
