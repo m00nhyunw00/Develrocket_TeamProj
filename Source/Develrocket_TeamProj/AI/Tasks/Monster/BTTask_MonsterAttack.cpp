@@ -1,13 +1,11 @@
-#include "AI/Tasks/BTTask_MonsterAttack.h"
+#include "AI/Tasks/Monster/BTTask_MonsterAttack.h"
 
 #include "AbilitySystemComponent.h"
-#include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Leap.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Monster/TBMonster.h"
 #include "Character/Player/TBPlayer.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "TBGameplayTags.h"
 
 UBTTask_MonsterAttack::UBTTask_MonsterAttack()
 {
@@ -25,17 +23,15 @@ EBTNodeResult::Type UBTTask_MonsterAttack::ExecuteTask(UBehaviorTreeComponent& O
 	ATBPlayer* Target = Blackboard ? Cast<ATBPlayer>(Blackboard->GetValueAsObject(BlackboardKey.SelectedKeyName)) : nullptr;
 
 	if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead()
-		|| !IsValid(Target) || Target->IsDead() || AttackRange <= 0.0f)
+		|| !IsValid(Target) || Target->IsDead() || !FMath::IsFinite(AttackRange) || AttackRange <= 0.0f
+		|| FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(AttackRange))
 	{
 		return EBTNodeResult::Failed;
 	}
 
 	UAbilitySystemComponent* ASC = Monster->GetAbilitySystemComponent();
 	// 근접 사거리를 기준으로 근접·도약 어빌리티 선택
-	const bool bUseLeap = FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(AttackRange);
-	const TSubclassOf<UGameplayAbility> AbilityClass = bUseLeap
-		? TSubclassOf<UGameplayAbility>(Monster->GetLeapAbilityClass())
-		: Monster->GetMeleeAbilityClass();
+	const TSubclassOf<UGameplayAbility> AbilityClass = Monster->GetMeleeAbilityClass();
 	if (!IsValid(ASC) || ASC->GetAvatarActor() != Monster || !AbilityClass)
 	{
 		return EBTNodeResult::Failed;
@@ -47,11 +43,8 @@ EBTNodeResult::Type UBTTask_MonsterAttack::ExecuteTask(UBehaviorTreeComponent& O
 		return EBTNodeResult::Failed;
 	}
 	// 도약은 발동 조건 검증 후 어빌리티에서 이동 중단
-	if (!bUseLeap)
-	{
-		Controller->StopMovement();
-		Monster->GetCharacterMovement()->StopMovementImmediately();
-	}
+	Controller->StopMovement();
+	Monster->GetCharacterMovement()->StopMovementImmediately();
 
 	ActiveASC = ASC;
 	ActiveTree = &OwnerComp;
@@ -61,13 +54,7 @@ EBTNodeResult::Type UBTTask_MonsterAttack::ExecuteTask(UBehaviorTreeComponent& O
 	AbilityEndedHandle = ASC->OnAbilityEnded.AddUObject(this, &ThisClass::HandleAbilityEnded);
 	bActivating = true;
 	// 블랙보드 타깃을 GAS 이벤트로 도약 어빌리티에 전달
-	FGameplayEventData LeapEvent;
-	LeapEvent.EventTag = TBGameplayTags::Ability_Combat_MonsterLeap;
-	LeapEvent.Instigator = Monster;
-	LeapEvent.Target = Target;
-	const bool bActivated = bUseLeap
-		? ASC->TriggerAbilityFromGameplayEvent(ActiveHandle, ASC->AbilityActorInfo.Get(), LeapEvent.EventTag, &LeapEvent, *ASC)
-		: ASC->TryActivateAbility(ActiveHandle);
+	const bool bActivated = ASC->TryActivateAbility(ActiveHandle);
 	bActivating = false;
 	if (!bActivated || bEndedDuringActivation)
 	{
