@@ -61,6 +61,15 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Interaction", meta = (Units = "cm"))
 	float MaxDrainDistance = 250.f;
+	
+	// 흡혈 시작 시 시민을 플레이어 정면 고정 위치로 맞춤 (Feed·Victim 몽타주가 맞물리도록)
+    UPROPERTY(EditDefaultsOnly, Category = "Interaction|Align", meta = (Units = "cm"))
+    float FeedAlignDistance = 80.f;                       // 플레이어 정면 기준 거리 (캡슐 반지름 합 이상)
+    
+    UPROPERTY(EditDefaultsOnly, Category = "Interaction|Align", meta = (Units = "deg"))
+    float FeedAlignYawOffset = 180.f;                     // 180 = 플레이어를 마주봄, 0 = 등을 보임
+    
+    void AlignToFeeder(const AActor* Feeder);             // [서버] 위치·방향 맞춤
 
 	// 사망 ----------------------
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Death")
