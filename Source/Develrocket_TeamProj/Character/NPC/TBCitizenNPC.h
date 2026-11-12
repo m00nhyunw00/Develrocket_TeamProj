@@ -22,6 +22,12 @@ public:
 	ATBCitizenNPC(const FObjectInitializer& ObjectInitializer);
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	
+	// 피격 (ITBHitInterface) ----------------------
+	virtual bool ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult) override;
+
+	UFUNCTION(BlueprintPure, Category = "Citizen|Health")
+	bool IsInjured() const { return bIsInjured; }         // ABP에서 읽음
 
 	// 상호작용 계약 ----------------------
 	virtual bool CanInteract_Implementation(AActor* InteractInstigator) const override;   // Idle일 때만
@@ -70,6 +76,26 @@ protected:
     float FeedAlignYawOffset = 180.f;                     // 180 = 플레이어를 마주봄, 0 = 등을 보임
     
     void AlignToFeeder(const AActor* Feeder);             // [서버] 위치·방향 맞춤
+	
+	// 체력·출혈 ----------------------
+	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Health", meta = (ClampMin = "1.0"))
+	float MaxHealth = 30.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Health", meta = (ClampMin = "0.0"))
+	float BleedDamagePerSecond = 4.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Health", meta = (ClampMin = "0.0", Units = "cm/s"))
+	float InjuredWalkSpeed = 200.f;
+
+	UPROPERTY(Replicated)
+	bool bIsInjured = false;                              // [복제] ABP 부상 애니메이션 전환용
+
+	float CurrentHealth = 0.f;                            // [서버 전용]
+	FTimerHandle BleedTimer;
+
+	void ApplyCitizenDamage(float Amount);                // [서버] 체력 감소의 유일한 입구
+	void HandleBleedTick();                               // [서버] 1초마다 출혈
+	void ResetHealth();                                   // [서버] 스폰·풀 재사용 시 초기화
 
 	// 사망 ----------------------
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Death")
