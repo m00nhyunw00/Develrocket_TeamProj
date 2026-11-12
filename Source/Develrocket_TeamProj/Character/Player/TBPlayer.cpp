@@ -288,7 +288,7 @@ bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
 	return bApplied;
 }
 
-bool ATBPlayer::PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag)
+bool ATBPlayer::PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag, const FGameplayTag& DefaultImpactCueTag)
 {
 	// 서버 판정 및 사망 상태 검증
 	if (!HasAuthority() || IsDead())
@@ -376,6 +376,41 @@ bool ATBPlayer::PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag)
 
 	AActor* HitActor = HitResult.GetActor();
 
+	// 비생명체에는 공격에 지정된 기본 피격 연출 사용
+	FGameplayTag ImpactCueTag = DefaultImpactCueTag;
+
+	// 생명체에는 대상이 지정한 혈액 연출 사용
+	if (const ATBCharacterBase* HitCharacter = Cast<ATBCharacterBase>(HitActor))
+	{
+		ImpactCueTag = HitCharacter->GetBloodImpactCueTag();
+
+		// 생명체의 설정 누락 시 붉은 혈액 연출 사용
+		if (!ImpactCueTag.IsValid())
+		{
+			ImpactCueTag = TBGameplayTags::GameplayCue_Impact_Blood_Flesh_Red;
+		}
+	}
+
+	if (ImpactCueTag.IsValid())
+	{
+		// 충돌 컴포넌트와 본 정보를 Cue에 전달
+		FGameplayEffectContextHandle ImpactContext = PlayerASC->MakeEffectContext();
+		ImpactContext.AddHitResult(HitResult, true);
+
+		// 피격 연출에 사용할 월드 위치와 표면 방향
+		FGameplayCueParameters ImpactParameters(ImpactContext);
+		ImpactParameters.Location = HitResult.ImpactPoint;
+		ImpactParameters.Normal = HitResult.ImpactNormal;
+		ImpactParameters.Instigator = this;
+		ImpactParameters.EffectCauser = this;
+
+		// 서버에서만 실행하는 Cue의 예측 키를 발사 예측과 분리
+		FScopedPredictionWindow ImpactPredictionWindow(PlayerASC, FPredictionKey(), false);
+
+		// 이번 충돌에 선택된 피격 Cue 하나 실행
+		PlayerASC->ExecuteGameplayCue(ImpactCueTag, ImpactParameters);
+	}
+	
 	if (!IsValid(HitActor))
 	{
 		return false;

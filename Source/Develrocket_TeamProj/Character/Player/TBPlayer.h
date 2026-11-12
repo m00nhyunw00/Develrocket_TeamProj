@@ -47,8 +47,8 @@ public:
 
 	// 공격 및 피해 처리 ----------------------
 	
-	// 서버 기본 공격 판정, 궤적 연출 요청 및 피해 적용 결과 반환
-	bool PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag);
+	// 서버 기본 공격 판정, 궤적·피격 연출 요청 및 피해 적용 결과 반환
+	bool PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag, const FGameplayTag& DefaultImpactCueTag);
 
 	// 서버 피해 적용
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Player|Damage")
