@@ -10,7 +10,7 @@
  * 
  */
 UCLASS(meta=(DisplayName = "Rotate To"))
-class SOULLIKEGAME_API UANS_Ratote : public UAnimNotifyState
+class DEVELROCKET_TEAMPROJ_API UANS_Ratote : public UAnimNotifyState
 {
 	GENERATED_BODY()
 	

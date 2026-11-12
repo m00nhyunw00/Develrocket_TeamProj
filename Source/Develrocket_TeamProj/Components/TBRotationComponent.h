@@ -6,7 +6,7 @@
 
 // 지정 대상 방향으로 소유 액터의 수평 회전 제어
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class SOULLIKEGAME_API UTBRotationComponent : public UActorComponent
+class DEVELROCKET_TEAMPROJ_API UTBRotationComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
