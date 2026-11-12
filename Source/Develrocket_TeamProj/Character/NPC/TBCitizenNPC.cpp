@@ -41,6 +41,8 @@ void ATBCitizenNPC::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATBCitizenNPC, CitizenState);
+	
+	DOREPLIFETIME(ATBCitizenNPC, bIsInjured);
 }
 
 void ATBCitizenNPC::BeginPlay()
@@ -53,6 +55,10 @@ void ATBCitizenNPC::BeginPlay()
 	if (HasAuthority() && DeathAbilityClass)
 	{
 		AbilitySystemComponent->AddCharacterAbilities({ DeathAbilityClass });
+	}
+	if (HasAuthority())
+	{
+		ResetHealth();
 	}
 }
 
@@ -255,6 +261,8 @@ void ATBCitizenNPC::OnPoolActivated_Implementation()
 	GetWorldTimerManager().ClearTimer(CorpseTimer);
 	AbilitySystemComponent->CancelAllAbilities();    // 남아 있는 사망 GA 종료 → 사망 몽타주 정지
 
+	ResetHealth();                                   // 체력 초기화
+	
 	SetCitizenState(ETBCitizenState::Idle);          // 태그 해제 + 모든 머신에서 충돌·이동 복구
 
 	if (ATBCitizenAIController* CitizenAI = Cast<ATBCitizenAIController>(GetController()))
@@ -275,6 +283,7 @@ void ATBCitizenNPC::OnPoolDeactivated_Implementation()
 	GetWorldTimerManager().ClearTimer(CorpseTimer);
 	GetCharacterMovement()->StopMovementImmediately();
 	AbilitySystemComponent->CancelAllAbilities();
+	GetWorldTimerManager().ClearTimer(BleedTimer);
 }
 
 void ATBCitizenNPC::AlignToFeeder(const AActor* Feeder)
@@ -293,4 +302,64 @@ void ATBCitizenNPC::AlignToFeeder(const AActor* Feeder)
 
 	const FRotator NewRotation(0.f, FeederYaw + FeedAlignYawOffset, 0.f);
 	SetActorLocationAndRotation(NewLocation, NewRotation, false, nullptr, ETeleportType::TeleportPhysics);
+}
+
+// 체력 =====================
+bool ATBCitizenNPC::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult)
+{
+	// 서버 전용, 시체는 피격 무시
+	if (!HasAuthority() || CitizenState == ETBCitizenState::Dead)
+	{
+		return false;
+	}
+
+	// 첫 피격: 부상 전환 + 출혈 시작
+	if (!bIsInjured)
+	{
+		bIsInjured = true;
+		GetCharacterMovement()->MaxWalkSpeed = InjuredWalkSpeed;
+
+		if (BleedDamagePerSecond > 0.f)
+		{
+			GetWorldTimerManager().SetTimer(BleedTimer, this, &ThisClass::HandleBleedTick, 1.f, true);
+		}
+		ForceNetUpdate();                            // 부상 애니메이션이 바로 보이도록
+	}
+
+	ApplyCitizenDamage(Damage);
+	return true;
+}
+
+void ATBCitizenNPC::ApplyCitizenDamage(float Amount)
+{
+	if (!HasAuthority() || CitizenState == ETBCitizenState::Dead || Amount <= 0.f)
+	{
+		return;
+	}
+
+	CurrentHealth = FMath::Max(0.f, CurrentHealth - Amount);
+
+	if (CurrentHealth <= 0.f)
+	{
+		GetWorldTimerManager().ClearTimer(BleedTimer);
+		SetCitizenState(ETBCitizenState::Dead);      // 흡혈 사망과 같은 경로: 태그·충돌 해제·사망 GA·시체 타이머
+	}
+}
+
+void ATBCitizenNPC::HandleBleedTick()
+{
+	ApplyCitizenDamage(BleedDamagePerSecond);
+}
+
+void ATBCitizenNPC::ResetHealth()
+{
+	CurrentHealth = MaxHealth;
+	bIsInjured = false;
+	GetWorldTimerManager().ClearTimer(BleedTimer);
+
+	// 이동 속도는 BP 기본값(CDO) 기준으로 복구 (RestoreAliveState와 같은 방식)
+	if (const ATBCitizenNPC* Defaults = GetClass()->GetDefaultObject<ATBCitizenNPC>())
+	{
+		GetCharacterMovement()->MaxWalkSpeed = Defaults->GetCharacterMovement()->MaxWalkSpeed;
+	}
 }
