@@ -113,7 +113,6 @@ void ATBLevelManager::InitializeSpawnPools()
 		Config.MaxActiveCount = Legacy.MaxActiveCount;
 		Config.PoolSize = Legacy.PoolSize;
 		Config.SpawnInterval = Legacy.SpawnInterval;
-		Config.SpawnPointTag = Legacy.SpawnPointTag;
 	}
 }
 bool ATBLevelManager::StartMatch()

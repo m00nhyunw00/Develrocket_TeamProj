@@ -3,16 +3,12 @@
 #include "Framework/TBLevelManager.h"
 #include "Interface/TBPoolable.h"
 #include "Framework/TBSpawnPoolData.h"
-#include "Character/Monster/TBMonster.h"
 #include "Components/CapsuleComponent.h"
-#include "Engine/TargetPoint.h"
-#include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "NavigationSystem.h"
 #include "PCG/CityLayoutCoordinator.h"
 #include "TimerManager.h"
-#include "Character/NPC/TBCitizenNPC.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTBSpawnPool, Log, All);
 
@@ -81,12 +77,6 @@ void UTBSpawnManagerComponent::UpdatePools()
 		if (!IsValid(Actor)) continue;
 		// 액터별 초기화는 인터페이스에 맡기고 서버에서 상태 동기화를 요청합니다.
 		Entry.ActiveActors.Add(Actor);
-		
-		// 몬스터 구독
-		if (ATBMonster* Monster = Cast<ATBMonster>(Actor)) Monster->OnMonsterDied.AddUniqueDynamic(this, &ThisClass::HandleMonsterDied);
-		
-		// 흡혈용 인간 구독
-		if (ATBCitizenNPC* Citizen = Cast<ATBCitizenNPC>(Actor)) Citizen->OnCitizenCorpseExpired.AddUniqueDynamic(this, &ThisClass::HandleCitizenCorpseExpired);
 		Actor->SetActorHiddenInGame(false);
 		Actor->SetActorEnableCollision(true);
 		Actor->SetActorTickEnabled(true);
@@ -95,33 +85,53 @@ void UTBSpawnManagerComponent::UpdatePools()
 	}
 }
 
-void UTBSpawnManagerComponent::HandleMonsterDied(ATBMonster* Monster)
+bool UTBSpawnManagerComponent::NotifyActorDied(AActor* Actor)
 {
-	// 사망 직후 바로 숨기지 않고 1초 뒤 반환합니다. 파괴된 액터는 반환하지 않습니다.
-	if (!GetWorld() || !IsValid(Monster)) return;
-	TWeakObjectPtr<UTBSpawnManagerComponent> WeakThis(this);
-	TWeakObjectPtr<ATBMonster> WeakMonster(Monster);
-	FTimerHandle ReturnTimer;
-	GetWorld()->GetTimerManager().SetTimer(ReturnTimer, FTimerDelegate::CreateLambda([WeakThis, WeakMonster]()
+	if (!IsValid(Actor) || !Actor->HasAuthority() || !Actor->GetWorld()) return false;
+	ATBLevelManager* Manager = Cast<ATBLevelManager>(UGameplayStatics::GetActorOfClass(Actor, ATBLevelManager::StaticClass()));
+	UTBSpawnManagerComponent* SpawnManager = Manager ? Manager->FindComponentByClass<UTBSpawnManagerComponent>() : nullptr;
+	if (!IsValid(SpawnManager) || !IsValid(SpawnManager->PoolOwner)) return false;
+	for (const FTBSpawnPoolRuntime& Pool : SpawnManager->PoolOwner->RuntimeSpawnPools)
 	{
-		if (WeakThis.IsValid() && WeakMonster.IsValid()) WeakThis->ReturnToPool(WeakMonster.Get());
-	}), 1.0f, false);
+		if (!Pool.ActiveActors.Contains(Actor)) continue;
+		const TWeakObjectPtr<AActor> WeakActor(Actor);
+		if (SpawnManager->PendingReturns.Contains(WeakActor)) return true;
+		TWeakObjectPtr<UTBSpawnManagerComponent> WeakManager(SpawnManager);
+		FTimerDelegate Delegate = FTimerDelegate::CreateLambda([WeakManager, WeakActor]()
+		{
+			if (!WeakManager.IsValid()) return;
+			WeakManager->PendingReturns.Remove(WeakActor);
+			if (WeakActor.IsValid()) WeakManager->ReturnToPool(WeakActor.Get());
+		});
+		FTimerHandle Handle;
+		const float Delay = FMath::Max(0.0f, Pool.Config.ReturnDelay);
+		if (Delay <= 0.0f)
+		{
+			Handle = Actor->GetWorldTimerManager().SetTimerForNextTick(Delegate);
+		}
+		else
+		{
+			Actor->GetWorldTimerManager().SetTimer(Handle, Delegate, Delay, false);
+		}
+		SpawnManager->PendingReturns.Add(WeakActor, Handle);
+		return true;
+	}
+	return false;
 }
 
 bool UTBSpawnManagerComponent::ReturnToPool(AActor* Actor)
 {
 	// 활성 목록에서 찾은 액터만 반환하여 같은 액터가 중복 등록되는 것을 방지합니다.
 	if (!IsValid(PoolOwner) || !PoolOwner->HasAuthority() || !IsValid(Actor)) return false;
+	if (FTimerHandle* Handle = PendingReturns.Find(TWeakObjectPtr<AActor>(Actor)))
+	{
+		GetWorld()->GetTimerManager().ClearTimer(*Handle);
+		PendingReturns.Remove(TWeakObjectPtr<AActor>(Actor));
+	}
 	for (FTBSpawnPoolRuntime& Entry : PoolOwner->RuntimeSpawnPools)
 	{
 		if (!Entry.ActiveActors.Contains(Actor)) continue;
 		Entry.ActiveActors.Remove(Actor);
-		
-		// 몬스터 구독 해제
-		if (ATBMonster* Monster = Cast<ATBMonster>(Actor)) Monster->OnMonsterDied.RemoveDynamic(this, &ThisClass::HandleMonsterDied);
-		
-		// 흡혈용 인간 구독 해제
-		if (ATBCitizenNPC* Citizen = Cast<ATBCitizenNPC>(Actor)) Citizen->OnCitizenCorpseExpired.RemoveDynamic(this, &ThisClass::HandleCitizenCorpseExpired);
 		ITBPoolable::Execute_OnPoolDeactivated(Actor);
 		if (!IsValid(Actor)) return true;
 		Actor->SetActorEnableCollision(false);
@@ -137,79 +147,74 @@ bool UTBSpawnManagerComponent::ReturnToPool(AActor* Actor)
 bool UTBSpawnManagerComponent::FindSpawnTransform(const FTBSpawnPoolConfig& Entry, FTransform& OutTransform) const
 {
 	UWorld* World = GetWorld();
-	if (!World || !Entry.ActorClass) return false;
-	const ATBMonster* MonsterDefaults = Cast<ATBMonster>(Entry.ActorClass->GetDefaultObject());
-	if (MonsterDefaults)
+	if (!World || !Entry.ActorClass || !IsValid(PoolOwner)) return false;
+
+	AActor* Floor = nullptr;
+	FBox FloorBounds(ForceInit);
+	int32 MaxAttempts = 0;
+	float TraceHeight = 0.0f;
+	const UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+	if (!Nav || !PoolOwner->GetSpawnFloorSearchParameters(Floor, FloorBounds, MaxAttempts, TraceHeight)) return false;
+
+	// Native character capsules retain their existing clearance. Other actors use the
+	// configurable capsule and collision profile in the spawn entry.
+	const AActor* Defaults = Entry.ActorClass->GetDefaultObject<AActor>();
+	const UCapsuleComponent* Capsule = Entry.bUseActorCapsule && Defaults ? Defaults->FindComponentByClass<UCapsuleComponent>() : nullptr;
+	if (Entry.bUseActorCapsule && !Capsule)
 	{
-		// 플레이어와 동일한 바닥 범위에서 후보를 뽑되 몬스터의 NavMesh도 확인합니다.
-		AActor* Floor = nullptr;
-		FBox FloorBounds(ForceInit);
-		int32 MaxAttempts = 0;
-		float TraceHeight = 0.0f;
-		const UCapsuleComponent* Capsule = MonsterDefaults->GetCapsuleComponent();
-		const UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
-		if (!IsValid(PoolOwner) || !Capsule || !Nav || !PoolOwner->GetSpawnFloorSearchParameters(Floor, FloorBounds, MaxAttempts, TraceHeight)) return false;
-		const float Radius = Capsule->GetScaledCapsuleRadius();
-		const float HalfHeight = Capsule->GetScaledCapsuleHalfHeight();
-		FCollisionQueryParams Query(SCENE_QUERY_STAT(TBMonsterFloorSpawn), false);
-		for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
-		{
-			const double X = FMath::FRandRange(FloorBounds.Min.X, FloorBounds.Max.X);
-			const double Y = FMath::FRandRange(FloorBounds.Min.Y, FloorBounds.Max.Y);
-			FHitResult Hit;
-			if (!World->LineTraceSingleByChannel(Hit, FVector(X, Y, FloorBounds.Max.Z + TraceHeight), FVector(X, Y, FloorBounds.Min.Z - 1000.0), ECC_Visibility, Query) || Hit.GetActor() != Floor) continue;
-			FNavLocation NavLocation;
-			if (!Nav->ProjectPointToNavigation(Hit.ImpactPoint, NavLocation, FVector(100.0, 100.0, 250.0))) continue;
-			// 투영된 위치가 바닥 적중 지점에서 너무 멀어지면 후보에서 제외합니다.
-			if (FVector::DistSquared2D(Hit.ImpactPoint, NavLocation.Location) > FMath::Square(25.0f) || FMath::Abs(Hit.ImpactPoint.Z - NavLocation.Location.Z) > 50.0f) continue;
-			const FVector Location = NavLocation.Location + FVector(0.0, 0.0, HalfHeight + 3.0f);
-			bool bTooClose = false;
-			for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-			{
-				const APawn* Player = It->IsValid() ? (*It)->GetPawn() : nullptr;
-				if (IsValid(Player) && FVector::DistSquared2D(Location, Player->GetActorLocation()) < FMath::Square(1500.0f)) { bTooClose = true; break; }
-			}
-			for (TActorIterator<ATBMonster> It(World); It && !bTooClose; ++It)
-			{
-				if (!It->IsDead() && !It->IsHidden() && FVector::DistSquared2D(Location, It->GetActorLocation()) < FMath::Square(300.0f)) bTooClose = true;
-			}
-			if (bTooClose) continue;
-			const FCollisionShape Shape = FCollisionShape::MakeCapsule(Radius, HalfHeight);
-			if (World->OverlapAnyTestByProfile(Location, FQuat::Identity, Capsule->GetCollisionProfileName(), Shape, Query)) continue;
-			const FVector Direction = FloorBounds.GetCenter() - Location;
-			OutTransform = FTransform(FRotator(0.0f, Direction.Rotation().Yaw, 0.0f), Location);
-			return true;
-		}
+		UE_LOG(LogTBSpawnPool, Warning, TEXT("%s has no default capsule; disable Use Actor Capsule and configure spawn clearance."), *GetNameSafe(Entry.ActorClass.Get()));
 		return false;
 	}
-	// 일반 액터는 설정된 태그를 가진 TargetPoint에서 스폰합니다.
-	if (Entry.SpawnPointTag.IsNone()) return false;
-	TArray<AActor*> Points;
-	UGameplayStatics::GetAllActorsWithTag(World, Entry.SpawnPointTag, Points);
-	for (int32 Index = Points.Num() - 1; Index > 0; --Index) Points.Swap(Index, FMath::RandRange(0, Index));
-	for (AActor* Point : Points)
+	const float Radius = Capsule ? Capsule->GetScaledCapsuleRadius() : FMath::Max(1.0f, Entry.SpawnClearanceRadius);
+	const float HalfHeight = Capsule ? Capsule->GetScaledCapsuleHalfHeight() : FMath::Max(Radius, Entry.SpawnClearanceHalfHeight);
+	const FName CollisionProfile = Capsule ? Capsule->GetCollisionProfileName() : Entry.SpawnCollisionProfile;
+	const FCollisionShape Shape = FCollisionShape::MakeCapsule(Radius, HalfHeight);
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(TBPoolFloorSpawn), false);
+
+	for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
 	{
-		if (!IsValid(Point) || !Point->IsA<ATargetPoint>()) continue;
-		OutTransform = FTransform(Point->GetActorRotation(), Point->GetActorLocation());
+		const double X = FMath::FRandRange(FloorBounds.Min.X, FloorBounds.Max.X);
+		const double Y = FMath::FRandRange(FloorBounds.Min.Y, FloorBounds.Max.Y);
+		FHitResult Hit;
+		if (!World->LineTraceSingleByChannel(Hit, FVector(X, Y, FloorBounds.Max.Z + TraceHeight), FVector(X, Y, FloorBounds.Min.Z - 1000.0), ECC_Visibility, Query) || Hit.GetActor() != Floor) continue;
+		FNavLocation NavLocation;
+		if (!Nav->ProjectPointToNavigation(Hit.ImpactPoint, NavLocation, FVector(100.0, 100.0, 250.0))) continue;
+		if (FVector::DistSquared2D(Hit.ImpactPoint, NavLocation.Location) > FMath::Square(25.0f) || FMath::Abs(Hit.ImpactPoint.Z - NavLocation.Location.Z) > 50.0f) continue;
+		const FVector Location = NavLocation.Location + FVector(0.0, 0.0, HalfHeight + 3.0f);
+		bool bTooClose = false;
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			const APawn* Player = It->IsValid() ? (*It)->GetPawn() : nullptr;
+			if (IsValid(Player) && FVector::DistSquared2D(Location, Player->GetActorLocation()) < FMath::Square(1500.0f)) { bTooClose = true; break; }
+		}
+		for (const FTBSpawnPoolRuntime& Pool : PoolOwner->RuntimeSpawnPools)
+		{
+			for (const TObjectPtr<AActor>& Other : Pool.ActiveActors)
+			{
+				if (IsValid(Other) && !Other->IsHidden() && Other->GetActorEnableCollision()
+					&& FVector::DistSquared2D(Location, Other->GetActorLocation()) < FMath::Square(300.0f))
+				{
+					bTooClose = true;
+					break;
+				}
+			}
+			if (bTooClose) break;
+		}
+		if (bTooClose || World->OverlapAnyTestByProfile(Location, FQuat::Identity, CollisionProfile, Shape, Query)) continue;
+		const FVector Direction = FloorBounds.GetCenter() - Location;
+		OutTransform = FTransform(FRotator(0.0f, Direction.Rotation().Yaw, 0.0f), Location);
 		return true;
 	}
 	return false;
 }
 
-void UTBSpawnManagerComponent::HandleCitizenCorpseExpired(ATBCitizenNPC* Citizen)
-{
-	// 방송(Broadcast) 도중에 같은 델리게이트에서 구독을 해제하지 않도록 다음 틱으로 미룹니다.
-	if (!GetWorld() || !IsValid(Citizen)) return;
-	TWeakObjectPtr<UTBSpawnManagerComponent> WeakThis(this);
-	TWeakObjectPtr<ATBCitizenNPC> WeakCitizen(Citizen);
-	GetWorld()->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis, WeakCitizen]()
-	{
-		if (WeakThis.IsValid() && WeakCitizen.IsValid()) WeakThis->ReturnToPool(WeakCitizen.Get());
-	}));
-}
-
 void UTBSpawnManagerComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (GetWorld())
+	{
+		for (auto& Pending : PendingReturns) GetWorld()->GetTimerManager().ClearTimer(Pending.Value);
+	}
+	PendingReturns.Empty();
 	// 컴포넌트 종료 후 스폰 검사가 실행되지 않도록 타이머를 해제합니다.
 	if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(UpdateTimer);
 	PoolOwner = nullptr;

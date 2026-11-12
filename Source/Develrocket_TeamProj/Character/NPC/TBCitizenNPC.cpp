@@ -3,6 +3,7 @@
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
 #include "Components/CapsuleComponent.h"
+// #include "Components/TBSpawnManagerComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Animation/AnimMontage.h"
@@ -235,6 +236,7 @@ void ATBCitizenNPC::StartDeathSequence()
 		}
 	}
 
+	// if (UTBSpawnManagerComponent::NotifyActorDied(this)) return;
 	GetWorldTimerManager().SetTimer(CorpseTimer, this, &ThisClass::HandleCorpseExpired, FMath::Max(HoldTime, 0.1f), false);
 }
 

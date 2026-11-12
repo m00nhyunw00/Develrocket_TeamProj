@@ -22,6 +22,17 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	
 	UTBAbilitySystemComponent* GetTBAbilitySystemComponent() const;
+	
+	FGameplayTag GetCharacterTypeTag() const
+	{
+		return CharacterTypeTag;
+	}
+	
+	// 피격 대상에 설정된 혈액 연출 태그 반환
+	FGameplayTag GetBloodImpactCueTag() const
+	{
+		return BloodImpactCueTag;
+	}
 
 	// ASC 연결 상태와 상태 태그에 따른 이동 차단 여부 조회
 	UFUNCTION(BlueprintPure, Category = "Character|State")

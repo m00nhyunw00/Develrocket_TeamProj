@@ -5,9 +5,7 @@
 #include "TBSpawnManagerComponent.generated.h"
 
 class ATBLevelManager;
-class ATBMonster;
 class ACityLayoutCoordinator;
-class ATBCitizenNPC;
 struct FTBSpawnPoolConfig;
 
 UCLASS(ClassGroup=(Spawn))
@@ -24,17 +22,19 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Spawn|Pool")
 	bool ReturnToPool(AActor* Actor);
 
+	// Notify the owning pool that an actor died. Returns false for non-pooled actors.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Spawn|Pool")
+	static bool NotifyActorDied(AActor* Actor);
+
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
-	// 몬스터 사망 이벤트를 받으면 일정 시간 후 풀 반환을 예약합니다.
-	UFUNCTION()
-	void HandleMonsterDied(ATBMonster* Monster);
 
 	// 풀별 수량과 다음 시도 시각을 확인하고 재사용하거나 새로 생성합니다.
 	void UpdatePools();
-	// 몬스터는 바닥과 NavMesh를, 다른 액터는 태그가 맞는 TargetPoint를 검사합니다.
+
+	// Find a valid floor and NavMesh location for each pool actor.
 	bool FindSpawnTransform(const FTBSpawnPoolConfig& Entry, FTransform& OutTransform) const;
 
 	// 런타임 풀 데이터를 소유한 레벨 매니저를 참조합니다.
@@ -45,8 +45,5 @@ private:
 	// 런타임 풀의 인덱스별 다음 스폰 시도 시각입니다.
 	TArray<double> NextSpawnTimes;
 	FTimerHandle UpdateTimer;
-	
-	// 시민 시체 유지가 끝나면 풀로 반환합니다.
-	UFUNCTION()
-	void HandleCitizenCorpseExpired(ATBCitizenNPC* Citizen);
+	TMap<TWeakObjectPtr<AActor>, FTimerHandle> PendingReturns;
 };
