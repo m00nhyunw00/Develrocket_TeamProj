@@ -30,4 +30,7 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Data_Heal, "Data.Heal");
 	
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_BloodTrail, "GameplayCue.Weapon.BloodTrail");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Impact_Blood_World, "GameplayCue.Impact.Blood.World");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Impact_Blood_Flesh_Red, "GameplayCue.Impact.Blood.Flesh.Red");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Impact_Blood_Flesh_Green, "GameplayCue.Impact.Blood.Flesh.Green");
 }
