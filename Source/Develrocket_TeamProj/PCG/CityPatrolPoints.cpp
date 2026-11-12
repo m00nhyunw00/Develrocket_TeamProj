@@ -50,6 +50,20 @@ protected:
                         Point.Density = 1.0;
                     }
                 }
+                // Add one candidate outside the midpoint of each side.
+                for (int32 Sign : {-1, 1})
+                {
+                    const FVector SideCenters[] = {
+                        FVector(Sign * (SpanX * 0.5 + Settings->RoadOffset), 0.0, Settings->HeightOffset),
+                        FVector(0.0, Sign * (SpanY * 0.5 + Settings->RoadOffset), Settings->HeightOffset)
+                    };
+                    for (const FVector& Local : SideCenters)
+                    {
+                        FPCGPoint& Point = Output->GetMutablePoints().AddDefaulted_GetRef();
+                        Point.Transform = FTransform(Frame.GetRotation(), Frame.TransformPositionNoScale(Local), FVector::OneVector);
+                        Point.Density = 1.0;
+                    }
+                }
             }
             FPCGTaggedData& Out = Context->OutputData.TaggedData.Emplace_GetRef(Tagged);
             Out.Data = Output;
