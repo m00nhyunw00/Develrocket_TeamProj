@@ -10,6 +10,10 @@ UTBGameplayAbility_Interaction::UTBGameplayAbility_Interaction()
 	
 	SetAssetTags(FGameplayTagContainer(TBGameplayTags::Ability_Interaction));
 	ActivationBlockedTags.AddTag(TBGameplayTags::State_Dead);
+	
+	// InstancePerActor라 인스턴스가 재사용됨 -> 매번 초기화 시켜주어야한다.
+	bInteractionBegun = false;
+	bInteractionResolved = false;
 }
 
 void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
@@ -57,11 +61,39 @@ void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
 		return;
 	}
 	
-	// 5. 대화 : 시작 시 결과 (서버만)
-	if (HasAuthority(&ActivationInfo)&&ITBInteractable::Execute_ShouldResolveOnStart(Target))
+	// 5. 서버: 시작 시 결과(대화) 또는 시작 알림(흡혈)
+	if (HasAuthority(&ActivationInfo))
 	{
-		ResolveInteraction();
+		if (ITBInteractable::Execute_ShouldResolveOnStart(Target))
+		{
+			ResolveInteraction();
+		}
+		else
+		{
+			bInteractionBegun = true;
+			ITBInteractable::Execute_BeginInteract(Target, GetAvatarActorFromActorInfo());
+		}
 	}
+}
+
+void UTBGameplayAbility_Interaction::EndAbility(const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,
+	bool bReplicateEndAbility, bool bWasCancelled)
+{
+	// 시작은 알렸는데 결과 없이 끝나는 경우 = 몽타주 중단, 입력 취소, 플레이어 사망 등
+	if (IsActive() && ActorInfo->IsNetAuthority() && bInteractionBegun && !bInteractionResolved)
+	{
+		if (AActor* Target = CurrentTarget.Get())
+		{
+			ITBInteractable::Execute_CancelInteract(Target, ActorInfo->AvatarActor.Get());
+		}
+	}
+	
+	bInteractionBegun = false;
+	bInteractionResolved = false;
+	
+	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+	// 취소를 EndAbility에서 감지하는 이유 : 외부에서 CancelAbility호출, 플레이어 사망까지 모든 종료 경로가 EndAbility를 지나가기때문
 }
 
 void UTBGameplayAbility_Interaction::HandleActionMontageCompleted()

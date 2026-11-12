@@ -1,133 +1,196 @@
 #include "Character/NPC/TBCitizenNPC.h"
 
-#include "Net/UnrealNetwork.h"                    // DOREPLIFETIME 매크로
-#include "Components/CapsuleComponent.h"          // 사망 시 캡슐 충돌 변경
+#include "Net/UnrealNetwork.h"
+#include "TimerManager.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "AI/NPC/TBCitizenAIController.h"             // 도망 AI
-#include "Framework/TBPlayerState.h"              // ApplyBloodRecovery
-#include "AbilitySystem/TBAbilitySystemComponent.h"   // 시민 전용 ASC
-#include "TBGameplayTags.h"                           // 사망 태그
+#include "Animation/AnimMontage.h"
+#include "Abilities/GameplayAbility.h"
+#include "AI/NPC/TBCitizenAIController.h"
+#include "AbilitySystem/TBAbilitySystemComponent.h"
+#include "Components/TBHealComponent.h"
+#include "TBGameplayTags.h"
 
 // 생성자 =====================
-ATBCitizenNPC::ATBCitizenNPC(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)                    
+ATBCitizenNPC::ATBCitizenNPC(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
-	// 이 캐릭터를 조종할 AI 지정 + 배치/스폰 시 서버에서 자동 빙의
 	AIControllerClass = ATBCitizenAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-	MoveComp->MaxWalkSpeed = 450.f;               // 부모 기본값 750보다 느리게 → 플레이어가 따라잡을 수 있게
-	MoveComp->bOrientRotationToMovement = true;   // 이동하는 방향으로 몸을 돌림
-	bUseControllerRotationYaw = false;            // 컨트롤러 회전 대신 이동 방향 회전 사용
+	MoveComp->MaxWalkSpeed = 450.f;
+	MoveComp->bOrientRotationToMovement = true;
+	bUseControllerRotationYaw = false;
 
 	InteractPrompt = FText::FromString(TEXT("흡혈하기"));
-	
-	// 시민이 직접 소유하는 ASC 생성 (부모의 이동 차단 판정이 "ASC 연결됨"을 요구하기 때문)
+
 	AbilitySystemComponent = CreateDefaultSubobject<UTBAbilitySystemComponent>(TEXT("CitizenASC"));
-	AbilitySystemComponent->SetIsReplicated(true);                                      // 태그를 클라이언트에도 복제
-	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal); // AI용: 최소한만 복제 (몬스터와 동일)
+	AbilitySystemComponent->SetIsReplicated(true);
+	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
+
+	// 부모가 ASC 연결 시 복제 태그로 부여 (플레이어·몬스터와 같은 규칙)
+	CharacterTypeTag = TBGameplayTags::Character_Type_Human;
 }
 
-// 복제 등록 =====================
 void ATBCitizenNPC::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);     // 부모가 등록한 복제 변수 유지 (빠뜨리면 이동 복제 등이 깨짐)
-	DOREPLIFETIME(ATBCitizenNPC, CitizenState);              // CitizenState를 모든 클라이언트에 복제
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ATBCitizenNPC, CitizenState);
+}
+
+void ATBCitizenNPC::BeginPlay()
+{
+	Super::BeginPlay();
+
+	InitializeAbilitySystem(AbilitySystemComponent.Get(), this);
+
+	// 사망 GA 부여 (서버 전용, AddCharacterAbilities가 권한·중복 검사를 함)
+	if (HasAuthority() && DeathAbilityClass)
+	{
+		AbilitySystemComponent->AddCharacterAbilities({ DeathAbilityClass });
+	}
+}
+
+void ATBCitizenNPC::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+	InitializeAbilitySystem(AbilitySystemComponent.Get(), this);
 }
 
 // 상호작용 =====================
 bool ATBCitizenNPC::CanInteract_Implementation(AActor* InteractInstigator) const
 {
-	return CitizenState == ETBCitizenState::Idle;  // 평상시에만 흡혈 가능 (흡혈 중/사망 시 프롬프트도 안 뜸)
+	return CitizenState == ETBCitizenState::Idle;   // 흡혈 중이거나 죽었으면 다른 플레이어도 불가
+}
+
+void ATBCitizenNPC::BeginInteract_Implementation(AActor* InteractInstigator)
+{
+	if (!HasAuthority() || CitizenState != ETBCitizenState::Idle)
+	{
+		return;
+	}
+
+	DrainInstigator = InteractInstigator;            // 취소·완료가 같은 플레이어에게서 왔는지 확인용
+	SetCitizenState(ETBCitizenState::Draining);
+}
+
+void ATBCitizenNPC::CancelInteract_Implementation(AActor* InteractInstigator)
+{
+	if (!HasAuthority() || CitizenState != ETBCitizenState::Draining || DrainInstigator.Get() != InteractInstigator)
+	{
+		return;
+	}
+
+	SetCitizenState(ETBCitizenState::Idle);          // 다시 도망칠 수 있는 상태로
 }
 
 void ATBCitizenNPC::Interact_Implementation(AActor* InteractInstigator)
 {
-	// GA가 "흡혈 몽타주가 끝난 시점"에 서버에서 호출
-
-	if (!HasAuthority() || CitizenState == ETBCitizenState::Dead)   // 서버만, 이미 죽었으면 중복 처리 방지
+	// [서버] 3인칭 몽타주 완료 시 (몽타주가 없으면 GA가 즉시 호출 → 이때는 Idle 상태로 들어옴)
+	if (!HasAuthority() || !InteractInstigator || CitizenState == ETBCitizenState::Dead)
 	{
 		return;
 	}
 
-	// 몽타주 도중 시민이 도망쳐 멀어졌다면 흡혈 실패
-	if (!InteractInstigator || FVector::Dist(GetActorLocation(), InteractInstigator->GetActorLocation()) > MaxDrainDistance)
+	if (CitizenState == ETBCitizenState::Draining && DrainInstigator.Get() != InteractInstigator)
 	{
+		return;                                      // 다른 플레이어의 결과 요청은 무시
+	}
+
+	if (FVector::Dist(GetActorLocation(), InteractInstigator->GetActorLocation()) > MaxDrainDistance)
+	{
+		SetCitizenState(ETBCitizenState::Idle);      // 실패해도 Draining에 갇히지 않게 복구
 		return;
 	}
 
-	// 상호작용한 쪽은 플레이어 캐릭터(Pawn) → 그 PlayerState에 ASC와 회복 GE가 있음
-	const APawn* InstigatorPawn = Cast<APawn>(InteractInstigator);
-	if (ATBPlayerState* TBPlayerState = InstigatorPawn ? InstigatorPawn->GetPlayerState<ATBPlayerState>() : nullptr)
+	// 회복은 플레이어 쪽 HealComponent가 단일 창구 (시민은 PlayerState를 몰라도 됨)
+	if (UTBHealComponent* HealComp = InteractInstigator->FindComponentByClass<UTBHealComponent>())
 	{
-		TBPlayerState->ApplyBloodRecovery();         // BloodRecoveryEffect(GE) 적용 → Blood 회복
+		HealComp->ApplyHeal();
 	}
 
-	SetCitizenState(ETBCitizenState::Dead);        // 흡혈 완료 → 사망
+	SetCitizenState(ETBCitizenState::Dead);
 }
 
 void ATBCitizenNPC::InteractLocal_Implementation(AActor* InteractInstigator)
 {
-	// [흡혈한 플레이어의 클라이언트에서만] 화면 효과, 사운드 등 개인 연출 자리
+	// [흡혈한 플레이어의 클라이언트] 화면 효과, 사운드 자리
 }
 
-FText ATBCitizenNPC::GetInteractPrompt_Implementation() const
-{
-	return InteractPrompt;
-}
-
-UAnimMontage* ATBCitizenNPC::GetInteractMontage_Implementation() const
-{
-	return FeedMontage;
-}
-
-UAnimMontage* ATBCitizenNPC::GetInteractFirstPersonMontage_Implementation() const
-{
-	return FeedFirstPersonMontage;
-}
-
-bool ATBCitizenNPC::ShouldResolveOnStart_Implementation() const
-{
-	return false;                                  // 흡혈은 몽타주가 끝나야 결과 (대화 NPC는 true)
-}
+FText ATBCitizenNPC::GetInteractPrompt_Implementation() const { return InteractPrompt; }
+UAnimMontage* ATBCitizenNPC::GetInteractMontage_Implementation() const { return FeedMontage; }
+UAnimMontage* ATBCitizenNPC::GetInteractFirstPersonMontage_Implementation() const { return FeedFirstPersonMontage; }
+bool ATBCitizenNPC::ShouldResolveOnStart_Implementation() const { return false; }
 
 // 상태 =====================
 void ATBCitizenNPC::SetCitizenState(ETBCitizenState NewState)
 {
-	if (!HasAuthority() || CitizenState == NewState)   // 서버만 바꿀 수 있고, 같은 값이면 무시
+	if (!HasAuthority() || CitizenState == NewState)
 	{
 		return;
 	}
 
-	CitizenState = NewState;                       // 이 값이 클라이언트로 복제됨
+	const ETBCitizenState OldState = CitizenState;
+	CitizenState = NewState;                         // 클라이언트로 복제 → OnRep
 
-	// 서버 전용 처리
-	if (NewState == ETBCitizenState::Dead)
+	// 1) 다른 시스템이 읽는 태그를 상태에서 파생 (태그를 쓰는 곳은 여기 한 곳뿐)
+	//    MovementBlocked → TBCharacterBase::IsMovementBlocked가 속도 0 처리
+	//    State_Dead      → 사망 GA의 ActivationRequiredTags 충족
+	AbilitySystemComponent->SetLooseGameplayTagCount(TBGameplayTags::State_MovementBlocked,
+		NewState == ETBCitizenState::Idle ? 0 : 1, EGameplayTagReplicationState::TagOnly);
+	AbilitySystemComponent->SetLooseGameplayTagCount(TBGameplayTags::State_Dead,
+		NewState == ETBCitizenState::Dead ? 1 : 0, EGameplayTagReplicationState::TagOnly);
+
+	// 2) 보이는 처리 (서버에서는 OnRep이 자동 호출되지 않음)
+	OnRep_CitizenState();
+
+	// 3) 서버 전용 처리
+	ATBCitizenAIController* CitizenAI = Cast<ATBCitizenAIController>(GetController());
+	switch (NewState)
 	{
-		AbilitySystemComponent->AddLooseGameplayTag(TBGameplayTags::State_Dead);
-		if (ATBCitizenAIController* CitizenAI = Cast<ATBCitizenAIController>(GetController()))
-		{
-			CitizenAI->StopFleeing();              // 도망 AI 정지
-		}
-		SetLifeSpan(CorpseLifeSpan);               // 일정 시간 뒤 자동 Destroy
+	case ETBCitizenState::Draining:
+		if (CitizenAI) CitizenAI->PauseForDrain();
+		break;
+
+	case ETBCitizenState::Idle:
+		DrainInstigator.Reset();
+		if (OldState == ETBCitizenState::Draining && CitizenAI) CitizenAI->ResumeFromDrain();
+		break;
+
+	case ETBCitizenState::Dead:
+		DrainInstigator.Reset();
+		if (CitizenAI) CitizenAI->StopFleeing();
+		StartDeathSequence();
+		break;
+
+	default:
+		break;
 	}
 
-	OnRep_CitizenState();                          // 서버에서는 OnRep이 자동 호출되지 않으므로 직접 호출
+	ForceNetUpdate();                                // 상태 변화를 다음 복제 주기까지 기다리지 않고 바로 보냄
 }
 
 void ATBCitizenNPC::OnRep_CitizenState()
 {
-	// 서버와 모든 클라이언트에서 실행: "보이는 것"만 처리
 	switch (CitizenState)
 	{
 	case ETBCitizenState::Draining:
-		PlayAnimMontage(VictimMontage);            // 흡혈당하는 몽타주 (선택 사항의 시작 훅을 넣어야 실제로 들어옴)
+		if (VictimMontage) PlayAnimMontage(VictimMontage);
 		break;
 
 	case ETBCitizenState::Dead:
-		StopAnimMontage();                         // 재생 중인 몽타주 정지
-		GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);   // 상호작용 탐지(Visibility)에 더 이상 안 걸리게
-		// 사망 몽타주 / 래그돌 연출 자리
+		// 주의: 인자 없이 StopAnimMontage()를 부르면 "현재 몽타주" = 사망 몽타주까지 멈춤
+		if (VictimMontage) StopAnimMontage(VictimMontage);
+		GetCharacterMovement()->StopMovementImmediately();
+		GetCharacterMovement()->DisableMovement();
+		GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);   // 상호작용 탐지·길막 모두 해제
+		GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		break;
+
+	case ETBCitizenState::Idle:
+		if (VictimMontage) StopAnimMontage(VictimMontage);
+		RestoreAliveState();                         // 흡혈 취소 또는 풀 재사용
 		break;
 
 	default:
@@ -135,18 +198,76 @@ void ATBCitizenNPC::OnRep_CitizenState()
 	}
 }
 
-void ATBCitizenNPC::BeginPlay()
+void ATBCitizenNPC::RestoreAliveState()
 {
-	Super::BeginPlay();
-
-	// 서버와 클라이언트 모두에서 시민 자신을 ASC의 Owner·Avatar로 연결 → IsMovementBlocked()가 false가 됨
-	InitializeAbilitySystem(AbilitySystemComponent.Get(), this);
+	// BP 기본값(CDO) 기준으로 충돌 복구 (ATBMonster::RestorePoolVisualState와 같은 방식)
+	if (const ATBCitizenNPC* Defaults = GetClass()->GetDefaultObject<ATBCitizenNPC>())
+	{
+		GetCapsuleComponent()->SetCollisionEnabled(Defaults->GetCapsuleComponent()->GetCollisionEnabled());
+		GetMesh()->SetCollisionEnabled(Defaults->GetMesh()->GetCollisionEnabled());
+	}
+	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 }
 
-void ATBCitizenNPC::PossessedBy(AController* NewController)
+// 사망 =====================
+void ATBCitizenNPC::StartDeathSequence()
 {
-	Super::PossessedBy(NewController);
+	float HoldTime = CorpseHoldSeconds;
 
-	// 서버에서 AI 컨트롤러가 빙의한 뒤 ASC가 컨트롤러 정보를 갱신하도록 다시 호출 (이미 연결돼 있으면 Refresh만 함)
-	InitializeAbilitySystem(AbilitySystemComponent.Get(), this);
+	// State_Dead가 이미 붙어 있으므로 사망 GA 활성화 조건 충족
+	if (AbilitySystemComponent->TryActivateAbilityByTag(TBGameplayTags::Ability_Death))
+	{
+		// 사망 GA가 ASC로 재생한 몽타주 → 길이만큼 더 기다림
+		if (const UAnimMontage* DeathMontage = AbilitySystemComponent->GetCurrentMontage())
+		{
+			HoldTime += DeathMontage->GetPlayLength();
+		}
+	}
+
+	GetWorldTimerManager().SetTimer(CorpseTimer, this, &ThisClass::HandleCorpseExpired, FMath::Max(HoldTime, 0.1f), false);
+}
+
+void ATBCitizenNPC::HandleCorpseExpired()
+{
+	if (OnCitizenCorpseExpired.IsBound())
+	{
+		OnCitizenCorpseExpired.Broadcast(this);      // 풀 소속 → SpawnManager가 반환
+	}
+	else
+	{
+		Destroy();                                   // 레벨에 직접 배치한 시민은 풀이 없으므로 제거
+	}
+}
+
+// 풀링 =====================
+void ATBCitizenNPC::OnPoolActivated_Implementation()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(CorpseTimer);
+	AbilitySystemComponent->CancelAllAbilities();    // 남아 있는 사망 GA 종료 → 사망 몽타주 정지
+
+	SetCitizenState(ETBCitizenState::Idle);          // 태그 해제 + 모든 머신에서 충돌·이동 복구
+
+	if (ATBCitizenAIController* CitizenAI = Cast<ATBCitizenAIController>(GetController()))
+	{
+		CitizenAI->ReactivateFromPool();
+	}
+
+	ForceNetUpdate();
+}
+
+void ATBCitizenNPC::OnPoolDeactivated_Implementation()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(CorpseTimer);
+	GetCharacterMovement()->StopMovementImmediately();
+	AbilitySystemComponent->CancelAllAbilities();
 }

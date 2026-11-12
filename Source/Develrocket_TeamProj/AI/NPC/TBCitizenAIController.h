@@ -19,6 +19,10 @@ public:
 	void StopFleeing();                           // 사망 시 시민이 호출: BT와 감지 정지
 
 	static const FName ThreatActorKey;            // 블랙보드 키 이름을 한 곳에서 관리 (문자열 오타 방지)
+	
+	void PauseForDrain();                        // 흡혈당하는 동안 BT 일시 정지
+	void ResumeFromDrain();                      // 흡혈이 취소 되면 BT 재개
+	void ReactivateFromPool();                     // 풀에서 다시 꺼낼 떄 감지, BT 초기화
 
 protected:
 	virtual void BeginPlay() override;

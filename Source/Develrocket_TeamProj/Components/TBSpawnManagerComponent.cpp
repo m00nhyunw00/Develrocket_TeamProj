@@ -12,6 +12,7 @@
 #include "NavigationSystem.h"
 #include "PCG/CityLayoutCoordinator.h"
 #include "TimerManager.h"
+#include "Character/NPC/TBCitizenNPC.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTBSpawnPool, Log, All);
 
@@ -80,7 +81,12 @@ void UTBSpawnManagerComponent::UpdatePools()
 		if (!IsValid(Actor)) continue;
 		// 액터별 초기화는 인터페이스에 맡기고 서버에서 상태 동기화를 요청합니다.
 		Entry.ActiveActors.Add(Actor);
+		
+		// 몬스터 구독
 		if (ATBMonster* Monster = Cast<ATBMonster>(Actor)) Monster->OnMonsterDied.AddUniqueDynamic(this, &ThisClass::HandleMonsterDied);
+		
+		// 흡혈용 인간 구독
+		if (ATBCitizenNPC* Citizen = Cast<ATBCitizenNPC>(Actor)) Citizen->OnCitizenCorpseExpired.AddUniqueDynamic(this, &ThisClass::HandleCitizenCorpseExpired);
 		Actor->SetActorHiddenInGame(false);
 		Actor->SetActorEnableCollision(true);
 		Actor->SetActorTickEnabled(true);
@@ -110,7 +116,12 @@ bool UTBSpawnManagerComponent::ReturnToPool(AActor* Actor)
 	{
 		if (!Entry.ActiveActors.Contains(Actor)) continue;
 		Entry.ActiveActors.Remove(Actor);
+		
+		// 몬스터 구독 해제
 		if (ATBMonster* Monster = Cast<ATBMonster>(Actor)) Monster->OnMonsterDied.RemoveDynamic(this, &ThisClass::HandleMonsterDied);
+		
+		// 흡혈용 인간 구독 해제
+		if (ATBCitizenNPC* Citizen = Cast<ATBCitizenNPC>(Actor)) Citizen->OnCitizenCorpseExpired.RemoveDynamic(this, &ThisClass::HandleCitizenCorpseExpired);
 		ITBPoolable::Execute_OnPoolDeactivated(Actor);
 		if (!IsValid(Actor)) return true;
 		Actor->SetActorEnableCollision(false);
@@ -183,6 +194,18 @@ bool UTBSpawnManagerComponent::FindSpawnTransform(const FTBSpawnPoolConfig& Entr
 		return true;
 	}
 	return false;
+}
+
+void UTBSpawnManagerComponent::HandleCitizenCorpseExpired(ATBCitizenNPC* Citizen)
+{
+	// 방송(Broadcast) 도중에 같은 델리게이트에서 구독을 해제하지 않도록 다음 틱으로 미룹니다.
+	if (!GetWorld() || !IsValid(Citizen)) return;
+	TWeakObjectPtr<UTBSpawnManagerComponent> WeakThis(this);
+	TWeakObjectPtr<ATBCitizenNPC> WeakCitizen(Citizen);
+	GetWorld()->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis, WeakCitizen]()
+	{
+		if (WeakThis.IsValid() && WeakCitizen.IsValid()) WeakThis->ReturnToPool(WeakCitizen.Get());
+	}));
 }
 
 void UTBSpawnManagerComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)

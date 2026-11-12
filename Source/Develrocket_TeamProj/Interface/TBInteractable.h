@@ -49,9 +49,18 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction|Animation")
 	UAnimMontage* GetInteractFirstPersonMontage() const;
 	
-	// 결과 시점
+	// 결과 시점 ----------------------
 	
 	// true : 몽타주 시작 시 결과(대화) / false : 몽타주가 끝나야 결과(흡혈)
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="Interaction")
 	bool ShouldResolveOnStart() const;
+	
+	// 진행 알림 --------------------
+	// [서버] 몽타주가 시작될 때 대상에게 알림. 흡혈 대상이 멈추는 용도
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
+	void BeginInteract(AActor* InteractInstigator);
+	
+	// [서버] 결과가 나기 전에 상호작용이 끊겼을 떄 알림 (몽타주 중단, 어빌리티 취소)
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
+	void CancelInteract(AActor* InteractInstigator);
 };

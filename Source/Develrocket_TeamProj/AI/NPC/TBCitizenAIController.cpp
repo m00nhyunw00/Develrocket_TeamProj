@@ -11,6 +11,26 @@
 
 const FName ATBCitizenAIController::ThreatActorKey(TEXT("ThreatActor"));   // BB_Citizen의 키 이름과 똑같아야 함
 
+void ATBCitizenAIController::PauseForDrain()
+{
+	// 실행 중이던 MoveTo 취소
+	StopMovement();
+	
+	// 몬스터 컨트룰러와 같은 조건: 실행 중이고 아직 멈추지 않았을 때
+	if (UBrainComponent* Brain = GetBrainComponent(); Brain && Brain->IsRunning() && !Brain->IsPaused())
+	{
+		Brain->PauseLogic(TEXT("Citizen Drained"));
+	}
+}
+
+void ATBCitizenAIController::ResumeFromDrain()
+{
+	if (UBrainComponent* Brain = GetBrainComponent(); Brain && Brain->IsPaused())
+	{
+		Brain->ResumeLogic(TEXT("Citizen Drain Cancelled"));
+	}
+}
+
 ATBCitizenAIController::ATBCitizenAIController()
 {
 	// Perception 컴포넌트를 만들어 AIController에 등록
@@ -207,4 +227,36 @@ void ATBCitizenAIController::ForgetExpiredThreats()
 	}
 
 	RefreshThreatKey();                           // 남은 위협 기준으로 블랙보드 갱신 (없으면 ClearValue)
+}
+
+void ATBCitizenAIController::ReactivateFromPool()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	// 이전 생에서 기억하던 위협 정리
+	VisibleThreats.Reset();
+	LostThreatTimes.Reset();
+	GetWorldTimerManager().ClearTimer(ForgetTimer);
+
+	if (UBlackboardComponent* BB = GetBlackboardComponent())
+	{
+		BB->ClearValue(ThreatActorKey);
+	}
+
+	// StopFleeing에서 꺼둔 시야를 다시 켜고, 이미 보고 있던 대상도 새로 감지하도록 갱신
+	if (UAIPerceptionComponent* Perception = GetPerceptionComponent())
+	{
+		Perception->ForgetAll();
+		Perception->SetSenseEnabled(UAISense_Sight::StaticClass(), true);
+		Perception->RequestStimuliListenerUpdate();
+	}
+
+	// StopLogic으로 멈춘 BT를 처음부터 다시 실행 (몬스터 ReactivateFromPool과 같은 방식)
+	if (UBrainComponent* Brain = GetBrainComponent())
+	{
+		Brain->RestartLogic();
+	}
 }

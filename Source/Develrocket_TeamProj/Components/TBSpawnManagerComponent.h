@@ -7,6 +7,7 @@
 class ATBLevelManager;
 class ATBMonster;
 class ACityLayoutCoordinator;
+class ATBCitizenNPC;
 struct FTBSpawnPoolConfig;
 
 UCLASS(ClassGroup=(Spawn))
@@ -44,4 +45,8 @@ private:
 	// 런타임 풀의 인덱스별 다음 스폰 시도 시각입니다.
 	TArray<double> NextSpawnTimes;
 	FTimerHandle UpdateTimer;
+	
+	// 시민 시체 유지가 끝나면 풀로 반환합니다.
+	UFUNCTION()
+	void HandleCitizenCorpseExpired(ATBCitizenNPC* Citizen);
 };
