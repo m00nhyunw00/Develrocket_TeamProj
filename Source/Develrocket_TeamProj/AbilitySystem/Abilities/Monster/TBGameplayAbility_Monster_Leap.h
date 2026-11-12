@@ -39,15 +39,27 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Leap", meta = (ClampMin = "0.0"))
 	float AttackDamage = 30.0f;
 
+	// Maximum horizontal steering speed; zero disables homing.
+	UPROPERTY(EditDefaultsOnly, Category = "Leap|Homing", meta = (ClampMin = "0.0", Units = "deg/s"))
+	float HomingTurnRate = 90.0f;
+
+	// Stop steering near the target to prevent abrupt turns or circling.
+	UPROPERTY(EditDefaultsOnly, Category = "Leap|Homing", meta = (ClampMin = "0.0", Units = "cm"))
+	float HomingStopDistance = 150.0f;
+
 private:
 	void EndLeap(bool bCancelled);
 	void HandleLandingTimeout();
+	void UpdateLeapHoming();
 
 	UFUNCTION()
 	void HandleLanded(const FHitResult& Hit);
 
 	// 한 번의 도약 동안 추적하는 시전자와 발동 시점의 목표 위치
 	TWeakObjectPtr<ATBMonster> LeapingMonster;
+	TWeakObjectPtr<const ATBPlayer> LeapTarget;
+	FTimerHandle HomingTimer;
+	double LastHomingUpdateTime = 0.0;
 	FVector LeapDestination = FVector::ZeroVector;
 	TWeakObjectPtr<USkeletalMeshComponent> AttackMesh;
 	EVisibilityBasedAnimTickOption PreviousTickOption{};
