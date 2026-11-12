@@ -22,28 +22,36 @@ UTBGameplayAbility_Monster_Leap::UTBGameplayAbility_Monster_Leap()
 	ActivationBlockedTags.AddTag(TBGameplayTags::State_MovementBlocked);
 }
 
+bool UTBGameplayAbility_Monster_Leap::CanLeapAtTarget(const ATBMonster* Monster, const ATBPlayer* Player) const
+{
+	const UGameplayEffect* Cooldown = GetCooldownGameplayEffect();
+	if (!bCommitOnActivate || !ThirdPersonMontage || !Cooldown
+		|| Cooldown->DurationPolicy != EGameplayEffectDurationType::HasDuration
+		|| !Cooldown->GetGrantedTags().HasTagExact(TBGameplayTags::Cooldown_MonsterLeap)
+		|| !IsValid(Monster) || !Monster->HasAuthority() || !IsValid(Player)
+		|| Monster->IsDead() || Player->IsDead() || !Monster->GetWorld()
+		|| Player->GetWorld() != Monster->GetWorld() || !Monster->GetCharacterMovement()
+		|| !Monster->GetCharacterMovement()->IsMovingOnGround()
+		|| !FMath::IsFinite(FlightTime) || FlightTime <= 0.0f
+		|| !FMath::IsFinite(MaxLeapRange) || MaxLeapRange <= 0.0f
+		|| FVector::DistSquared(Monster->GetActorLocation(), Player->GetActorLocation()) > FMath::Square(MaxLeapRange))
+	{
+		return false;
+	}
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(MonsterLeapPath), false, Monster);
+	Query.AddIgnoredActor(Player);
+	return !Monster->GetWorld()->LineTraceTestByChannel(Monster->GetActorLocation(), Player->GetActorLocation(), ECC_Visibility, Query);
+}
+
 void UTBGameplayAbility_Monster_Leap::ActivateAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
 	ATBMonster* Monster = ActorInfo && ActorInfo->IsNetAuthority() ? Cast<ATBMonster>(ActorInfo->AvatarActor.Get()) : nullptr;
 	const ATBPlayer* Player = TriggerEventData ? Cast<ATBPlayer>(TriggerEventData->Target.Get()) : nullptr;
 	// 도약 시작 조건과 타깃까지의 장애물 확인
 	const UGameplayEffect* Cooldown = GetCooldownGameplayEffect();
-	if (!IsValid(Monster) || !IsValid(Player) || !bCommitOnActivate || !Cooldown
+	if (!CanLeapAtTarget(Monster, Player) || !bCommitOnActivate || !Cooldown
 		|| Cooldown->DurationPolicy != EGameplayEffectDurationType::HasDuration
-		|| !Cooldown->GetGrantedTags().HasTagExact(TBGameplayTags::Cooldown_MonsterLeap)
-		|| Monster->IsDead() || Player->IsDead() || !Monster->GetWorld()
-		|| Player->GetWorld() != Monster->GetWorld()
-		|| !Monster->GetCharacterMovement()->IsMovingOnGround()
-		|| !FMath::IsFinite(FlightTime) || FlightTime <= 0.0f
-		|| FVector::DistSquared(Monster->GetActorLocation(), Player->GetActorLocation()) > FMath::Square(MaxLeapRange))
-	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
-	}
-
-	FCollisionQueryParams Query(SCENE_QUERY_STAT(MonsterLeapPath), false, Monster);
-	Query.AddIgnoredActor(Player);
-	if (Monster->GetWorld()->LineTraceTestByChannel(Monster->GetActorLocation(), Player->GetActorLocation(), ECC_Visibility, Query))
+		|| !Cooldown->GetGrantedTags().HasTagExact(TBGameplayTags::Cooldown_MonsterLeap))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;

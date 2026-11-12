@@ -1,4 +1,4 @@
-﻿#include "AI/NPC/TBCitizenAIController.h"
+﻿#include "AI/AIControler/NPC/TBCitizenAIController.h"
 
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"

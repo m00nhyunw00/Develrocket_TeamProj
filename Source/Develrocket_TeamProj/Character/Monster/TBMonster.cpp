@@ -1,7 +1,7 @@
 #include "TBMonster.h"
 
 #include "AIController.h"
-#include "AI/TBMonsterAIController.h"
+#include "AI/AIControler/Monster/TBMonsterAIController.h"
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBMonsterAttributeSet.h"

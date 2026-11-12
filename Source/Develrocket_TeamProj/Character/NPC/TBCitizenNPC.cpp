@@ -7,7 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Animation/AnimMontage.h"
 #include "Abilities/GameplayAbility.h"
-#include "AI/NPC/TBCitizenAIController.h"
+#include "AI/AIControler/NPC/TBCitizenAIController.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "Components/TBHealComponent.h"
 #include "TBGameplayTags.h"

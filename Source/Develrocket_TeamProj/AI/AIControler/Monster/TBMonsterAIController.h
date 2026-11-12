@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "AIController.h"
+#include "AI/TBBaseAIController.h"
 #include "Perception/AIPerceptionTypes.h"
 #include "TBMonsterAIController.generated.h"
 
@@ -11,7 +11,7 @@ class UAbilitySystemComponent;
 struct FGameplayTag;
 
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API ATBMonsterAIController : public AAIController
+class DEVELROCKET_TEAMPROJ_API ATBMonsterAIController : public ATBBaseAIController
 {
 	GENERATED_BODY()
 	

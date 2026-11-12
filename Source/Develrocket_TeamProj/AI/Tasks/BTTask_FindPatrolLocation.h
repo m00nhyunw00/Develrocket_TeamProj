@@ -16,7 +16,10 @@ protected:
 	//BT가 이 노드에 도착했을 때 실행되는 본체
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	
-	//순찰 위취를 찾을 반경 
+	// 순찰 대상으로 검색할 액터 클래스
 	UPROPERTY(EditAnywhere, Category="Patrol")
-	float SearchRadius = 1000.f;
+	TSubclassOf<AActor> PatrolPointClass;
+
+	UPROPERTY(EditAnywhere, Category="Patrol", meta=(ClampMin="0.0", Units="cm"))
+	float SearchRadius = 8000.f;
 };

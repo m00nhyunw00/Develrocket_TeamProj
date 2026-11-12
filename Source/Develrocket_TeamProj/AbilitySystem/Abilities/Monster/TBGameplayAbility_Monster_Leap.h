@@ -21,6 +21,8 @@ public:
 	virtual void EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
 	void LaunchLeap();
+	// Shared spatial and state checks for BT decision making and activation.
+	bool CanLeapAtTarget(const ATBMonster* Monster, const ATBPlayer* Player) const;
 
 protected:
 	virtual void HandleActionMontageCompleted() override;
