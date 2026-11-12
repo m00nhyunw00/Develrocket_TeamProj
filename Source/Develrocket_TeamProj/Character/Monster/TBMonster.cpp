@@ -9,6 +9,7 @@
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Leap.h"
 #include "BrainComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/TBSpawnManagerComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Abilities/GameplayAbility.h"
@@ -306,6 +307,7 @@ void ATBMonster::HandleDeath()
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	OnMonsterDied.Broadcast(this);
+	if (HasAuthority()) UTBSpawnManagerComponent::NotifyActorDied(this);
 }
 
 void ATBMonster::RestorePoolVisualState()
