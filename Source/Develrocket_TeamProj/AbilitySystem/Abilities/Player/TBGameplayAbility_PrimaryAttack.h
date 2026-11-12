@@ -19,6 +19,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Effects", meta = (Categories = "GameplayCue"))
 	FGameplayTag BulletTrailCueTag;
 	
+	// 벽·바닥 등 비생명체에 사용할 기본 피격 Cue
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|GameplayCue", meta = (Categories = "GameplayCue"))
+	FGameplayTag DefaultImpactCueTag;
+	
 	// 한 발당 기본 반동 각도
 	UPROPERTY(EditDefaultsOnly, Category = "Camera|Recoil", meta = (ClampMin = "0.0"))
 	float CameraRecoilPitch = 0.25f;

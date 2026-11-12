@@ -23,6 +23,7 @@ UTBGameplayAbility_PrimaryAttack::UTBGameplayAbility_PrimaryAttack()
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Stunned);
     
     BulletTrailCueTag = TBGameplayTags::GameplayCue_Weapon_BloodTrail;
+    DefaultImpactCueTag = TBGameplayTags::GameplayCue_Impact_Blood_World;
 }
 
 const FGameplayTagContainer* UTBGameplayAbility_PrimaryAttack::GetCooldownTags() const
@@ -98,11 +99,11 @@ void UTBGameplayAbility_PrimaryAttack::ActivateAbility(const FGameplayAbilitySpe
     {
         return;
     }
-
-    // 서버 트레이스에 이번 공격의 궤적 Cue 전달
+    
+    // 서버 트레이스에 발사 궤적과 기본 피격 Cue 전달
     if (ActorInfo->IsNetAuthority())
     {
-        Player->PerformPrimaryAttackTrace(BulletTrailCueTag);
+        Player->PerformPrimaryAttackTrace(BulletTrailCueTag, DefaultImpactCueTag);
     }
 
     // 소유 플레이어 화면의 발사 반동 및 알림
