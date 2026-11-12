@@ -26,9 +26,23 @@ struct FTBSpawnPoolConfig
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pool", meta=(ClampMin="0.1", Units="s"))
 	float SpawnInterval = 1.0f;
 
-	// 몬스터가 아닌 액터의 스폰 위치를 찾을 때 사용할 TargetPoint 태그입니다.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pool")
-	FName SpawnPointTag = TEXT("CityPatrolPoint");
+	// Time between a death notification and returning the actor to the pool.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pool", meta=(ClampMin="0.0", Units="s"))
+	float ReturnDelay = 1.0f;
+
+	// Use the actor's default capsule for spawn clearance.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pool|Spawn")
+	bool bUseActorCapsule = true;
+
+	// Used for spawn clearance when the actor has no native capsule component.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pool|Spawn", meta=(EditCondition="!bUseActorCapsule", ClampMin="1.0", Units="cm"))
+	float SpawnClearanceRadius = 34.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pool|Spawn", meta=(EditCondition="!bUseActorCapsule", ClampMin="1.0", Units="cm"))
+	float SpawnClearanceHalfHeight = 88.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pool|Spawn", meta=(EditCondition="!bUseActorCapsule"))
+	FName SpawnCollisionProfile = TEXT("Pawn");
 };
 
 // 레벨 매니저가 매치별로 소유하는 풀 상태입니다. 에셋 자체에는 액터 목록을 저장하지 않습니다.
@@ -68,9 +82,6 @@ struct FTBSpawnPoolEntry
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pool", meta=(ClampMin="0.1", Units="s"))
 	float SpawnInterval = 1.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pool")
-	FName SpawnPointTag = TEXT("CityPatrolPoint");
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AActor>> ActiveActors;
