@@ -44,4 +44,7 @@ namespace TBGameplayTags
 	
 	// 총격 연출 ----------------------
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_BloodTrail);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Impact_Blood_World);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Impact_Blood_Flesh_Red);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Impact_Blood_Flesh_Green);
 }

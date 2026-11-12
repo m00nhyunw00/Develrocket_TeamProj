@@ -57,4 +57,9 @@ protected:
 	// 자식 클래스에서 지정하는 고정 캐릭터 타입
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "GAS|Type")
 	FGameplayTag CharacterTypeTag;
+	
+	// 캐릭터 BP에서 지정할 혈액 피격 연출 태그
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|GameplayCue",
+		meta = (Categories = "GameplayCue"))
+	FGameplayTag BloodImpactCueTag;
 };
