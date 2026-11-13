@@ -1,10 +1,11 @@
 #include "AI/Tasks/Monster/BTTask_MonsterAttack.h"
 
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Monster/TBMonster.h"
-#include "Character/Player/TBPlayer.h"
+#include "TBGameplayTags.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 UBTTask_MonsterAttack::UBTTask_MonsterAttack()
@@ -20,10 +21,12 @@ EBTNodeResult::Type UBTTask_MonsterAttack::ExecuteTask(UBehaviorTreeComponent& O
 	AAIController* Controller = OwnerComp.GetAIOwner();
 	ATBMonster* Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
 	const UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
-	ATBPlayer* Target = Blackboard ? Cast<ATBPlayer>(Blackboard->GetValueAsObject(BlackboardKey.SelectedKeyName)) : nullptr;
+	AActor* Target = Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(BlackboardKey.SelectedKeyName)) : nullptr;
+	UAbilitySystemComponent* TargetASC = IsValid(Target) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target) : nullptr;
 
 	if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead()
-		|| !IsValid(Target) || Target->IsDead() || !FMath::IsFinite(AttackRange) || AttackRange <= 0.0f
+		|| !IsValid(TargetASC) || TargetASC->GetAvatarActor() != Target
+		|| TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead) || !FMath::IsFinite(AttackRange) || AttackRange <= 0.0f
 		|| FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(AttackRange))
 	{
 		return EBTNodeResult::Failed;
