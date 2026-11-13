@@ -2,6 +2,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/TBBloodBarComponent.h"
 
 #include "Components/TBCharacterMovementComponent.h"
 #include "TBGameplayTags.h"
@@ -18,6 +19,9 @@ ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
     SetReplicateMovement(true);
 
     GetCapsuleComponent()->InitCapsuleSize(34.0f, 88.0f);
+
+    BloodBarComponent = CreateDefaultSubobject<UTBBloodBarComponent>(TEXT("BloodBarComponent"));
+    BloodBarComponent->SetupAttachment(GetRootComponent());
 
     UCharacterMovementComponent* CharacterMovementComp = GetCharacterMovement();
 
@@ -74,6 +78,8 @@ void ATBCharacterBase::InitializeAbilitySystem(UAbilitySystemComponent* InASC, A
         AbilitySystemComponent->RefreshAbilityActorInfo();
     }
 
+    if (BloodBarComponent) BloodBarComponent->BindAbilitySystem(AbilitySystemComponent.Get());
+
     // 서버에서 고정 타입 태그 적용 및 클라이언트 복제
     if (HasAuthority() && CharacterTypeTag.IsValid())
     {
@@ -83,6 +89,7 @@ void ATBCharacterBase::InitializeAbilitySystem(UAbilitySystemComponent* InASC, A
 
 void ATBCharacterBase::UninitializeAbilitySystem()
 {
+    if (BloodBarComponent) BloodBarComponent->UnbindAbilitySystem();
     if (IsValid(AbilitySystemComponent.Get()) && AbilitySystemComponent->GetAvatarActor() == this)
     {
         // 이전 Pawn에서 실행 중인 전투 Ability 취소

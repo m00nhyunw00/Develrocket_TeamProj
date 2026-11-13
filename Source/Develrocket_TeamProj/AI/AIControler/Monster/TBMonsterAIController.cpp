@@ -297,17 +297,17 @@ void ATBMonsterAIController::RefreshTargetAfterStagger()
 	bPreserveTargetDuringStagger = false;
 	AActor* Target = TrackedTarget.Get();
 	UAbilitySystemComponent* ASC = TrackedTargetASC.Get();
-	UBlackboardComponent* Blackboard = GetBlackboardComponent();
+	UBlackboardComponent* BlackboardComponent = GetBlackboardComponent();
 	if (!IsValid(Target) || !IsValid(ASC) || ASC->GetAvatarActor() != Target
 		|| ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
 		|| (!ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
-			&& !ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human)) || !Blackboard || !GetPerceptionComponent())
+			&& !ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human)) || !BlackboardComponent || !GetPerceptionComponent())
 	{
 		UpdateTarget();
 		return;
 	}
 
-	Blackboard->SetValueAsObject(TEXT("TargetActor"), Target);
+	BlackboardComponent->SetValueAsObject(TEXT("TargetActor"), Target);
 	TArray<AActor*> PerceivedActors;
 	GetPerceptionComponent()->GetCurrentlyPerceivedActors(UAISense_Sight::StaticClass(), PerceivedActors);
 	GetWorldTimerManager().ClearTimer(TargetMemoryTimer);
