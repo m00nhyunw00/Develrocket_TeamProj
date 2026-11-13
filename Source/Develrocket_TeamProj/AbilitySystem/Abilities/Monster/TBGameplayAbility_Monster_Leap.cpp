@@ -169,6 +169,9 @@ void UTBGameplayAbility_Monster_Leap::HandleLanded(const FHitResult& Hit)
 		if (World->LineTraceSingleByChannel(Obstruction, Center, Target->GetActorLocation(), ECC_Visibility, Query)
 			&& Obstruction.GetActor() != Target) continue;
 
+		const UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
+		if (!IsValid(TargetASC) || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable)) continue;
+
 		FHitResult HitResult;
 		HitResult.Location = Target->GetActorLocation();
 		HitResult.ImpactPoint = HitResult.Location;

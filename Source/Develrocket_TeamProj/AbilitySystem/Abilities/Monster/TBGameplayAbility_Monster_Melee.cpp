@@ -91,6 +91,7 @@ void UTBGameplayAbility_Monster_Melee::CheckHitWindow()
 			if (!Body || !Body->IsValidBodyInstance() || !Setup || Setup->BoneName != Bone) continue;
 			if (Body->OverlapTest(Capsule->GetComponentLocation(), Capsule->GetComponentQuat(), PlayerShape))
 			{
+				if (TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable)) return;
 				FHitResult HitResult;
 				HitResult.Location = Capsule->GetComponentLocation();
 				HitResult.ImpactPoint = HitResult.Location;
