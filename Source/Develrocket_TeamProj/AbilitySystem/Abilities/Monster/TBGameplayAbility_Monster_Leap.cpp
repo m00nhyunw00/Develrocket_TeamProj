@@ -7,8 +7,13 @@
 #include "GameFramework/Character.h"
 #include "Interface/TBHitInterface.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
+#include "PhysicsEngine/BodyInstance.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameplayEffect.h"
 #include "TBGameplayTags.h"
@@ -104,8 +109,16 @@ void UTBGameplayAbility_Monster_Leap::LaunchLeap()
 	Velocity.Z = FMath::Max(0.0f, Velocity.Z) - 0.5f * Monster->GetCharacterMovement()->GetGravityZ() * FlightTime;
 
 	bLaunched = true;
+	if (USkeletalMeshComponent* Mesh = AttackMesh.Get())
+	{
+		Mesh->OnComponentHit.AddUniqueDynamic(this, &ThisClass::HandleLeapHit);
+		Mesh->OnComponentBeginOverlap.AddUniqueDynamic(this, &ThisClass::HandleLeapOverlap);
+	}
 	Monster->SetActorRotation(FRotator(0.0f, Velocity.Rotation().Yaw, 0.0f));
 	Monster->LaunchCharacter(Velocity, true, true);
+	CheckLeapMeshContacts();
+	if (!IsActive()) return;
+	Monster->GetWorldTimerManager().SetTimer(ContactTimer, this, &ThisClass::CheckLeapMeshContacts, 0.02f, true);
 	if (FMath::IsFinite(HomingTurnRate) && HomingTurnRate > 0.0f)
 	{
 		LastHomingUpdateTime = Monster->GetWorld()->GetTimeSeconds();
@@ -146,37 +159,80 @@ void UTBGameplayAbility_Monster_Leap::UpdateLeapHoming()
 	Monster->SetActorRotation(FRotator(0.0f, NewYaw, 0.0f));
 }
 
+void UTBGameplayAbility_Monster_Leap::CheckLeapMeshContacts()
+{
+	ATBMonster* Monster = LeapingMonster.Get();
+	USkeletalMeshComponent* Mesh = AttackMesh.Get();
+	UPhysicsAsset* PhysicsAsset = Mesh ? Mesh->GetPhysicsAsset() : nullptr;
+	if (!IsActive() || !bLaunched || bLanded || !IsValid(Monster) || !Monster->HasAuthority()
+		|| Monster->IsDead() || !IsValid(Mesh) || !IsValid(PhysicsAsset)) return;
+
+	for (TActorIterator<ACharacter> It(Monster->GetWorld()); It && IsActive(); ++It)
+	{
+		ACharacter* Target = *It;
+		if (!IsValidLeapTarget(Target) || DamagedActors.Contains(Target)) continue;
+		UCapsuleComponent* TargetCapsule = Target->GetCapsuleComponent();
+		if (!IsValid(TargetCapsule) || TargetCapsule->GetCollisionEnabled() == ECollisionEnabled::NoCollision) continue;
+		const FCollisionShape Shape = FCollisionShape::MakeCapsule(TargetCapsule->GetScaledCapsuleRadius(), TargetCapsule->GetScaledCapsuleHalfHeight());
+		for (const USkeletalBodySetup* Setup : PhysicsAsset->SkeletalBodySetups)
+		{
+			if (!IsValid(Setup)) continue;
+			FBodyInstance* Body = Mesh->GetBodyInstance(Setup->BoneName, false);
+			if (!Body || !Body->IsValidBodyInstance() || Body->GetBodySetup() != Setup) continue;
+			if (Body->OverlapTest(TargetCapsule->GetComponentLocation(), TargetCapsule->GetComponentQuat(), Shape))
+			{
+				FHitResult Hit;
+				Hit.Location = TargetCapsule->GetComponentLocation();
+				Hit.ImpactPoint = Hit.Location;
+				ApplyLeapContactDamage(Target, Hit);
+				break;
+			}
+		}
+	}
+}
+
+void UTBGameplayAbility_Monster_Leap::HandleLeapHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+{
+	ApplyLeapContactDamage(OtherActor, Hit);
+}
+
+void UTBGameplayAbility_Monster_Leap::HandleLeapOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	ApplyLeapContactDamage(OtherActor, SweepResult);
+}
+
+void UTBGameplayAbility_Monster_Leap::ApplyLeapContactDamage(AActor* OtherActor, const FHitResult& Hit)
+{
+	ATBMonster* Monster = LeapingMonster.Get();
+	if (!IsActive() || !bLaunched || bLanded || !IsValid(Monster) || !Monster->HasAuthority()
+		|| Monster->IsDead() || !IsValidLeapTarget(OtherActor) || DamagedActors.Contains(OtherActor)
+		|| !OtherActor->GetClass()->ImplementsInterface(UTBHitInterface::StaticClass())) return;
+
+	const UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(OtherActor);
+	if (!IsValid(TargetASC) || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable)) return;
+
+	DamagedActors.Add(OtherActor);
+	FHitResult ContactHit = Hit;
+	if (!ContactHit.bBlockingHit && ContactHit.ImpactPoint.IsNearlyZero())
+	{
+		ContactHit.Location = OtherActor->GetActorLocation();
+		ContactHit.ImpactPoint = ContactHit.Location;
+	}
+	ITBHitInterface::Execute_ReceiveAttackHit(OtherActor, FGameplayTag(), AttackDamage, Monster, ContactHit);
+}
+
 void UTBGameplayAbility_Monster_Leap::HandleLanded(const FHitResult& Hit)
 {
 	ATBMonster* Monster = LeapingMonster.Get();
 	if (!IsActive() || !bLaunched || bLanded || !IsValid(Monster) || Monster->IsDead()) return;
+	CheckLeapMeshContacts();
+	if (!IsActive()) return;
 
 	// 최초 착지만 처리하고 실제 착지 위치 기준으로 피해 대상 판정
 	bLanded = true;
 	Monster->GetWorldTimerManager().ClearTimer(HomingTimer);
 	Monster->GetWorldTimerManager().ClearTimer(LandingTimeout);
-
-	UWorld* World = Monster->GetWorld();
-	const FVector Center = Monster->GetActorLocation();
-	FCollisionQueryParams Query(SCENE_QUERY_STAT(MonsterLeapDamage), false, Monster);
-	for (TActorIterator<ACharacter> It(World); It && IsActive(); ++It)
-	{
-		ACharacter* Target = *It;
-		if (!IsValidLeapTarget(Target) || !Target->GetClass()->ImplementsInterface(UTBHitInterface::StaticClass())
-			|| FVector::DistSquared(Center, Target->GetActorLocation()) > FMath::Square(LandingRadius)) continue;
-		// 착지 지점과 플레이어 사이 시야 차단 검사
-		FHitResult Obstruction;
-		if (World->LineTraceSingleByChannel(Obstruction, Center, Target->GetActorLocation(), ECC_Visibility, Query)
-			&& Obstruction.GetActor() != Target) continue;
-
-		const UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
-		if (!IsValid(TargetASC) || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable)) continue;
-
-		FHitResult HitResult;
-		HitResult.Location = Target->GetActorLocation();
-		HitResult.ImpactPoint = HitResult.Location;
-		ITBHitInterface::Execute_ReceiveAttackHit(Target, FGameplayTag(), AttackDamage, Monster, HitResult);
-	}
+	Monster->GetWorldTimerManager().ClearTimer(ContactTimer);
 
 	if (IsActive() && bMontageCompleted) EndLeap(false);
 }
@@ -203,9 +259,15 @@ void UTBGameplayAbility_Monster_Leap::EndAbility(FGameplayAbilitySpecHandle Hand
 	// 착지 구독과 타이머 해제 및 취소된 도약 이동 정리
 	if (ATBMonster* Monster = LeapingMonster.Get())
 	{
+		if (USkeletalMeshComponent* Mesh = AttackMesh.Get())
+		{
+			Mesh->OnComponentHit.RemoveDynamic(this, &ThisClass::HandleLeapHit);
+			Mesh->OnComponentBeginOverlap.RemoveDynamic(this, &ThisClass::HandleLeapOverlap);
+		}
 		Monster->LandedDelegate.RemoveDynamic(this, &ThisClass::HandleLanded);
 		Monster->GetWorldTimerManager().ClearTimer(LandingTimeout);
 		Monster->GetWorldTimerManager().ClearTimer(HomingTimer);
+		Monster->GetWorldTimerManager().ClearTimer(ContactTimer);
 		if (bWasCancelled && bLaunched && !bLanded)
 		{
 			Monster->GetCharacterMovement()->StopMovementImmediately();
@@ -219,6 +281,7 @@ void UTBGameplayAbility_Monster_Leap::EndAbility(FGameplayAbilitySpecHandle Hand
 	LastHomingUpdateTime = 0.0;
 	LeapDestination = FVector::ZeroVector;
 	AttackMesh.Reset();
+	DamagedActors.Reset();
 	bLaunched = false;
 	bLanded = false;
 	bMontageCompleted = false;

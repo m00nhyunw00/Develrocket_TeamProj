@@ -8,8 +8,10 @@
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Stagger.h"
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Leap.h"
 #include "BrainComponent.h"
+#include "BehaviorTree/BlackboardComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/TBSpawnManagerComponent.h"
+#include "Components/TBBloodBarComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Abilities/GameplayAbility.h"
@@ -153,6 +155,13 @@ bool ATBMonster::ApplyDamage(float Damage,AActor* DamageSource)
 	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);
 	
 	const bool bApplied = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
+	if (bApplied && IsValid(DamageSource))
+	{
+		if (UTBBloodBarComponent* AttackerBloodBar = DamageSource->FindComponentByClass<UTBBloodBarComponent>())
+		{
+			AttackerBloodBar->RecordAttackedTarget(this);
+		}
+	}
 	if (bApplied && !IsDead() && IsValid(DamageSource))
 	{
 		if (ATBMonsterAIController* MonsterController = Cast<ATBMonsterAIController>(GetController()))
@@ -239,6 +248,11 @@ void ATBMonster::HandleAbilityEnded(const FAbilityEndedData& EndedData)
 				if (UBrainComponent* Brain = AIController->GetBrainComponent())
 				{
 					Brain->ResumeLogic(TEXT("Stagger ended"));
+					if (const UBlackboardComponent* BlackboardComponent = AIController->GetBlackboardComponent();
+						BlackboardComponent && BlackboardComponent->GetValueAsObject(TEXT("TargetActor")))
+					{
+						Brain->RestartLogic();
+					}
 				}
 			}
 			bPausedBrainForStagger = false;

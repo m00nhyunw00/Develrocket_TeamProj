@@ -17,6 +17,9 @@ public:
 	UTBBloodBarComponent();
 	void BindAbilitySystem(UAbilitySystemComponent* InASC);
 	void UnbindAbilitySystem();
+	void RecordAttackedTarget(AActor* Target);
+	AActor* GetLastAttackedTarget() const { return LastAttackedTarget; }
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
 	virtual void BeginPlay() override;
@@ -27,10 +30,17 @@ protected:
 	float VisibilityCheckInterval = 0.1f;
 
 private:
+	UPROPERTY(ReplicatedUsing=OnRep_LastAttackedTarget)
+	TObjectPtr<AActor> LastAttackedTarget;
+	UFUNCTION()
+	void OnRep_LastAttackedTarget();
+	void SetLocallySelected(bool bSelected);
 	void HandleBloodChanged(const FOnAttributeChangeData& Data);
 	void RefreshBloodBar();
 	void UpdateBarVisibility();
 	FTimerHandle VisibilityTimer;
+	TWeakObjectPtr<UTBBloodBarComponent> PreviouslySelectedBar;
+	bool bLocallySelected = false;
 	TWeakObjectPtr<UAbilitySystemComponent> BoundASC;
 	FDelegateHandle BloodChangedHandle;
 	FDelegateHandle MaxBloodChangedHandle;

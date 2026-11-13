@@ -7,6 +7,7 @@
 class ATBMonster;
 class AActor;
 class USkeletalMeshComponent;
+class UPrimitiveComponent;
 
 // 몬스터 전용 서버 도약 및 착지 공격 어빌리티
 UCLASS()
@@ -33,9 +34,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Leap", meta = (ClampMin = "0.1", Units = "s"))
 	float FlightTime = 0.65f;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Leap", meta = (ClampMin = "1.0", Units = "cm"))
-	float LandingRadius = 160.0f;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Leap", meta = (ClampMin = "0.0"))
 	float AttackDamage = 30.0f;
 
@@ -51,6 +49,14 @@ private:
 	void EndLeap(bool bCancelled);
 	void HandleLandingTimeout();
 	void UpdateLeapHoming();
+	void CheckLeapMeshContacts();
+	void ApplyLeapContactDamage(AActor* OtherActor, const FHitResult& Hit);
+
+	UFUNCTION()
+	void HandleLeapHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+
+	UFUNCTION()
+	void HandleLeapOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
 	UFUNCTION()
 	void HandleLanded(const FHitResult& Hit);
@@ -64,6 +70,8 @@ private:
 	TWeakObjectPtr<USkeletalMeshComponent> AttackMesh;
 	EVisibilityBasedAnimTickOption PreviousTickOption{};
 	FTimerHandle LandingTimeout;
+	FTimerHandle ContactTimer;
+	TSet<TWeakObjectPtr<AActor>> DamagedActors;
 	bool bLaunched = false;
 	bool bLanded = false;
 	bool bMontageCompleted = false;
