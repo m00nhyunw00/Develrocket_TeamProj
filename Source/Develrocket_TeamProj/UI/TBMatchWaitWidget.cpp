@@ -50,7 +50,7 @@ void UTBMatchWaitWidget::NativeConstruct()
     if (APlayerController* PC = GetOwningPlayer())
     {
         FInputModeUIOnly InputMode;
-        InputMode.SetWidgetToFocus(TakeWidget());
+        if (IsFocusable()) InputMode.SetWidgetToFocus(TakeWidget());
         PC->SetInputMode(InputMode);
         PC->SetShowMouseCursor(true);
     }
