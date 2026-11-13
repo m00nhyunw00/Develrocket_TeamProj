@@ -266,6 +266,13 @@ void ATBCitizenNPC::OnPoolActivated_Implementation()
 	ResetHealth();                                   // 체력 초기화
 	
 	SetCitizenState(ETBCitizenState::Idle);          // 태그 해제 + 모든 머신에서 충돌·이동 복구
+	
+	UE_LOG(LogTemp, Warning, TEXT("[Citizen] Reactivated %s Mode=%d MaxSpeed=%.1f Blocked=%d Tags=%s"),
+    	*GetName(),
+    	(int32)GetCharacterMovement()->MovementMode.GetValue(),
+    	GetCharacterMovement()->GetMaxSpeed(),
+    	IsMovementBlocked(),
+    	*AbilitySystemComponent->GetOwnedGameplayTags().ToStringSimple());
 
 	if (ATBCitizenAIController* CitizenAI = Cast<ATBCitizenAIController>(GetController()))
 	{
@@ -334,7 +341,7 @@ bool ATBCitizenNPC::ReceiveAttackHit_Implementation(const FGameplayTag& DamageTy
 
 void ATBCitizenNPC::ApplyCitizenDamage(float Amount)
 {
-	if (!HasAuthority() || CitizenState == ETBCitizenState::Dead || Amount <= 0.f)
+	if (!HasAuthority() || CitizenState != ETBCitizenState::Idle || Amount <= 0.f)
 	{
 		return;
 	}
@@ -350,6 +357,12 @@ void ATBCitizenNPC::ApplyCitizenDamage(float Amount)
 
 void ATBCitizenNPC::HandleBleedTick()
 {
+	// 흡혈 중에는 출혈 피해를 멈춤 (흡혈 도중 죽는 연출 방지)
+	if (CitizenState == ETBCitizenState::Draining)
+	{
+		return;
+	}
+
 	ApplyCitizenDamage(BleedDamagePerSecond);
 }
 
