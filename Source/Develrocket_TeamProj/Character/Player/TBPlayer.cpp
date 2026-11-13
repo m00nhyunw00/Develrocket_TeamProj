@@ -12,7 +12,7 @@
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
 #include "Character/Monster/TBMonster.h"
-#include "Character/NPC/TBCitizenNPC.h"
+#include "Character/Human/TBCitizen.h"
 #include "Math/RotationMatrix.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -418,7 +418,7 @@ bool ATBPlayer::PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag, const
 	}
 
 	// Player 또는 Monster 또는 Human 만 피해 대상 허용
-	const bool bDamageTarget = HitActor->IsA<ATBPlayer>() || HitActor->IsA<ATBMonster>() || HitActor->IsA<ATBCitizenNPC>();
+	const bool bDamageTarget = HitActor->IsA<ATBPlayer>() || HitActor->IsA<ATBMonster>() || HitActor->IsA<ATBCitizen>();
 
 	if (!bDamageTarget || !HitActor->Implements<UTBHitInterface>())
 	{

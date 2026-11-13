@@ -5,7 +5,7 @@
 #include "Interface/TBInteractable.h"
 #include "GameplayEffectTypes.h"
 #include "TBDefine.h"
-#include "TBCitizenNPC.generated.h"
+#include "TBCitizen.generated.h"
 
 class UAnimMontage;
 class UGameplayAbility;
@@ -13,12 +13,12 @@ class UGameplayEffect;
 class UTBCitizenAttributeSet;
 
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API ATBCitizenNPC : public ATBCharacterBase, public ITBInteractable
+class DEVELROCKET_TEAMPROJ_API ATBCitizen : public ATBCharacterBase, public ITBInteractable
 {
 	GENERATED_BODY()
 
 public:
-	ATBCitizenNPC(const FObjectInitializer& ObjectInitializer);
+	ATBCitizen(const FObjectInitializer& ObjectInitializer);
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	
