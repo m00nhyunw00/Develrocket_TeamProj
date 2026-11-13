@@ -44,6 +44,7 @@ void UTBMatchWaitWidget::NativeConstruct()
     Manager->OnLocalCityReadyEvent.AddUObject(this, &UTBMatchWaitWidget::HandleCityReady);
     Manager->OnMatchStartedEvent.AddUObject(this, &UTBMatchWaitWidget::HandleMatchStarted);
 	Manager->OnSpawnSearchChangedEvent.AddUObject(this, &UTBMatchWaitWidget::HandleCityReady);
+    Manager->OnAutoStartModeChangedEvent.AddUObject(this, &UTBMatchWaitWidget::HandleCityReady);
 
     // 대기 중: 입력은 UI만, 커서 표시
     if (APlayerController* PC = GetOwningPlayer())
@@ -62,6 +63,7 @@ void UTBMatchWaitWidget::NativeDestruct()
     {
         Manager->OnLocalCityReadyEvent.RemoveAll(this);
         Manager->OnMatchStartedEvent.RemoveAll(this);
+        Manager->OnAutoStartModeChangedEvent.RemoveAll(this);
 		Manager->OnSpawnSearchChangedEvent.RemoveAll(this);
     }
 
@@ -110,6 +112,14 @@ void UTBMatchWaitWidget::RefreshUI()
     if (!bReady)
     {
         StatusText->SetText(FText::FromString(TEXT("LOADING HUNT...")));
+        StartButton->SetVisibility(ESlateVisibility::Collapsed);
+        return;
+    }
+    
+    // 로비를 거쳐 온 매치는 금방 시작함, 나중에 실제 패키징에선 이렇게 될 예정
+    if (Manager->IsAutoStartMode())
+    {
+        StatusText->SetText(FText::FromString(TEXT("WAITING FOR PLAYERS...")));
         StartButton->SetVisibility(ESlateVisibility::Collapsed);
         return;
     }

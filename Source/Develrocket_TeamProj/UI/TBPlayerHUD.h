@@ -10,6 +10,7 @@ class UTBPlayerHUDWidget;
 class UTBPauseMenuWidget;
 class UTBMatchWaitWidget;
 class UTBInteractionComponent;
+class UTBLobbyReadyWidget;
 
 struct FOnAttributeChangeData;
 
@@ -48,6 +49,9 @@ protected:
 	
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UTBMatchWaitWidget> MatchWaitWidgetClass;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UTBLobbyReadyWidget> LobbyReadyWidgetClass;
 
 private:
 	void HandleAttributeChanged(const FOnAttributeChangeData& Data);

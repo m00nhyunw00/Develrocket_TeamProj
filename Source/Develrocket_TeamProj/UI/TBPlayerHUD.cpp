@@ -15,6 +15,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Components/TBInteractionComponent.h"
 #include "Interface/TBInteractable.h"
+#include "UI/TBLobbyReadyWidget.h"
+#include "Framework/TBLobbyManager.h"
 
 void ATBPlayerHUD::BeginPlay()
 {
@@ -60,6 +62,15 @@ void ATBPlayerHUD::BeginPlay()
         if (UTBMatchWaitWidget* WaitWidget = CreateWidget<UTBMatchWaitWidget>(PC, MatchWaitWidgetClass))
         {
             WaitWidget->AddToViewport(20);
+        }
+    }
+    
+    // 준비 목록 : LobbyManager가 있는 맵 안에서만
+    if (LobbyReadyWidgetClass && UGameplayStatics::GetActorOfClass(this, ATBLobbyManager::StaticClass()))
+    {
+        if (UTBLobbyReadyWidget* ReadyWidget = CreateWidget<UTBLobbyReadyWidget>(PC, LobbyReadyWidgetClass))
+        {
+            ReadyWidget->AddToViewport(5);
         }
     }
 
