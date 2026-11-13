@@ -13,6 +13,7 @@
 #include "Net/UnrealNetwork.h"
 #include "PCG/CityLayoutCoordinator.h"
 #include "TimerManager.h"
+#include "GameFramework/GameModeBase.h"
 
 ATBLevelManager::ATBLevelManager()
 {
@@ -25,6 +26,11 @@ ATBLevelManager::ATBLevelManager()
 void ATBLevelManager::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	if (HasAuthority())
+	{
+		InitializeAutoStart();
+	}
 	
 	// 맵에 있는 Coordinator 하나 찾기
 	ACityLayoutCoordinator* City = Cast<ACityLayoutCoordinator>(
@@ -53,12 +59,15 @@ void ATBLevelManager::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATBLevelManager, bMatchStarted);
 	DOREPLIFETIME(ATBLevelManager, bSearchingForSpawn);
+	DOREPLIFETIME(ATBLevelManager, bAutoStartMode);
 }
 
 void ATBLevelManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorldTimerManager().ClearTimer(MatchSpawnRetryTimer);
 	GetWorldTimerManager().ClearTimer(PendingSpawnRetryTimer);
+	GetWorldTimerManager().ClearTimer(AutoStartTimeoutHandle);
+	FGameModeEvents::GameModePostLoginEvent.Remove(PostLoginHandle);
 	PendingSpawnRequests.Empty();
 	Super::EndPlay(EndPlayReason);
 }
@@ -80,6 +89,8 @@ void ATBLevelManager::HandleCityReady(int32 Seed, int32 Revision)
 	UE_LOG(LogTemp, Log, TEXT("[TBLevel] Local city ready (Seed=%d, Rev=%d)"), Seed, Revision);
 
 	OnLocalCityReadyEvent.Broadcast();   // 위젯: "START 활성화해도 됨"
+	
+	TryAutoStart();
 }
 
 bool ATBLevelManager::HasConfiguredSpawnPools() const
@@ -326,4 +337,79 @@ void ATBLevelManager::OnRep_MatchStarted()
 {
 	UE_LOG(LogTemp, Log, TEXT("[TBLevel] Match started"));
 	OnMatchStartedEvent.Broadcast();
+}
+
+// 자동 시작 ----------------------
+
+void ATBLevelManager::InitializeAutoStart()
+{
+	AGameModeBase* GameMode = GetWorld()->GetAuthGameMode();
+	if (!GameMode)
+	{
+		return;
+	}
+
+	// 로비가 ServerTravel URL에 붙여 보낸 인원 (단독 PIE 등 옵션이 없으면 0)
+	ExpectedPlayers = UGameplayStatics::GetIntOption(GameMode->OptionsString, TEXT("ExpectedPlayers"), 0);
+	UE_LOG(LogTemp, Log, TEXT("[TBLevel] Options: %s / ExpectedPlayers=%d"), *GameMode->OptionsString, ExpectedPlayers);
+
+	if (ExpectedPlayers <= 0)
+	{
+		return;   // 기존 방식 (호스트 START 버튼)
+	}
+
+	bAutoStartMode = true;
+	OnRep_AutoStartMode();   // 호스트 위젯 갱신 (서버는 OnRep을 받지 않음)
+
+	// 호스트는 이미 로그인한 상태, 클라들은 이후 재접속 → PostLogin으로 받음
+	PostLoginHandle = FGameModeEvents::GameModePostLoginEvent.AddUObject(this, &ThisClass::HandlePostLogin);
+
+	if (AutoStartTimeout > 0.0f)
+	{
+		GetWorldTimerManager().SetTimer(AutoStartTimeoutHandle, this, &ThisClass::HandleAutoStartTimeout, AutoStartTimeout, false);
+	}
+}
+
+void ATBLevelManager::HandlePostLogin(AGameModeBase* GameMode, APlayerController* NewPlayer)
+{
+	// 같은 프로세스의 다른 월드(PIE 단일 프로세스) 이벤트는 무시
+	if (!GameMode || GameMode->GetWorld() != GetWorld())
+	{
+		return;
+	}
+
+	TryAutoStart();
+}
+
+void ATBLevelManager::HandleAutoStartTimeout()
+{
+	UE_LOG(LogTemp, Warning, TEXT("[TBLevel] AutoStart timeout: 접속한 인원으로 시작합니다."));
+	bForceAutoStart = true;
+	TryAutoStart();   // 도시가 아직이면 HandleCityReady에서 다시 시도됨
+}
+
+void ATBLevelManager::TryAutoStart()
+{
+	if (!HasAuthority() || !bAutoStartMode || bMatchStarted || bSearchingForSpawn || !bLocalCityReady)
+	{
+		return;
+	}
+
+	AGameModeBase* GameMode = GetWorld()->GetAuthGameMode();
+	const int32 NumPlayers = GameMode ? GameMode->GetNumPlayers() : 0;
+
+	if (NumPlayers < ExpectedPlayers && !bForceAutoStart)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[TBLevel] AutoStart 대기: %d / %d"), NumPlayers, ExpectedPlayers);
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(AutoStartTimeoutHandle);
+	UE_LOG(LogTemp, Log, TEXT("[TBLevel] AutoStart: %d명으로 매치 시작"), NumPlayers);
+	StartMatch();
+}
+
+void ATBLevelManager::OnRep_AutoStartMode()
+{
+	OnAutoStartModeChangedEvent.Broadcast();
 }
