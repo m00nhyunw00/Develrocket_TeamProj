@@ -9,6 +9,7 @@
 
 class UTBAbilitySystemComponent;
 class UAbilitySystemComponent;
+class UTBBloodBarComponent;
 
 UCLASS(Abstract)
 class DEVELROCKET_TEAMPROJ_API ATBCharacterBase
@@ -51,6 +52,9 @@ public:
 	virtual void StopSkill();
 
 protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
+	TObjectPtr<UTBBloodBarComponent> BloodBarComponent;
+
 	virtual void UnPossessed() override;
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
