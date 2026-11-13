@@ -3,13 +3,15 @@
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
 #include "Components/CapsuleComponent.h"
-// #include "Components/TBSpawnManagerComponent.h"
+#include "Components/TBSpawnManagerComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Animation/AnimMontage.h"
 #include "Abilities/GameplayAbility.h"
+#include "GameplayEffect.h"
 #include "AI/AIControler/NPC/TBCitizenAIController.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
+#include "AbilitySystem/Attributes/TBCitizenAttributeSet.h"
 #include "Components/TBHealComponent.h"
 #include "TBGameplayTags.h"
 
@@ -24,15 +26,18 @@ ATBCitizenNPC::ATBCitizenNPC(const FObjectInitializer& ObjectInitializer) : Supe
 	MoveComp->bOrientRotationToMovement = true;
 	bUseControllerRotationYaw = false;
 
-    // 상호작용 탐지(ECC_Visibility 오버랩·트레이스)에 잡히도록 캡슐만 Visibility Block
-    // (TBLoreNPC와 같은 규칙. 메시는 그대로 두어 트레이스 대상은 캡슐 하나로 유지)
-    GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
-    
-    InteractPrompt = FText::FromString(TEXT("흡혈하기"));
+	// 상호작용 탐지(ECC_Visibility 오버랩·트레이스)에 잡히도록 캡슐만 Visibility Block
+	// (TBLoreNPC와 같은 규칙. 메시는 그대로 두어 트레이스 대상은 캡슐 하나로 유지)
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	
+	InteractPrompt = FText::FromString(TEXT("흡혈하기"));
 
 	AbilitySystemComponent = CreateDefaultSubobject<UTBAbilitySystemComponent>(TEXT("CitizenASC"));
 	AbilitySystemComponent->SetIsReplicated(true);
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
+
+	// 시민 혈액(체력) Attribute — 액터의 서브오브젝트라서 ASC 초기화 시 자동 등록
+	CitizenAttributes = CreateDefaultSubobject<UTBCitizenAttributeSet>(TEXT("CitizenAttributes"));
 
 	// 부모가 ASC 연결 시 복제 태그로 부여 (플레이어·몬스터와 같은 규칙)
 	CharacterTypeTag = TBGameplayTags::Character_Type_Human;
@@ -42,8 +47,6 @@ void ATBCitizenNPC::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATBCitizenNPC, CitizenState);
-	
-	DOREPLIFETIME(ATBCitizenNPC, bIsInjured);
 }
 
 void ATBCitizenNPC::BeginPlay()
@@ -52,15 +55,45 @@ void ATBCitizenNPC::BeginPlay()
 
 	InitializeAbilitySystem(AbilitySystemComponent.Get(), this);
 
-	// 사망 GA 부여 (서버 전용, AddCharacterAbilities가 권한·중복 검사를 함)
-	if (HasAuthority() && DeathAbilityClass)
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	// 사망 GA 부여 (AddCharacterAbilities가 권한·중복 검사를 함)
+	if (DeathAbilityClass)
 	{
 		AbilitySystemComponent->AddCharacterAbilities({ DeathAbilityClass });
 	}
-	if (HasAuthority())
+
+	// 혈액 0 → 사망, 출혈 태그 → 부상 감속
+	if (!OutOfBloodHandle.IsValid())
 	{
-		ResetHealth();
+		OutOfBloodHandle = CitizenAttributes->OnOutOfBlood.AddUObject(this, &ThisClass::HandleOutOfBlood);
 	}
+	if (!BleedingTagHandle.IsValid())
+	{
+		BleedingTagHandle = AbilitySystemComponent->RegisterGameplayTagEvent(TBGameplayTags::State_Bleeding,
+			EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleBleedingTagChanged);
+	}
+
+	ResetVitals();
+}
+
+void ATBCitizenNPC::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (CitizenAttributes && OutOfBloodHandle.IsValid())
+	{
+		CitizenAttributes->OnOutOfBlood.Remove(OutOfBloodHandle);
+		OutOfBloodHandle.Reset();
+	}
+	if (AbilitySystemComponent && BleedingTagHandle.IsValid())
+	{
+		AbilitySystemComponent->UnregisterGameplayTagEvent(BleedingTagHandle, TBGameplayTags::State_Bleeding, EGameplayTagEventType::NewOrRemoved);
+		BleedingTagHandle.Reset();
+	}
+
+	Super::EndPlay(EndPlayReason);
 }
 
 void ATBCitizenNPC::PossessedBy(AController* NewController)
@@ -83,8 +116,8 @@ void ATBCitizenNPC::BeginInteract_Implementation(AActor* InteractInstigator)
 	}
 
 	DrainInstigator = InteractInstigator;            // 취소·완료가 같은 플레이어에게서 왔는지 확인용
-	SetCitizenState(ETBCitizenState::Draining);      // 1) BT·이동 먼저 정지
-	AlignToFeeder(InteractInstigator);               // 2) 그 다음 위치 맞춤  ← 추가
+	SetCitizenState(ETBCitizenState::Draining);      // 1) BT·이동 먼저 정지 + 무적
+	AlignToFeeder(InteractInstigator);               // 2) 그 다음 위치 맞춤
 }
 
 void ATBCitizenNPC::CancelInteract_Implementation(AActor* InteractInstigator)
@@ -94,7 +127,7 @@ void ATBCitizenNPC::CancelInteract_Implementation(AActor* InteractInstigator)
 		return;
 	}
 
-	SetCitizenState(ETBCitizenState::Idle);          // 다시 도망칠 수 있는 상태로
+	SetCitizenState(ETBCitizenState::Idle);          // 다시 도망칠 수 있는 상태로 (출혈이 있었다면 다시 진행)
 }
 
 void ATBCitizenNPC::Interact_Implementation(AActor* InteractInstigator)
@@ -146,13 +179,16 @@ void ATBCitizenNPC::SetCitizenState(ETBCitizenState NewState)
 	const ETBCitizenState OldState = CitizenState;
 	CitizenState = NewState;                         // 클라이언트로 복제 → OnRep
 
-	// 1) 다른 시스템이 읽는 태그를 상태에서 파생 (태그를 쓰는 곳은 여기 한 곳뿐)
+	// 1) 다른 시스템이 읽는 태그를 상태에서 파생 (상태 태그를 쓰는 곳은 여기 한 곳뿐)
 	//    MovementBlocked → TBCharacterBase::IsMovementBlocked가 속도 0 처리
-	//    State_Dead      → 사망 GA의 ActivationRequiredTags 충족
+	//    State_Dead      → 사망 GA의 ActivationRequiredTags 충족, 피해·몬스터 대상 제외
+	//    Invulnerable    → 흡혈 중 피해 차단(AttributeSet), 몬스터 대상 제외
 	AbilitySystemComponent->SetLooseGameplayTagCount(TBGameplayTags::State_MovementBlocked,
 		NewState == ETBCitizenState::Idle ? 0 : 1, EGameplayTagReplicationState::TagOnly);
 	AbilitySystemComponent->SetLooseGameplayTagCount(TBGameplayTags::State_Dead,
 		NewState == ETBCitizenState::Dead ? 1 : 0, EGameplayTagReplicationState::TagOnly);
+	AbilitySystemComponent->SetLooseGameplayTagCount(TBGameplayTags::State_Invulnerable,
+		NewState == ETBCitizenState::Draining ? 1 : 0, EGameplayTagReplicationState::TagOnly);
 
 	// 2) 보이는 처리 (서버에서는 OnRep이 자동 호출되지 않음)
 	OnRep_CitizenState();
@@ -172,6 +208,7 @@ void ATBCitizenNPC::SetCitizenState(ETBCitizenState NewState)
 
 	case ETBCitizenState::Dead:
 		DrainInstigator.Reset();
+		StopBleeding();                              // 시체에는 출혈·부상 상태가 필요 없음
 		if (CitizenAI) CitizenAI->StopFleeing();
 		StartDeathSequence();
 		break;
@@ -221,7 +258,6 @@ void ATBCitizenNPC::RestoreAliveState()
 	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 }
 
-// 사망 =====================
 void ATBCitizenNPC::StartDeathSequence()
 {
 	float HoldTime = CorpseHoldSeconds;
@@ -236,19 +272,16 @@ void ATBCitizenNPC::StartDeathSequence()
 		}
 	}
 
-	// if (UTBSpawnManagerComponent::NotifyActorDied(this)) return;
+	// 시체를 HoldTime 동안 유지한 뒤 처리 (풀 반환 시점도 시민이 결정)
 	GetWorldTimerManager().SetTimer(CorpseTimer, this, &ThisClass::HandleCorpseExpired, FMath::Max(HoldTime, 0.1f), false);
 }
 
 void ATBCitizenNPC::HandleCorpseExpired()
 {
-	if (OnCitizenCorpseExpired.IsBound())
+	// 풀 소속이면 SpawnManager가 ReturnDelay 뒤 반환, 아니면(레벨 직접 배치 등) 직접 제거
+	if (!UTBSpawnManagerComponent::NotifyActorDied(this))
 	{
-		OnCitizenCorpseExpired.Broadcast(this);      // 풀 소속 → SpawnManager가 반환
-	}
-	else
-	{
-		Destroy();                                   // 레벨에 직접 배치한 시민은 풀이 없으므로 제거
+		Destroy();
 	}
 }
 
@@ -263,7 +296,7 @@ void ATBCitizenNPC::OnPoolActivated_Implementation()
 	GetWorldTimerManager().ClearTimer(CorpseTimer);
 	AbilitySystemComponent->CancelAllAbilities();    // 남아 있는 사망 GA 종료 → 사망 몽타주 정지
 
-	ResetHealth();                                   // 체력 초기화
+	ResetVitals();                                   // 혈액 가득 + 출혈 제거
 	
 	SetCitizenState(ETBCitizenState::Idle);          // 태그 해제 + 모든 머신에서 충돌·이동 복구
 
@@ -285,7 +318,7 @@ void ATBCitizenNPC::OnPoolDeactivated_Implementation()
 	GetWorldTimerManager().ClearTimer(CorpseTimer);
 	GetCharacterMovement()->StopMovementImmediately();
 	AbilitySystemComponent->CancelAllAbilities();
-	GetWorldTimerManager().ClearTimer(BleedTimer);
+	StopBleeding();
 }
 
 void ATBCitizenNPC::AlignToFeeder(const AActor* Feeder)
@@ -306,62 +339,99 @@ void ATBCitizenNPC::AlignToFeeder(const AActor* Feeder)
 	SetActorLocationAndRotation(NewLocation, NewRotation, false, nullptr, ETeleportType::TeleportPhysics);
 }
 
-// 체력 =====================
+// 혈액·출혈 =====================
+bool ATBCitizenNPC::IsInjured() const
+{
+	return AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Bleeding);
+}
+
 bool ATBCitizenNPC::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult)
 {
-	// 서버 전용, 시체는 피격 무시
-	if (!HasAuthority() || CitizenState == ETBCitizenState::Dead)
+	// 무적(흡혈 중)·사망이면 "피해 없음"으로 응답
+	// (Instant GE는 AttributeSet에서 실행이 거부돼도 적용 성공으로 보일 수 있어서 여기서 먼저 검사)
+	if (!HasAuthority() || !DamageEffectClass || !FMath::IsFinite(Damage) || Damage <= 0.f
+		|| AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable)
+		|| AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
 	{
 		return false;
 	}
 
-	// 첫 피격: 부상 전환 + 출혈 시작
-	if (!bIsInjured)
+	FGameplayEffectContextHandle Context = AbilitySystemComponent->MakeEffectContext();
+	if (IsValid(DamageSource))
 	{
-		bIsInjured = true;
-		GetCharacterMovement()->MaxWalkSpeed = InjuredWalkSpeed;
-
-		if (BleedDamagePerSecond > 0.f)
-		{
-			GetWorldTimerManager().SetTimer(BleedTimer, this, &ThisClass::HandleBleedTick, 1.f, true);
-		}
-		ForceNetUpdate();                            // 부상 애니메이션이 바로 보이도록
+		Context.AddSourceObject(DamageSource);
 	}
 
-	ApplyCitizenDamage(Damage);
+	const FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(DamageEffectClass, 1.f, Context);
+	if (!Spec.IsValid())
+	{
+		return false;
+	}
+	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);   // 몬스터 ApplyDamage와 같은 부호 규칙
+
+	if (!AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied())
+	{
+		return false;
+	}
+
+	StartBleeding();                                 // 첫 피격이면 출혈 시작 (이미 출혈 중·이번에 사망했으면 무시)
 	return true;
 }
 
-void ATBCitizenNPC::ApplyCitizenDamage(float Amount)
+void ATBCitizenNPC::ResetVitals()
 {
-	if (!HasAuthority() || CitizenState == ETBCitizenState::Dead || Amount <= 0.f)
+	if (!HasAuthority() || !CitizenAttributes)
 	{
 		return;
 	}
 
-	CurrentHealth = FMath::Max(0.f, CurrentHealth - Amount);
+	StopBleeding();                                  // State.Bleeding 제거 → 감속도 태그 이벤트로 복구
+	CitizenAttributes->SetMaxBlood(InitialMaxBlood);
+	CitizenAttributes->SetBlood(InitialMaxBlood);
+}
 
-	if (CurrentHealth <= 0.f)
+void ATBCitizenNPC::StartBleeding()
+{
+	if (!HasAuthority() || !BleedEffectClass || BleedDamagePerSecond <= 0.f || BleedEffectHandle.IsValid()
+		|| AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
 	{
-		GetWorldTimerManager().ClearTimer(BleedTimer);
-		SetCitizenState(ETBCitizenState::Dead);      // 흡혈 사망과 같은 경로: 태그·충돌 해제·사망 GA·시체 타이머
+		return;
 	}
+
+	const FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(
+		BleedEffectClass, 1.f, AbilitySystemComponent->MakeEffectContext());
+	if (!Spec.IsValid())
+	{
+		return;
+	}
+	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -BleedDamagePerSecond);
+
+	// 무적 중에는 AttributeSet이 틱만 거부하므로 GE와 State.Bleeding 태그는 유지됨
+	BleedEffectHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 }
 
-void ATBCitizenNPC::HandleBleedTick()
+void ATBCitizenNPC::StopBleeding()
 {
-	ApplyCitizenDamage(BleedDamagePerSecond);
+	if (BleedEffectHandle.IsValid() && AbilitySystemComponent)
+	{
+		AbilitySystemComponent->RemoveActiveGameplayEffect(BleedEffectHandle);
+	}
+	BleedEffectHandle.Invalidate();
 }
 
-void ATBCitizenNPC::ResetHealth()
+void ATBCitizenNPC::HandleOutOfBlood()
 {
-	CurrentHealth = MaxHealth;
-	bIsInjured = false;
-	GetWorldTimerManager().ClearTimer(BleedTimer);
+	SetCitizenState(ETBCitizenState::Dead);          // 흡혈 사망과 같은 경로: 태그·충돌 해제·사망 GA·시체 처리
+}
 
-	// 이동 속도는 BP 기본값(CDO) 기준으로 복구 (RestoreAliveState와 같은 방식)
+void ATBCitizenNPC::HandleBleedingTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	// 부상 감속은 출혈 태그 기준, 해제 시 BP 기본값(CDO)으로 복구
 	if (const ATBCitizenNPC* Defaults = GetClass()->GetDefaultObject<ATBCitizenNPC>())
 	{
-		GetCharacterMovement()->MaxWalkSpeed = Defaults->GetCharacterMovement()->MaxWalkSpeed;
+		GetCharacterMovement()->MaxWalkSpeed = NewCount > 0
+			? InjuredWalkSpeed
+			: Defaults->GetCharacterMovement()->MaxWalkSpeed;
 	}
+	ForceNetUpdate();                                // 부상 애니메이션·속도가 바로 보이도록
 }

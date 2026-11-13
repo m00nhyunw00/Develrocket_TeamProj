@@ -253,10 +253,14 @@ void ATBCitizenAIController::ReactivateFromPool()
 		Perception->SetSenseEnabled(UAISense_Sight::StaticClass(), true);
 		Perception->RequestStimuliListenerUpdate();
 	}
-
-	// StopLogic으로 멈춘 BT를 처음부터 다시 실행 (몬스터 ReactivateFromPool과 같은 방식)
+	
+	// bIsPaused 해제 + 블랙보드 알림 재개
 	if (UBrainComponent* Brain = GetBrainComponent())
 	{
+		if (Brain->IsPaused())
+		{
+			Brain->ResumeLogic(TEXT("Citizen Reactivated"));   
+		}
 		Brain->RestartLogic();
 	}
 }
