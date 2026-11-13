@@ -55,4 +55,14 @@ protected:
 	// 1인칭 몽타주
 	UPROPERTY(EditDefaultsOnly, Category = "Interaction|Animation")
 	TObjectPtr<UAnimMontage> InteractFirstPersonMontage;
+	
+	// NPC 반응 ----------------------
+
+	// 상호작용당했을 때 NPC 자신이 재생할 몽타주 (비우면 반응 없음)
+	// 위의 InteractMontage들은 "플레이어"가 재생하는 것이고, 이건 "NPC"가 재생
+	UPROPERTY(EditDefaultsOnly, Category = "Interaction|Reaction")
+	TObjectPtr<UAnimMontage> ReactMontage;
+
+	// [로컬] 이 머신에서 NPC 메시에 반응 몽타주 재생
+	void PlayReactMontage();
 };
