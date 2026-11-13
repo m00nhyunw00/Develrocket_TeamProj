@@ -10,6 +10,8 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(State_Dead, "State.Dead");
 	UE_DEFINE_GAMEPLAY_TAG(State_Stunned, "State.Stunned");
 	UE_DEFINE_GAMEPLAY_TAG(State_MovementBlocked, "State.MovementBlocked");
+	UE_DEFINE_GAMEPLAY_TAG(State_Invulnerable, "State.Invulnerable");
+	UE_DEFINE_GAMEPLAY_TAG(State_Bleeding, "State.Bleeding");
 	UE_DEFINE_GAMEPLAY_TAG(State_Combat, "State.Combat");
 	
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_PrimaryAttack, "Cooldown.PrimaryAttack");
