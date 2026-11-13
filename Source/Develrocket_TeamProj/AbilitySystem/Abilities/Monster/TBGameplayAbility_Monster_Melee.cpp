@@ -1,8 +1,11 @@
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Melee.h"
 
 #include "TBGameplayTags.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "Character/Monster/TBMonster.h"
-#include "Character/Player/TBPlayer.h"
+#include "GameFramework/Character.h"
+#include "Interface/TBHitInterface.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "EngineUtils.h"
@@ -66,11 +69,16 @@ void UTBGameplayAbility_Monster_Melee::CheckHitWindow()
 	UWorld* World = Monster->GetWorld();
 	if (!IsValid(Mesh) || !World) return;
 
-	for (TActorIterator<ATBPlayer> It(World); It; ++It)
+	for (TActorIterator<ACharacter> It(World); It; ++It)
 	{
-		ATBPlayer* Player = *It;
-		if (!IsValid(Player) || Player->IsDead() || HitActors.Contains(Player)) continue;
-		UCapsuleComponent* Capsule = Player->GetCapsuleComponent();
+		ACharacter* Target = *It;
+		UAbilitySystemComponent* TargetASC = IsValid(Target) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target) : nullptr;
+		if (!IsValid(TargetASC) || TargetASC->GetAvatarActor() != Target || HitActors.Contains(Target)
+			|| TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
+			|| (!TargetASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
+				&& !TargetASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human))
+			|| !Target->GetClass()->ImplementsInterface(UTBHitInterface::StaticClass())) continue;
+		UCapsuleComponent* Capsule = Target->GetCapsuleComponent();
 		if (!IsValid(Capsule) || Capsule->GetCollisionEnabled() == ECollisionEnabled::NoCollision) continue;
 		const FCollisionShape PlayerShape = FCollisionShape::MakeCapsule(Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleHalfHeight());
 		for (const FName Bone : AttackBodyBones)
@@ -80,7 +88,10 @@ void UTBGameplayAbility_Monster_Melee::CheckHitWindow()
 			if (!Body || !Body->IsValidBodyInstance() || !Setup || Setup->BoneName != Bone) continue;
 			if (Body->OverlapTest(Capsule->GetComponentLocation(), Capsule->GetComponentQuat(), PlayerShape))
 			{
-				if (Player->ApplyDamage(AttackDamage, Monster)) HitActors.Add(Player);
+				FHitResult HitResult;
+				HitResult.Location = Capsule->GetComponentLocation();
+				HitResult.ImpactPoint = HitResult.Location;
+				if (ITBHitInterface::Execute_ReceiveAttackHit(Target, FGameplayTag(), AttackDamage, Monster, HitResult)) HitActors.Add(Target);
 				break;
 			}
 		}

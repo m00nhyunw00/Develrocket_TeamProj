@@ -296,7 +296,9 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 	{
 		UAbilitySystemComponent* ASC = IsValid(Candidate) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Candidate) : nullptr;
 		if (!IsValid(ASC) || Candidate == ExcludedActor || ASC->GetAvatarActor() != Candidate
-			|| !ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player) || ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
+			|| (!ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
+				&& !ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human))
+			|| ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
 		{
 			continue;
 		}
@@ -312,7 +314,9 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 	AActor* PreviousTarget = TrackedTarget.Get();
 	UAbilitySystemComponent* PreviousASC = TrackedTargetASC.Get();
 	if (!ClosestPlayer && !bMemoryExpired && IsValid(PreviousTarget) && IsValid(PreviousASC)
-		&& PreviousASC->GetAvatarActor() == PreviousTarget && PreviousASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
+		&& PreviousASC->GetAvatarActor() == PreviousTarget
+		&& (PreviousASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
+			|| PreviousASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human))
 		&& !PreviousASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead) && PreviousTarget != ExcludedActor && LostSightMemorySeconds > 0.0f)
 	{
 		if (!GetWorldTimerManager().IsTimerActive(TargetMemoryTimer))
