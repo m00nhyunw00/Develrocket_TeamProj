@@ -5,7 +5,7 @@
 #include "TBGameplayAbility_Monster_Leap.generated.h"
 
 class ATBMonster;
-class ATBPlayer;
+class AActor;
 class USkeletalMeshComponent;
 
 // 몬스터 전용 서버 도약 및 착지 공격 어빌리티
@@ -22,7 +22,7 @@ public:
 
 	void LaunchLeap();
 	// Shared spatial and state checks for BT decision making and activation.
-	bool CanLeapAtTarget(const ATBMonster* Monster, const ATBPlayer* Player) const;
+	bool CanLeapAtTarget(const ATBMonster* Monster, const AActor* Target) const;
 
 protected:
 	virtual void HandleActionMontageCompleted() override;
@@ -57,7 +57,7 @@ private:
 
 	// 한 번의 도약 동안 추적하는 시전자와 발동 시점의 목표 위치
 	TWeakObjectPtr<ATBMonster> LeapingMonster;
-	TWeakObjectPtr<const ATBPlayer> LeapTarget;
+	TWeakObjectPtr<const AActor> LeapTarget;
 	FTimerHandle HomingTimer;
 	double LastHomingUpdateTime = 0.0;
 	FVector LeapDestination = FVector::ZeroVector;

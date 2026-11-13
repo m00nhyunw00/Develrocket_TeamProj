@@ -5,6 +5,8 @@
 #include "AbilitySystem/Abilities/TBGameplayAbility_Action.h"
 #include "TBGameplayAbility_Monster_Melee.generated.h"
 
+class ACharacter;
+
 // Montage-based melee ability. Damage and hit detection are supplied by its implementation.
 UCLASS(Blueprintable)
 class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_Monster_Melee : public UTBGameplayAbility_Action
@@ -28,7 +30,8 @@ protected:
 private:
 	void CheckHitWindow();
 	FTimerHandle HitTimer;
-	TSet<TWeakObjectPtr<AActor>> HitActors;
+	TWeakObjectPtr<ACharacter> AttackTarget;
+	bool bTargetHit = false;
 	TWeakObjectPtr<USkeletalMeshComponent> AttackMesh;
 	EVisibilityBasedAnimTickOption PreviousTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPose;
 };

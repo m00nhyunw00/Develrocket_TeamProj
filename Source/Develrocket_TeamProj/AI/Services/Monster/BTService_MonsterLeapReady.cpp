@@ -6,7 +6,6 @@
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Monster/TBMonster.h"
-#include "Character/Player/TBPlayer.h"
 
 UBTService_MonsterLeapReady::UBTService_MonsterLeapReady()
 {
@@ -38,7 +37,7 @@ void UBTService_MonsterLeapReady::TickNode(UBehaviorTreeComponent& OwnerComp, ui
 	if (!Blackboard || LeapReadyKey.GetSelectedKeyID() == FBlackboard::InvalidKey) return;
 	const AAIController* Controller = OwnerComp.GetAIOwner();
 	ATBMonster* Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
-	ATBPlayer* Target = Cast<ATBPlayer>(Blackboard->GetValueAsObject(TargetKey.SelectedKeyName));
+	AActor* Target = Cast<AActor>(Blackboard->GetValueAsObject(TargetKey.SelectedKeyName));
 	UAbilitySystemComponent* ASC = IsValid(Monster) ? Monster->GetAbilitySystemComponent() : nullptr;
 	const TSubclassOf<UTBGameplayAbility_Monster_Leap> LeapClass = IsValid(Monster) ? Monster->GetLeapAbilityClass() : nullptr;
 	FGameplayAbilitySpec* Spec = IsValid(ASC) && LeapClass ? ASC->FindAbilitySpecFromClass(LeapClass) : nullptr;

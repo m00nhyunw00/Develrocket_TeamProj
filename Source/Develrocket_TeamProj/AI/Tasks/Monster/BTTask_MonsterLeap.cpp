@@ -1,11 +1,11 @@
 #include "AI/Tasks/Monster/BTTask_MonsterLeap.h"
 
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Leap.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Monster/TBMonster.h"
-#include "Character/Player/TBPlayer.h"
 #include "TBGameplayTags.h"
 
 UBTTask_MonsterLeap::UBTTask_MonsterLeap()
@@ -21,8 +21,10 @@ EBTNodeResult::Type UBTTask_MonsterLeap::ExecuteTask(UBehaviorTreeComponent& Own
 	const AAIController* Controller = OwnerComp.GetAIOwner();
 	ATBMonster* Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
 	const UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
-	ATBPlayer* Target = Blackboard ? Cast<ATBPlayer>(Blackboard->GetValueAsObject(BlackboardKey.SelectedKeyName)) : nullptr;
-	if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead() || !IsValid(Target) || Target->IsDead())
+	AActor* Target = Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(BlackboardKey.SelectedKeyName)) : nullptr;
+	UAbilitySystemComponent* TargetASC = IsValid(Target) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target) : nullptr;
+	if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead() || !IsValid(TargetASC)
+		|| TargetASC->GetAvatarActor() != Target || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
 	{
 		return EBTNodeResult::Failed;
 	}
