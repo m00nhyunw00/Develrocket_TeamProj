@@ -200,7 +200,12 @@ bool UTBSpawnManagerComponent::FindSpawnTransform(const FTBSpawnPoolConfig& Entr
 			}
 			if (bTooClose) break;
 		}
-		if (bTooClose || World->OverlapAnyTestByProfile(Location, FQuat::Identity, CollisionProfile, Shape, Query)) continue;
+		if (bTooClose) continue;
+		const bool bBlocked = Capsule
+			? World->OverlapAnyTestByChannel(Location, FQuat::Identity, Capsule->GetCollisionObjectType(), Shape,
+				Query, FCollisionResponseParams(Capsule->GetCollisionResponseToChannels()))
+			: World->OverlapAnyTestByProfile(Location, FQuat::Identity, CollisionProfile, Shape, Query);
+		if (bBlocked) continue;
 		const FVector Direction = FloorBounds.GetCenter() - Location;
 		OutTransform = FTransform(FRotator(0.0f, Direction.Rotation().Yaw, 0.0f), Location);
 		return true;

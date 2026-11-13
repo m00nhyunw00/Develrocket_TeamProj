@@ -325,7 +325,8 @@ bool ATBLevelManager::FindSafePlayerSpawnInternal(const ACharacter* Character, A
 		}
 		if (bTooClose) continue;
 		const FCollisionShape Shape = FCollisionShape::MakeCapsule(Radius, HalfHeight);
-		if (World->OverlapAnyTestByProfile(Location, FQuat::Identity, Capsule->GetCollisionProfileName(), Shape, Query)) continue;
+		if (World->OverlapAnyTestByChannel(Location, FQuat::Identity, Capsule->GetCollisionObjectType(), Shape,
+			Query, FCollisionResponseParams(Capsule->GetCollisionResponseToChannels()))) continue;
 		const FVector Direction = FloorBounds.GetCenter() - Location;
 		OutSpawnTransform = FTransform(FRotator(0.0f, Direction.Rotation().Yaw, 0.0f), Location);
 		return true;
