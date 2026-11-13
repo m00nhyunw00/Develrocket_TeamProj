@@ -1,4 +1,4 @@
-#include "Character/NPC/TBCitizenNPC.h"
+#include "Character/Human/TBCitizen.h"
 
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
@@ -16,7 +16,7 @@
 #include "TBGameplayTags.h"
 
 // 생성자 =====================
-ATBCitizenNPC::ATBCitizenNPC(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+ATBCitizen::ATBCitizen(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	AIControllerClass = ATBCitizenAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
@@ -43,13 +43,13 @@ ATBCitizenNPC::ATBCitizenNPC(const FObjectInitializer& ObjectInitializer) : Supe
 	CharacterTypeTag = TBGameplayTags::Character_Type_Human;
 }
 
-void ATBCitizenNPC::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+void ATBCitizen::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(ATBCitizenNPC, CitizenState);
+	DOREPLIFETIME(ATBCitizen, CitizenState);
 }
 
-void ATBCitizenNPC::BeginPlay()
+void ATBCitizen::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -80,7 +80,7 @@ void ATBCitizenNPC::BeginPlay()
 	ResetVitals();
 }
 
-void ATBCitizenNPC::EndPlay(const EEndPlayReason::Type EndPlayReason)
+void ATBCitizen::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (CitizenAttributes && OutOfBloodHandle.IsValid())
 	{
@@ -96,19 +96,19 @@ void ATBCitizenNPC::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-void ATBCitizenNPC::PossessedBy(AController* NewController)
+void ATBCitizen::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
 	InitializeAbilitySystem(AbilitySystemComponent.Get(), this);
 }
 
 // 상호작용 =====================
-bool ATBCitizenNPC::CanInteract_Implementation(AActor* InteractInstigator) const
+bool ATBCitizen::CanInteract_Implementation(AActor* InteractInstigator) const
 {
 	return CitizenState == ETBCitizenState::Idle;   // 흡혈 중이거나 죽었으면 다른 플레이어도 불가
 }
 
-void ATBCitizenNPC::BeginInteract_Implementation(AActor* InteractInstigator)
+void ATBCitizen::BeginInteract_Implementation(AActor* InteractInstigator)
 {
 	if (!HasAuthority() || CitizenState != ETBCitizenState::Idle)
 	{
@@ -120,7 +120,7 @@ void ATBCitizenNPC::BeginInteract_Implementation(AActor* InteractInstigator)
 	AlignToFeeder(InteractInstigator);               // 2) 그 다음 위치 맞춤
 }
 
-void ATBCitizenNPC::CancelInteract_Implementation(AActor* InteractInstigator)
+void ATBCitizen::CancelInteract_Implementation(AActor* InteractInstigator)
 {
 	if (!HasAuthority() || CitizenState != ETBCitizenState::Draining || DrainInstigator.Get() != InteractInstigator)
 	{
@@ -130,7 +130,7 @@ void ATBCitizenNPC::CancelInteract_Implementation(AActor* InteractInstigator)
 	SetCitizenState(ETBCitizenState::Idle);          // 다시 도망칠 수 있는 상태로 (출혈이 있었다면 다시 진행)
 }
 
-void ATBCitizenNPC::Interact_Implementation(AActor* InteractInstigator)
+void ATBCitizen::Interact_Implementation(AActor* InteractInstigator)
 {
 	// [서버] 3인칭 몽타주 완료 시 (몽타주가 없으면 GA가 즉시 호출 → 이때는 Idle 상태로 들어옴)
 	if (!HasAuthority() || !InteractInstigator || CitizenState == ETBCitizenState::Dead)
@@ -158,18 +158,18 @@ void ATBCitizenNPC::Interact_Implementation(AActor* InteractInstigator)
 	SetCitizenState(ETBCitizenState::Dead);
 }
 
-void ATBCitizenNPC::InteractLocal_Implementation(AActor* InteractInstigator)
+void ATBCitizen::InteractLocal_Implementation(AActor* InteractInstigator)
 {
 	// [흡혈한 플레이어의 클라이언트] 화면 효과, 사운드 자리
 }
 
-FText ATBCitizenNPC::GetInteractPrompt_Implementation() const { return InteractPrompt; }
-UAnimMontage* ATBCitizenNPC::GetInteractMontage_Implementation() const { return FeedMontage; }
-UAnimMontage* ATBCitizenNPC::GetInteractFirstPersonMontage_Implementation() const { return FeedFirstPersonMontage; }
-bool ATBCitizenNPC::ShouldResolveOnStart_Implementation() const { return false; }
+FText ATBCitizen::GetInteractPrompt_Implementation() const { return InteractPrompt; }
+UAnimMontage* ATBCitizen::GetInteractMontage_Implementation() const { return FeedMontage; }
+UAnimMontage* ATBCitizen::GetInteractFirstPersonMontage_Implementation() const { return FeedFirstPersonMontage; }
+bool ATBCitizen::ShouldResolveOnStart_Implementation() const { return false; }
 
 // 상태 =====================
-void ATBCitizenNPC::SetCitizenState(ETBCitizenState NewState)
+void ATBCitizen::SetCitizenState(ETBCitizenState NewState)
 {
 	if (!HasAuthority() || CitizenState == NewState)
 	{
@@ -220,7 +220,7 @@ void ATBCitizenNPC::SetCitizenState(ETBCitizenState NewState)
 	ForceNetUpdate();                                // 상태 변화를 다음 복제 주기까지 기다리지 않고 바로 보냄
 }
 
-void ATBCitizenNPC::OnRep_CitizenState()
+void ATBCitizen::OnRep_CitizenState()
 {
 	switch (CitizenState)
 	{
@@ -247,10 +247,10 @@ void ATBCitizenNPC::OnRep_CitizenState()
 	}
 }
 
-void ATBCitizenNPC::RestoreAliveState()
+void ATBCitizen::RestoreAliveState()
 {
 	// BP 기본값(CDO) 기준으로 충돌 복구 (ATBMonster::RestorePoolVisualState와 같은 방식)
-	if (const ATBCitizenNPC* Defaults = GetClass()->GetDefaultObject<ATBCitizenNPC>())
+	if (const ATBCitizen* Defaults = GetClass()->GetDefaultObject<ATBCitizen>())
 	{
 		GetCapsuleComponent()->SetCollisionEnabled(Defaults->GetCapsuleComponent()->GetCollisionEnabled());
 		GetMesh()->SetCollisionEnabled(Defaults->GetMesh()->GetCollisionEnabled());
@@ -258,7 +258,7 @@ void ATBCitizenNPC::RestoreAliveState()
 	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 }
 
-void ATBCitizenNPC::StartDeathSequence()
+void ATBCitizen::StartDeathSequence()
 {
 	float HoldTime = CorpseHoldSeconds;
 
@@ -276,7 +276,7 @@ void ATBCitizenNPC::StartDeathSequence()
 	GetWorldTimerManager().SetTimer(CorpseTimer, this, &ThisClass::HandleCorpseExpired, FMath::Max(HoldTime, 0.1f), false);
 }
 
-void ATBCitizenNPC::HandleCorpseExpired()
+void ATBCitizen::HandleCorpseExpired()
 {
 	// 풀 소속이면 SpawnManager가 ReturnDelay 뒤 반환, 아니면(레벨 직접 배치 등) 직접 제거
 	if (!UTBSpawnManagerComponent::NotifyActorDied(this))
@@ -286,7 +286,7 @@ void ATBCitizenNPC::HandleCorpseExpired()
 }
 
 // 풀링 =====================
-void ATBCitizenNPC::OnPoolActivated_Implementation()
+void ATBCitizen::OnPoolActivated_Implementation()
 {
 	if (!HasAuthority())
 	{
@@ -308,7 +308,7 @@ void ATBCitizenNPC::OnPoolActivated_Implementation()
 	ForceNetUpdate();
 }
 
-void ATBCitizenNPC::OnPoolDeactivated_Implementation()
+void ATBCitizen::OnPoolDeactivated_Implementation()
 {
 	if (!HasAuthority())
 	{
@@ -321,7 +321,7 @@ void ATBCitizenNPC::OnPoolDeactivated_Implementation()
 	StopBleeding();
 }
 
-void ATBCitizenNPC::AlignToFeeder(const AActor* Feeder)
+void ATBCitizen::AlignToFeeder(const AActor* Feeder)
 {
 	if (!HasAuthority() || !IsValid(Feeder))
 	{
@@ -340,12 +340,12 @@ void ATBCitizenNPC::AlignToFeeder(const AActor* Feeder)
 }
 
 // 혈액·출혈 =====================
-bool ATBCitizenNPC::IsInjured() const
+bool ATBCitizen::IsInjured() const
 {
 	return AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Bleeding);
 }
 
-bool ATBCitizenNPC::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult)
+bool ATBCitizen::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult)
 {
 	// 무적(흡혈 중)·사망이면 "피해 없음"으로 응답
 	// (Instant GE는 AttributeSet에서 실행이 거부돼도 적용 성공으로 보일 수 있어서 여기서 먼저 검사)
@@ -378,7 +378,7 @@ bool ATBCitizenNPC::ReceiveAttackHit_Implementation(const FGameplayTag& DamageTy
 	return true;
 }
 
-void ATBCitizenNPC::ResetVitals()
+void ATBCitizen::ResetVitals()
 {
 	if (!HasAuthority() || !CitizenAttributes)
 	{
@@ -390,7 +390,7 @@ void ATBCitizenNPC::ResetVitals()
 	CitizenAttributes->SetBlood(InitialMaxBlood);
 }
 
-void ATBCitizenNPC::StartBleeding()
+void ATBCitizen::StartBleeding()
 {
 	if (!HasAuthority() || !BleedEffectClass || BleedDamagePerSecond <= 0.f || BleedEffectHandle.IsValid()
 		|| AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
@@ -410,7 +410,7 @@ void ATBCitizenNPC::StartBleeding()
 	BleedEffectHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 }
 
-void ATBCitizenNPC::StopBleeding()
+void ATBCitizen::StopBleeding()
 {
 	if (BleedEffectHandle.IsValid() && AbilitySystemComponent)
 	{
@@ -419,15 +419,15 @@ void ATBCitizenNPC::StopBleeding()
 	BleedEffectHandle.Invalidate();
 }
 
-void ATBCitizenNPC::HandleOutOfBlood()
+void ATBCitizen::HandleOutOfBlood()
 {
 	SetCitizenState(ETBCitizenState::Dead);          // 흡혈 사망과 같은 경로: 태그·충돌 해제·사망 GA·시체 처리
 }
 
-void ATBCitizenNPC::HandleBleedingTagChanged(const FGameplayTag Tag, int32 NewCount)
+void ATBCitizen::HandleBleedingTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
 	// 부상 감속은 출혈 태그 기준, 해제 시 BP 기본값(CDO)으로 복구
-	if (const ATBCitizenNPC* Defaults = GetClass()->GetDefaultObject<ATBCitizenNPC>())
+	if (const ATBCitizen* Defaults = GetClass()->GetDefaultObject<ATBCitizen>())
 	{
 		GetCharacterMovement()->MaxWalkSpeed = NewCount > 0
 			? InjuredWalkSpeed

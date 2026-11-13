@@ -9,12 +9,15 @@ class ACityLayoutCoordinator;
 class ACharacter;
 class UTBSpawnManagerComponent;
 class UTBSpawnPoolDataAsset;
+class AGameModeBase;
+class APlayerController;
 
 // 위젯이 구독할 로컬 알림 (일반 멀티캐스트)
 DECLARE_MULTICAST_DELEGATE(FOnTBLocalCityReady);
 DECLARE_MULTICAST_DELEGATE(FOnTBMatchStarted);
 DECLARE_MULTICAST_DELEGATE(FOnTBSpawnSearchChanged);
 DECLARE_DYNAMIC_DELEGATE_OneParam(FTBSpawnLocationReady, FTransform, SpawnTransform);
+DECLARE_MULTICAST_DELEGATE(FOnTBAutoStartModeChanged);
 
 USTRUCT()
 struct FTBPendingSpawnRequest
@@ -70,6 +73,11 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="City|Player Spawn")
 	bool RequestSafePlayerSpawn(TSubclassOf<ACharacter> CharacterClass, AActor* IgnoredActor, FTBSpawnLocationReady OnReady);
 	
+	// 로비를 거쳐 들어와 자동 시작하는 매치인지 (위젯이 START 버튼 대신 대기 문구 표시)
+	bool IsAutoStartMode() const { return bAutoStartMode; }
+
+	FOnTBAutoStartModeChanged OnAutoStartModeChangedEvent;
+	
 	FOnTBLocalCityReady OnLocalCityReadyEvent;
 	FOnTBMatchStarted OnMatchStartedEvent;
 	FOnTBSpawnSearchChanged OnSpawnSearchChangedEvent;
@@ -99,6 +107,9 @@ protected:
 
 	UPROPERTY(EditInstanceOnly, Category="City|Player Spawn", meta=(ClampMin="0.0", Units="cm"))
 	float TraceHeightAboveCity = 10000.0f;
+	
+	UPROPERTY(EditInstanceOnly, Category="Match|AutoStart", meta=(ClampMin="0.0", Units="s"))
+	float AutoStartTimeout = 30.0f;
 	
 private:
 	// Coordinator의 OnLocalCityReady는 Dynamic(Seed, Revision) -> 시그니처를 맞춰야 함
@@ -133,4 +144,24 @@ private:
 	int32 PendingRetryCount = 0;
 	
 	bool bLocalCityReady = false;
+	
+	// 자동 시작 ----------------------
+
+	// [서버] ServerTravel URL의 ExpectedPlayers 옵션을 읽어 자동 시작 모드 설정
+	void InitializeAutoStart();
+	// [서버] 조건이 맞으면 StartMatch (도시 준비 / 접속 / 타임아웃 때 호출)
+	void TryAutoStart();
+	void HandleAutoStartTimeout();
+	void HandlePostLogin(AGameModeBase* GameMode, APlayerController* NewPlayer);
+
+	UFUNCTION()
+	void OnRep_AutoStartMode();
+
+	UPROPERTY(ReplicatedUsing=OnRep_AutoStartMode)
+	bool bAutoStartMode = false;
+
+	int32 ExpectedPlayers = 0;      // 서버 전용
+	bool bForceAutoStart = false;   // 타임아웃 후 인원 조건 무시
+	FTimerHandle AutoStartTimeoutHandle;
+	FDelegateHandle PostLoginHandle;
 };

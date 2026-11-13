@@ -1,4 +1,4 @@
-#include "Character/NPC/TBLoreNPC.h"
+#include "NPC/TBLoreNPC.h"
 #include "UI/Dialogue/TBDialogueWidget.h"
 
 #include "Components/CapsuleComponent.h"
