@@ -36,6 +36,7 @@ void ATBNPCBase::Interact_Implementation(AActor* InteractInstigator)
 void ATBNPCBase::InteractLocal_Implementation(AActor* InteractInstigator)
 {
 	// [상호작용한 클라] 기본: 로컬 반응 없음 → 필요한 자식만 override
+	PlayReactMontage();
 }
 
 FText ATBNPCBase::GetInteractPrompt_Implementation() const
@@ -57,4 +58,28 @@ bool ATBNPCBase::ShouldResolveOnStart_Implementation() const
 {
 	// NPC 상호작용은 시작 즉시 결과 (흡혈처럼 끝까지 기다리지 않음)
 	return true;
+}
+
+void ATBNPCBase::PlayReactMontage()
+{
+	if (!ReactMontage || !Mesh)
+	{
+		return;
+	}
+
+	// 몽타주는 ABP의 Slot 노드를 통해서만 재생됨 → AnimInstance(ABP)가 있어야 함
+	UAnimInstance* AnimInstance = Mesh->GetAnimInstance();
+	if (!AnimInstance)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[NPC] %s: ABP가 없어 반응 몽타주를 재생할 수 없음"), *GetName());
+		return;
+	}
+
+	// 연타해도 처음부터 다시 튀지 않게, 재생 중이면 무시
+	if (AnimInstance->Montage_IsPlaying(ReactMontage))
+	{
+		return;
+	}
+
+	AnimInstance->Montage_Play(ReactMontage);
 }
