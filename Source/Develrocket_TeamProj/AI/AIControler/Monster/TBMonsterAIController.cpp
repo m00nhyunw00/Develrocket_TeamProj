@@ -91,6 +91,7 @@ void ATBMonsterAIController::OnPossess(APawn* InPawn)
 
 void ATBMonsterAIController::OnUnPossess()
 {
+	bPreserveTargetDuringStagger = false;
 	PendingInvestigationLocation.Reset();
 	FinishInvestigation(true);
 	if (ATBMonster* Monster = Cast<ATBMonster>(GetPawn()))
@@ -107,6 +108,7 @@ void ATBMonsterAIController::OnUnPossess()
 void ATBMonsterAIController::HandleMonsterDied(ATBMonster* Monster)
 {
 	if (!HasAuthority() || Monster != GetPawn()) return;
+	bPreserveTargetDuringStagger = false;
 	PendingInvestigationLocation.Reset();
 	FinishInvestigation(true);
 	GetWorldTimerManager().ClearTimer(TargetMemoryTimer);
@@ -135,11 +137,34 @@ void ATBMonsterAIController::ReactivateFromPool()
 	if (bDrawSightDebug) GetWorldTimerManager().SetTimer(SightDebugTimer, this, &ThisClass::DrawSightDebug, FMath::Max(0.05f, SightDebugInterval), true);
 #endif
 }
-void ATBMonsterAIController::InvestigateDamageSource(const AActor* DamageSource)
+void ATBMonsterAIController::InvestigateDamageSource(AActor* DamageSource)
 {
 	const ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
-	const UBlackboardComponent* BlackboardComponent = GetBlackboardComponent();
+	UBlackboardComponent* BlackboardComponent = GetBlackboardComponent();
 	if (!HasAuthority() || !IsValid(Monster) || Monster->IsDead() || !IsValid(DamageSource) || DamageSource == Monster || !BlackboardComponent) return;
+	UAbilitySystemComponent* SourceASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DamageSource);
+	if (IsValid(SourceASC) && SourceASC->GetAvatarActor() == DamageSource
+		&& !SourceASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
+		&& (SourceASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
+			|| SourceASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human)))
+	{
+		if (!bDamagePriorityTarget || !TrackedTarget.IsValid() || !TrackedTargetASC.IsValid()
+			|| TrackedTargetASC->GetAvatarActor() != TrackedTarget.Get()
+			|| TrackedTargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
+		{
+			SetTrackedTarget(DamageSource);
+			bDamagePriorityTarget = true;
+		}
+		if (TrackedTarget.Get() == DamageSource)
+		{
+			GetWorldTimerManager().ClearTimer(TargetMemoryTimer);
+			BlackboardComponent->SetValueAsObject(TEXT("TargetActor"), TrackedTarget.Get());
+			PendingInvestigationLocation.Reset();
+			FinishInvestigation(true);
+			UpdateTarget();
+		}
+		return;
+	}
 	if (BlackboardComponent->GetValueAsObject(TEXT("TargetActor"))) return;
 
 	PendingInvestigationLocation = DamageSource->GetActorLocation();
@@ -259,8 +284,43 @@ void ATBMonsterAIController::HandleTargetMemoryExpired()
 	UpdateTarget(nullptr, true);
 }
 
+void ATBMonsterAIController::PreserveTargetDuringStagger()
+{
+	if (!HasAuthority()) return;
+	bPreserveTargetDuringStagger = true;
+	GetWorldTimerManager().ClearTimer(TargetMemoryTimer);
+}
+
+void ATBMonsterAIController::RefreshTargetAfterStagger()
+{
+	if (!HasAuthority()) return;
+	bPreserveTargetDuringStagger = false;
+	AActor* Target = TrackedTarget.Get();
+	UAbilitySystemComponent* ASC = TrackedTargetASC.Get();
+	UBlackboardComponent* Blackboard = GetBlackboardComponent();
+	if (!IsValid(Target) || !IsValid(ASC) || ASC->GetAvatarActor() != Target
+		|| ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
+		|| (!ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
+			&& !ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human)) || !Blackboard || !GetPerceptionComponent())
+	{
+		UpdateTarget();
+		return;
+	}
+
+	Blackboard->SetValueAsObject(TEXT("TargetActor"), Target);
+	TArray<AActor*> PerceivedActors;
+	GetPerceptionComponent()->GetCurrentlyPerceivedActors(UAISense_Sight::StaticClass(), PerceivedActors);
+	GetWorldTimerManager().ClearTimer(TargetMemoryTimer);
+	if (!PerceivedActors.Contains(Target))
+	{
+		GetWorldTimerManager().SetTimer(TargetMemoryTimer, this, &ThisClass::HandleTargetMemoryExpired,
+			FMath::Max(0.1f, LostSightMemorySeconds), false);
+	}
+}
+
 void ATBMonsterAIController::ClearTrackedTarget()
 {
+	bDamagePriorityTarget = false;
 	if (AActor* PreviousTarget = TrackedTarget.Get())
 	{
 		PreviousTarget->OnDestroyed.RemoveDynamic(this, &ThisClass::HandleTargetDestroyed);
@@ -272,6 +332,20 @@ void ATBMonsterAIController::ClearTrackedTarget()
 	TargetDeadTagHandle.Reset();
 	TrackedTargetASC.Reset();
 	TrackedTarget.Reset();
+}
+
+void ATBMonsterAIController::SetTrackedTarget(AActor* Target)
+{
+	if (TrackedTarget.Get() == Target) return;
+	ClearTrackedTarget();
+	TrackedTarget = Target;
+	if (IsValid(Target))
+	{
+		Target->OnDestroyed.AddUniqueDynamic(this, &ThisClass::HandleTargetDestroyed);
+		UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
+		TrackedTargetASC = ASC;
+		if (IsValid(ASC)) TargetDeadTagHandle = ASC->RegisterGameplayTagEvent(TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleTargetDeadTagChanged);
+	}
 }
 
 void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExpired)
@@ -287,6 +361,28 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 	{
 		return;
 	}
+	AActor* PreservedTarget = TrackedTarget.Get();
+	UAbilitySystemComponent* PreservedASC = TrackedTargetASC.Get();
+	if ((bPreserveTargetDuringStagger || (bDamagePriorityTarget && !bMemoryExpired)) && IsValid(PreservedTarget) && PreservedTarget != ExcludedActor
+		&& IsValid(PreservedASC) && PreservedASC->GetAvatarActor() == PreservedTarget
+		&& !PreservedASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
+		&& (PreservedASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
+			|| PreservedASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human)))
+	{
+		TArray<AActor*> SeenActors;
+		GetPerceptionComponent()->GetCurrentlyPerceivedActors(UAISense_Sight::StaticClass(), SeenActors);
+		if (bPreserveTargetDuringStagger || SeenActors.Contains(PreservedTarget))
+		{
+			GetWorldTimerManager().ClearTimer(TargetMemoryTimer);
+		}
+		else if (!GetWorldTimerManager().IsTimerActive(TargetMemoryTimer))
+		{
+			GetWorldTimerManager().SetTimer(TargetMemoryTimer, this, &ThisClass::HandleTargetMemoryExpired, FMath::Max(0.1f, LostSightMemorySeconds), false);
+		}
+		BlackboardComponent->SetValueAsObject(TEXT("TargetActor"), PreservedTarget);
+		return;
+	}
+	if (bDamagePriorityTarget) bDamagePriorityTarget = false;
 
 	TArray<AActor*> PerceivedActors;
 	GetPerceptionComponent()->GetCurrentlyPerceivedActors(UAISense_Sight::StaticClass(), PerceivedActors);
@@ -327,18 +423,7 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 	}
 
 	GetWorldTimerManager().ClearTimer(TargetMemoryTimer);
-	if (TrackedTarget.Get() != ClosestPlayer)
-	{
-		ClearTrackedTarget();
-		TrackedTarget = ClosestPlayer;
-		if (ClosestPlayer)
-		{
-			ClosestPlayer->OnDestroyed.AddUniqueDynamic(this, &ThisClass::HandleTargetDestroyed);
-			UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(ClosestPlayer);
-			TrackedTargetASC = ASC;
-			TargetDeadTagHandle = ASC->RegisterGameplayTagEvent(TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleTargetDeadTagChanged);
-		}
-	}
+	SetTrackedTarget(ClosestPlayer);
 	BlackboardComponent->SetValueAsObject(TEXT("TargetActor"), ClosestPlayer);
 	if (ClosestPlayer)
 	{

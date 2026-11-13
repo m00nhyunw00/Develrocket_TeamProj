@@ -18,8 +18,10 @@ class DEVELROCKET_TEAMPROJ_API ATBMonsterAIController : public ATBBaseAIControll
 public:
 	 ATBMonsterAIController();
 
-	void InvestigateDamageSource(const AActor* DamageSource);
+	void InvestigateDamageSource(AActor* DamageSource);
 	void TryStartPendingInvestigation();
+	void PreserveTargetDuringStagger();
+	void RefreshTargetAfterStagger();
 	void ReactivateFromPool();
 	
 protected:
@@ -42,6 +44,7 @@ protected:
 	void HandleTargetMemoryExpired();
 	void HandleTargetDeadTagChanged(FGameplayTag Tag, int32 NewCount);
 	void ClearTrackedTarget();
+	void SetTrackedTarget(AActor* Target);
 	TWeakObjectPtr<AActor> TrackedTarget;
 	TWeakObjectPtr<UAbilitySystemComponent> TrackedTargetASC;
 	FDelegateHandle TargetDeadTagHandle;
@@ -74,5 +77,7 @@ private:
 	TOptional<FVector> PendingInvestigationLocation;
 	FAIRequestID InvestigationRequestID;
 	bool bPausedBrainForInvestigation = false;
+	bool bPreserveTargetDuringStagger = false;
+	bool bDamagePriorityTarget = false;
 	FTimerHandle SightDebugTimer;
 };

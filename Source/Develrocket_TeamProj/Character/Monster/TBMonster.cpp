@@ -153,6 +153,13 @@ bool ATBMonster::ApplyDamage(float Damage,AActor* DamageSource)
 	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);
 	
 	const bool bApplied = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
+	if (bApplied && !IsDead() && IsValid(DamageSource))
+	{
+		if (ATBMonsterAIController* MonsterController = Cast<ATBMonsterAIController>(GetController()))
+		{
+			MonsterController->InvestigateDamageSource(DamageSource);
+		}
+	}
 	if (bApplied && !IsDead() && !AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Stunned))
 	{
 		MonsterAttributes->AddStagger(Damage);
@@ -167,6 +174,10 @@ void ATBMonster::HandleStaggerFull()
 		return;
 	}
 
+	if (ATBMonsterAIController* MonsterController = Cast<ATBMonsterAIController>(GetController()))
+	{
+		MonsterController->PreserveTargetDuringStagger();
+	}
 	if (AAIController* AIController = Cast<AAIController>(GetController()))
 	{
 		AIController->StopMovement();
@@ -189,6 +200,10 @@ void ATBMonster::HandleStaggerFull()
 	}
 	if (!StaggerAbilityClass || !AbilitySystemComponent->TryActivateAbilityByClass(StaggerAbilityClass))
 	{
+		if (ATBMonsterAIController* MonsterController = Cast<ATBMonsterAIController>(GetController()))
+		{
+			MonsterController->RefreshTargetAfterStagger();
+		}
 		if (bPausedBrainForStagger)
 		{
 			if (AAIController* AIController = Cast<AAIController>(GetController()))
@@ -213,6 +228,10 @@ void ATBMonster::HandleAbilityEnded(const FAbilityEndedData& EndedData)
 		&& EndedData.AbilityThatEnded->IsA<UTBGameplayAbility_Monster_Stagger>())
 	{
 		MonsterAttributes->SetStagger(0.0f);
+		if (ATBMonsterAIController* MonsterController = Cast<ATBMonsterAIController>(GetController()))
+		{
+			MonsterController->RefreshTargetAfterStagger();
+		}
 		if (bPausedBrainForStagger)
 		{
 			if (AAIController* AIController = Cast<AAIController>(GetController()))
@@ -353,15 +372,7 @@ void ATBMonster::OnPoolDeactivated_Implementation()
 bool ATBMonster::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource,
 	const FHitResult& HitResult)
 {
-	const bool bApplied = ApplyDamage(Damage, DamageSource);
-	if (bApplied && !IsDead() && IsValid(DamageSource))
-	{
-		if (ATBMonsterAIController* MonsterController = Cast<ATBMonsterAIController>(GetController()))
-		{
-			MonsterController->InvestigateDamageSource(DamageSource);
-		}
-	}
-	return bApplied;
+	return ApplyDamage(Damage, DamageSource);
 }
 
 void ATBMonster::EndPlay(const EEndPlayReason::Type EndPlayReason)

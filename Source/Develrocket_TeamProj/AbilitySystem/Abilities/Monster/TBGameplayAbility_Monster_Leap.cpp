@@ -1,8 +1,11 @@
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Leap.h"
 
 #include "AIController.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "Character/Monster/TBMonster.h"
-#include "Character/Player/TBPlayer.h"
+#include "GameFramework/Character.h"
+#include "Interface/TBHitInterface.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -10,6 +13,18 @@
 #include "GameplayEffect.h"
 #include "TBGameplayTags.h"
 #include "TimerManager.h"
+
+namespace
+{
+	bool IsValidLeapTarget(const AActor* Target)
+	{
+		const UAbilitySystemComponent* ASC = IsValid(Target) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target) : nullptr;
+		return IsValid(ASC) && ASC->GetAvatarActor() == Target
+			&& !ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
+			&& (ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
+				|| ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human));
+	}
+}
 
 UTBGameplayAbility_Monster_Leap::UTBGameplayAbility_Monster_Leap()
 {
@@ -22,34 +37,34 @@ UTBGameplayAbility_Monster_Leap::UTBGameplayAbility_Monster_Leap()
 	ActivationBlockedTags.AddTag(TBGameplayTags::State_MovementBlocked);
 }
 
-bool UTBGameplayAbility_Monster_Leap::CanLeapAtTarget(const ATBMonster* Monster, const ATBPlayer* Player) const
+bool UTBGameplayAbility_Monster_Leap::CanLeapAtTarget(const ATBMonster* Monster, const AActor* Target) const
 {
 	const UGameplayEffect* Cooldown = GetCooldownGameplayEffect();
 	if (!bCommitOnActivate || !ThirdPersonMontage || !Cooldown
 		|| Cooldown->DurationPolicy != EGameplayEffectDurationType::HasDuration
 		|| !Cooldown->GetGrantedTags().HasTagExact(TBGameplayTags::Cooldown_MonsterLeap)
-		|| !IsValid(Monster) || !Monster->HasAuthority() || !IsValid(Player)
-		|| Monster->IsDead() || Player->IsDead() || !Monster->GetWorld()
-		|| Player->GetWorld() != Monster->GetWorld() || !Monster->GetCharacterMovement()
+		|| !IsValid(Monster) || !Monster->HasAuthority() || !IsValidLeapTarget(Target)
+		|| Monster->IsDead() || !Monster->GetWorld()
+		|| Target->GetWorld() != Monster->GetWorld() || !Monster->GetCharacterMovement()
 		|| !Monster->GetCharacterMovement()->IsMovingOnGround()
 		|| !FMath::IsFinite(FlightTime) || FlightTime <= 0.0f
 		|| !FMath::IsFinite(MaxLeapRange) || MaxLeapRange <= 0.0f
-		|| FVector::DistSquared(Monster->GetActorLocation(), Player->GetActorLocation()) > FMath::Square(MaxLeapRange))
+		|| FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(MaxLeapRange))
 	{
 		return false;
 	}
 	FCollisionQueryParams Query(SCENE_QUERY_STAT(MonsterLeapPath), false, Monster);
-	Query.AddIgnoredActor(Player);
-	return !Monster->GetWorld()->LineTraceTestByChannel(Monster->GetActorLocation(), Player->GetActorLocation(), ECC_Visibility, Query);
+	Query.AddIgnoredActor(Target);
+	return !Monster->GetWorld()->LineTraceTestByChannel(Monster->GetActorLocation(), Target->GetActorLocation(), ECC_Visibility, Query);
 }
 
 void UTBGameplayAbility_Monster_Leap::ActivateAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
 	ATBMonster* Monster = ActorInfo && ActorInfo->IsNetAuthority() ? Cast<ATBMonster>(ActorInfo->AvatarActor.Get()) : nullptr;
-	const ATBPlayer* Player = TriggerEventData ? Cast<ATBPlayer>(TriggerEventData->Target.Get()) : nullptr;
+	const AActor* Target = TriggerEventData ? TriggerEventData->Target.Get() : nullptr;
 	// 도약 시작 조건과 타깃까지의 장애물 확인
 	const UGameplayEffect* Cooldown = GetCooldownGameplayEffect();
-	if (!CanLeapAtTarget(Monster, Player) || !bCommitOnActivate || !Cooldown
+	if (!CanLeapAtTarget(Monster, Target) || !bCommitOnActivate || !Cooldown
 		|| Cooldown->DurationPolicy != EGameplayEffectDurationType::HasDuration
 		|| !Cooldown->GetGrantedTags().HasTagExact(TBGameplayTags::Cooldown_MonsterLeap))
 	{
@@ -58,8 +73,8 @@ void UTBGameplayAbility_Monster_Leap::ActivateAbility(FGameplayAbilitySpecHandle
 	}
 
 	// 발동 시점의 플레이어 위치를 도약 목표로 고정
-	LeapDestination = Player->GetActorLocation();
-	LeapTarget = Player;
+	LeapDestination = Target->GetActorLocation();
+	LeapTarget = Target;
 	// 실제 착지 콜백 등록 및 추격 이동 중단
 	LeapingMonster = Monster;
 	if (AAIController* Controller = Cast<AAIController>(Monster->GetController()))
@@ -103,9 +118,9 @@ void UTBGameplayAbility_Monster_Leap::LaunchLeap()
 void UTBGameplayAbility_Monster_Leap::UpdateLeapHoming()
 {
 	ATBMonster* Monster = LeapingMonster.Get();
-	const ATBPlayer* Target = LeapTarget.Get();
+	const AActor* Target = LeapTarget.Get();
 	if (!IsActive() || !bLaunched || bLanded || !IsValid(Monster) || !Monster->HasAuthority()
-		|| Monster->IsDead() || !IsValid(Target) || Target->IsDead() || Target->GetWorld() != Monster->GetWorld())
+		|| Monster->IsDead() || !IsValidLeapTarget(Target) || Target->GetWorld() != Monster->GetWorld())
 	{
 		if (Monster) Monster->GetWorldTimerManager().ClearTimer(HomingTimer);
 		return;
@@ -144,16 +159,20 @@ void UTBGameplayAbility_Monster_Leap::HandleLanded(const FHitResult& Hit)
 	UWorld* World = Monster->GetWorld();
 	const FVector Center = Monster->GetActorLocation();
 	FCollisionQueryParams Query(SCENE_QUERY_STAT(MonsterLeapDamage), false, Monster);
-	for (TActorIterator<ATBPlayer> It(World); It && IsActive(); ++It)
+	for (TActorIterator<ACharacter> It(World); It && IsActive(); ++It)
 	{
-		ATBPlayer* Player = *It;
-		if (!IsValid(Player) || Player->IsDead() || FVector::DistSquared(Center, Player->GetActorLocation()) > FMath::Square(LandingRadius)) continue;
+		ACharacter* Target = *It;
+		if (!IsValidLeapTarget(Target) || !Target->GetClass()->ImplementsInterface(UTBHitInterface::StaticClass())
+			|| FVector::DistSquared(Center, Target->GetActorLocation()) > FMath::Square(LandingRadius)) continue;
 		// 착지 지점과 플레이어 사이 시야 차단 검사
 		FHitResult Obstruction;
-		if (World->LineTraceSingleByChannel(Obstruction, Center, Player->GetActorLocation(), ECC_Visibility, Query)
-			&& Obstruction.GetActor() != Player) continue;
+		if (World->LineTraceSingleByChannel(Obstruction, Center, Target->GetActorLocation(), ECC_Visibility, Query)
+			&& Obstruction.GetActor() != Target) continue;
 
-		Player->ApplyDamage(AttackDamage, Monster);
+		FHitResult HitResult;
+		HitResult.Location = Target->GetActorLocation();
+		HitResult.ImpactPoint = HitResult.Location;
+		ITBHitInterface::Execute_ReceiveAttackHit(Target, FGameplayTag(), AttackDamage, Monster, HitResult);
 	}
 
 	if (IsActive() && bMontageCompleted) EndLeap(false);
