@@ -14,6 +14,8 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Dead);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Stunned);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_MovementBlocked);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Invulnerable);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Bleeding);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combat);
 	
 	// 쿨다운 ----------------------

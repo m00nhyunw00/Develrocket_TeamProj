@@ -263,10 +263,4 @@ void ATBCitizenAIController::ReactivateFromPool()
 		}
 		Brain->RestartLogic();
 	}
-
-	// StopLogic으로 멈춘 BT를 처음부터 다시 실행 (몬스터 ReactivateFromPool과 같은 방식)
-	if (UBrainComponent* Brain = GetBrainComponent())
-	{
-		Brain->RestartLogic();
-	}
 }

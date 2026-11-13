@@ -3,15 +3,14 @@
 #include "CoreMinimal.h"
 #include "Character/TBCharacterBase.h"
 #include "Interface/TBInteractable.h"
+#include "GameplayEffectTypes.h"
 #include "TBDefine.h"
 #include "TBCitizenNPC.generated.h"
 
 class UAnimMontage;
 class UGameplayAbility;
-class ATBCitizenNPC;
-
-// 시체 유지 시간이 끝났음을 알림 → SpawnManager가 구독해서 풀로 반환
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTBCitizenCorpseExpired, ATBCitizenNPC*, Citizen);
+class UGameplayEffect;
+class UTBCitizenAttributeSet;
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBCitizenNPC : public ATBCharacterBase, public ITBInteractable
@@ -27,7 +26,7 @@ public:
 	virtual bool ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult) override;
 
 	UFUNCTION(BlueprintPure, Category = "Citizen|Health")
-	bool IsInjured() const { return bIsInjured; }         // ABP에서 읽음
+	bool IsInjured() const;                               // ABP에서 읽음 (State.Bleeding 태그 기준)
 
 	// 상호작용 계약 ----------------------
 	virtual bool CanInteract_Implementation(AActor* InteractInstigator) const override;   // Idle일 때만
@@ -44,12 +43,9 @@ public:
 	virtual void OnPoolActivated_Implementation() override;       // [서버] 풀에서 꺼낼 때 살아있는 상태로 복구
 	virtual void OnPoolDeactivated_Implementation() override;     // [서버] 풀로 넣기 직전 정리
 
-	// 시체 유지 종료 알림 (SpawnManager 구독)
-	UPROPERTY(BlueprintAssignable, Category = "Citizen")
-	FTBCitizenCorpseExpired OnCitizenCorpseExpired;
-
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void PossessedBy(AController* NewController) override;
 
 	// 상호작용 데이터 ----------------------
@@ -69,17 +65,26 @@ protected:
 	float MaxDrainDistance = 250.f;
 	
 	// 흡혈 시작 시 시민을 플레이어 정면 고정 위치로 맞춤 (Feed·Victim 몽타주가 맞물리도록)
-    UPROPERTY(EditDefaultsOnly, Category = "Interaction|Align", meta = (Units = "cm"))
-    float FeedAlignDistance = 80.f;                       // 플레이어 정면 기준 거리 (캡슐 반지름 합 이상)
-    
-    UPROPERTY(EditDefaultsOnly, Category = "Interaction|Align", meta = (Units = "deg"))
-    float FeedAlignYawOffset = 180.f;                     // 180 = 플레이어를 마주봄, 0 = 등을 보임
-    
-    void AlignToFeeder(const AActor* Feeder);             // [서버] 위치·방향 맞춤
+	UPROPERTY(EditDefaultsOnly, Category = "Interaction|Align", meta = (Units = "cm"))
+	float FeedAlignDistance = 80.f;                       // 플레이어 정면 기준 거리 (캡슐 반지름 합 이상)
 	
-	// 체력·출혈 ----------------------
+	UPROPERTY(EditDefaultsOnly, Category = "Interaction|Align", meta = (Units = "deg"))
+	float FeedAlignYawOffset = 180.f;                     // 180 = 플레이어를 마주봄, 0 = 등을 보임
+	
+	void AlignToFeeder(const AActor* Feeder);             // [서버] 위치·방향 맞춤
+	
+	// 혈액(체력)·출혈 (GAS) ----------------------
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
+	TObjectPtr<UTBCitizenAttributeSet> CitizenAttributes;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Health", meta = (ClampMin = "1.0"))
-	float MaxHealth = 30.f;
+	float InitialMaxBlood = 30.f;                         // 스폰·재사용 시 MaxBlood·Blood 값
+
+	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Health")
+	TSubclassOf<UGameplayEffect> DamageEffectClass;       // Instant, Blood += SetByCaller(Data.Damage)
+
+	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Health")
+	TSubclassOf<UGameplayEffect> BleedEffectClass;        // Infinite·Period 1s, Blood += SetByCaller(Data.Damage), State.Bleeding 부여
 
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Health", meta = (ClampMin = "0.0"))
 	float BleedDamagePerSecond = 4.f;
@@ -87,15 +92,11 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Health", meta = (ClampMin = "0.0", Units = "cm/s"))
 	float InjuredWalkSpeed = 200.f;
 
-	UPROPERTY(Replicated)
-	bool bIsInjured = false;                              // [복제] ABP 부상 애니메이션 전환용
-
-	float CurrentHealth = 0.f;                            // [서버 전용]
-	FTimerHandle BleedTimer;
-
-	void ApplyCitizenDamage(float Amount);                // [서버] 체력 감소의 유일한 입구
-	void HandleBleedTick();                               // [서버] 1초마다 출혈
-	void ResetHealth();                                   // [서버] 스폰·풀 재사용 시 초기화
+	void ResetVitals();                                   // [서버] 혈액 가득 + 출혈 제거 (스폰·풀 재사용)
+	void StartBleeding();                                 // [서버] 첫 피격 시 출혈 GE 적용
+	void StopBleeding();                                  // [서버] 출혈 GE 제거 (State.Bleeding도 함께 제거)
+	void HandleOutOfBlood();                              // [서버] 혈액 0 → 사망
+	void HandleBleedingTagChanged(const FGameplayTag Tag, int32 NewCount);   // [서버] 부상 감속
 
 	// 사망 ----------------------
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Death")
@@ -120,4 +121,8 @@ private:
 
 	TWeakObjectPtr<AActor> DrainInstigator;               // 지금 나를 흡혈 중인 플레이어
 	FTimerHandle CorpseTimer;
+
+	FActiveGameplayEffectHandle BleedEffectHandle;        // 현재 적용 중인 출혈 GE
+	FDelegateHandle OutOfBloodHandle;
+	FDelegateHandle BleedingTagHandle;
 };
