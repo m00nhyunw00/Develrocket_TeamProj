@@ -21,6 +21,7 @@ UTBGameplayAbility_PrimaryAttack::UTBGameplayAbility_PrimaryAttack()
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Combat);
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Dead);
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Stunned);
+    ActivationBlockedTags.AddTag(TBGameplayTags::State_Draining);
     
     BulletTrailCueTag = TBGameplayTags::GameplayCue_Weapon_BloodTrail;
     DefaultImpactCueTag = TBGameplayTags::GameplayCue_Impact_Blood_World;
