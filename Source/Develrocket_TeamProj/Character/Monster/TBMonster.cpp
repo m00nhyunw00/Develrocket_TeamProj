@@ -16,6 +16,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Abilities/GameplayAbility.h"
 #include "TBGameplayTags.h"
+#include "Interface/TBPoolInterface.h"
 
 ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
@@ -326,6 +327,9 @@ void ATBMonster::HandleDeath()
 
 void ATBMonster::RestorePoolVisualState()
 {
+	// 부모 기본 구현 또는 자식에서 재정의한 데칼 정리 실행
+	ITBPoolInterface::Execute_ClearHitImpactDecals(this);
+	
 	// 사망 처리 플래그와 메시·캡슐 충돌 및 이동 모드를 재사용 가능한 상태로 복구합니다.
 	bDeathHandled = false;
 	bPausedBrainForStagger = false;

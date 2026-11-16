@@ -14,7 +14,7 @@
 #include "Framework/TBLevelManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/TBInteractionComponent.h"
-#include "Interface/TBInteractable.h"
+#include "Interface/TBInteractInterface.h"
 #include "UI/Menu/TBLobbyReadyWidget.h"
 #include "Framework/TBLobbyManager.h"
 
@@ -190,9 +190,9 @@ void ATBPlayerHUD::HandleFocusedActorChanged(AActor* NewFocus)
         return;
     }
     
-    if (NewFocus && NewFocus->Implements<UTBInteractable>())
+    if (NewFocus && NewFocus->Implements<UTBInteractInterface>())
     {
-        const FText Prompt = ITBInteractable::Execute_GetInteractPrompt(NewFocus);
+        const FText Prompt = ITBInteractInterface::Execute_GetInteractPrompt(NewFocus);
         HUDWidget->ShowInteractPrompt(FText::FromString(TEXT("F")), Prompt);
     }
     else

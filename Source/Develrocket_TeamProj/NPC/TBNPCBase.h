@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Interface/TBInteractable.h"
+#include "Interface/TBInteractInterface.h"
 #include "TBNPCBase.generated.h"
 
 class UCapsuleComponent;
@@ -10,7 +10,7 @@ class USkeletalMeshComponent;
 class UAnimMontage;
 
 UCLASS(Abstract)
-class DEVELROCKET_TEAMPROJ_API ATBNPCBase : public AActor, public ITBInteractable
+class DEVELROCKET_TEAMPROJ_API ATBNPCBase : public AActor, public ITBInteractInterface
 {
 	GENERATED_BODY()
 

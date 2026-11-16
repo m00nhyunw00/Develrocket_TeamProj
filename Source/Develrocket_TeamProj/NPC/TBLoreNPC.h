@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Interface/TBInteractable.h"
+#include "Interface/TBInteractInterface.h"
 #include "TBLoreNPC.generated.h"
 
 class UCapsuleComponent;
@@ -21,7 +21,7 @@ class UAnimMontage;
  * 맵에 배치해서 사용 (배치 액터라 bReplicates 없이도 RPC로 참조 가능)
  */
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API ATBLoreNPC : public AActor, public ITBInteractable
+class DEVELROCKET_TEAMPROJ_API ATBLoreNPC : public AActor, public ITBInteractInterface
 {
 	GENERATED_BODY()
 

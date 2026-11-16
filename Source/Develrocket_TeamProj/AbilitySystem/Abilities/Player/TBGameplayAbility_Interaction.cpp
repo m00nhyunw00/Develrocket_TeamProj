@@ -2,7 +2,7 @@
 
 #include "TBGameplayTags.h"
 #include "Components/TBInteractionComponent.h"
-#include "Interface/TBInteractable.h"
+#include "Interface/TBInteractInterface.h"
 
 UTBGameplayAbility_Interaction::UTBGameplayAbility_Interaction()
 {
@@ -32,8 +32,8 @@ void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
 	CurrentTarget = Target;
 	
 	// 2. 몽타주 채우기 (대상이 없으면 반드시 비우기)
-	ThirdPersonMontage = Target ? ITBInteractable::Execute_GetInteractMontage(Target) : nullptr;
-	FirstPersonMontage = Target ? ITBInteractable::Execute_GetInteractFirstPersonMontage(Target) : nullptr;
+	ThirdPersonMontage = Target ? ITBInteractInterface::Execute_GetInteractMontage(Target) : nullptr;
+	FirstPersonMontage = Target ? ITBInteractInterface::Execute_GetInteractFirstPersonMontage(Target) : nullptr;
 	
 	if (!ThirdPersonMontage)
 	{
@@ -64,14 +64,14 @@ void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
 	// 5. 서버: 시작 시 결과(대화) 또는 시작 알림(흡혈)
 	if (HasAuthority(&ActivationInfo))
 	{
-		if (ITBInteractable::Execute_ShouldResolveOnStart(Target))
+		if (ITBInteractInterface::Execute_ShouldResolveOnStart(Target))
 		{
 			ResolveInteraction();
 		}
 		else
 		{
 			bInteractionBegun = true;
-			ITBInteractable::Execute_BeginInteract(Target, GetAvatarActorFromActorInfo());
+			ITBInteractInterface::Execute_BeginInteract(Target, GetAvatarActorFromActorInfo());
 		}
 	}
 }
@@ -85,7 +85,7 @@ void UTBGameplayAbility_Interaction::EndAbility(const FGameplayAbilitySpecHandle
 	{
 		if (AActor* Target = CurrentTarget.Get())
 		{
-			ITBInteractable::Execute_CancelInteract(Target, ActorInfo->AvatarActor.Get());
+			ITBInteractInterface::Execute_CancelInteract(Target, ActorInfo->AvatarActor.Get());
 		}
 	}
 	
@@ -101,7 +101,7 @@ void UTBGameplayAbility_Interaction::HandleActionMontageCompleted()
     AActor* Target = CurrentTarget.Get();
 
     // 흡혈: 몽타주 완료 시 결과 (서버만)
-	if (CurrentActorInfo && CurrentActorInfo->IsNetAuthority() && Target && !ITBInteractable::Execute_ShouldResolveOnStart(Target))
+	if (CurrentActorInfo && CurrentActorInfo->IsNetAuthority() && Target && !ITBInteractInterface::Execute_ShouldResolveOnStart(Target))
     {
         ResolveInteraction();
     }
@@ -122,7 +122,7 @@ void UTBGameplayAbility_Interaction::ResolveInteraction()
     }
 
     // [서버] 게임 상태 결과
-    ITBInteractable::Execute_Interact(Target, Avatar);
+    ITBInteractInterface::Execute_Interact(Target, Avatar);
 
     // [서버 → 그 플레이어] 로컬 결과 (대화 자막 등)
     InteractionComp->Client_NotifyInteracted(Target);

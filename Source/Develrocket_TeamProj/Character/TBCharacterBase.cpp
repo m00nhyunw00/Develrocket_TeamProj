@@ -9,6 +9,7 @@
 #include "Components/TBCharacterMovementComponent.h"
 #include "TBGameplayTags.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
+#include "Components/DecalComponent.h"
 
 // 기본 이동 컴포넌트를 프로젝트의 커스텀 클래스로 교체
 ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
@@ -152,6 +153,24 @@ TSubclassOf<UGameplayEffect> ATBCharacterBase::GetAttackDamageEffect() const
 
 void ATBCharacterBase::OnAttackApplied(float Damage, AActor* DamageSource)
 {
+}
+
+void ATBCharacterBase::ClearHitImpactDecals_Implementation()
+{
+    // 피격 Cue에서 생성한 데칼 식별 태그
+    static const FName HitImpactDecalTag(TEXT("TB.HitImpactDecal"));
+
+    // 제거 중 컴포넌트 목록 변경에 대비한 사전 수집
+    TInlineComponentArray<UDecalComponent*> Decals(this);
+
+    for (UDecalComponent* Decal : Decals)
+    {
+        // 유효한 피격 데칼만 제거
+        if (IsValid(Decal) && Decal->ComponentHasTag(HitImpactDecalTag))
+        {
+            Decal->DestroyComponent();
+        }
+    }
 }
 
 void ATBCharacterBase::UnPossessed()
