@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
 #include "GameFramework/Character.h"
-#include "Interface/TBPoolable.h"
+#include "Interface/TBPoolInterface.h"
 #include "Interface/TBHitInterface.h"
 #include "TBCharacterBase.generated.h"
 
@@ -14,7 +14,7 @@ class UGameplayEffect;
 
 UCLASS(Abstract)
 class DEVELROCKET_TEAMPROJ_API ATBCharacterBase
-	: public ACharacter, public IAbilitySystemInterface, public ITBHitInterface, public ITBPoolable
+	: public ACharacter, public IAbilitySystemInterface, public ITBHitInterface, public ITBPoolInterface
 {
 	GENERATED_BODY()
 
@@ -69,6 +69,9 @@ protected:
 	virtual void OnAttackApplied(float Damage, AActor* DamageSource);
 	// false이면 공격자가 아닌 피격 대상의 ASC로 GE 컨텍스트를 만든다.
 	virtual bool UseSourceASCForAttackEffect() const { return true; }
+	
+	// 모든 캐릭터에서 공유하는 피격 데칼 제거 구현
+	virtual void ClearHitImpactDecals_Implementation() override;
 
 	// 몬스터는 직접 생성하고 플레이어는 PlayerState에서 연결하는 공통 ASC 참조
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")

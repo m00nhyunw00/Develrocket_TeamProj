@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Character/TBCharacterBase.h"
-#include "Interface/TBInteractable.h"
+#include "Interface/TBInteractInterface.h"
 #include "GameplayEffectTypes.h"
 #include "TBDefine.h"
 #include "TBCitizen.generated.h"
@@ -13,7 +13,7 @@ class UGameplayEffect;
 class UTBCitizenAttributeSet;
 
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API ATBCitizen : public ATBCharacterBase, public ITBInteractable
+class DEVELROCKET_TEAMPROJ_API ATBCitizen : public ATBCharacterBase, public ITBInteractInterface
 {
 	GENERATED_BODY()
 

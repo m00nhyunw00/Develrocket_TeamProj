@@ -1,15 +1,15 @@
 #pragma once
 
 #include "UObject/Interface.h"
-#include "TBPoolable.generated.h"
+#include "TBPoolInterface.generated.h"
 
 UINTERFACE(BlueprintType)
-class DEVELROCKET_TEAMPROJ_API UTBPoolable : public UInterface
+class DEVELROCKET_TEAMPROJ_API UTBPoolInterface : public UInterface
 {
 	GENERATED_BODY()
 };
 
-class DEVELROCKET_TEAMPROJ_API ITBPoolable
+class DEVELROCKET_TEAMPROJ_API ITBPoolInterface
 {
 	GENERATED_BODY()
 
@@ -21,4 +21,8 @@ public:
 	// 풀에 반환되기 전에 호출됩니다. 액터별 동작을 중지하고 필요한 상태를 정리합니다.
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool")
 	void OnPoolDeactivated();
+	
+	// 이전 생명 주기의 피격 데칼 제거 요청
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool|Visual")
+	void ClearHitImpactDecals();
 };
