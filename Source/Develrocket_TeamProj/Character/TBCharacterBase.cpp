@@ -1,6 +1,8 @@
 #include "TBCharacterBase.h"
 
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
+#include "GameplayEffect.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/TBBloodBarComponent.h"
 
@@ -79,12 +81,6 @@ void ATBCharacterBase::InitializeAbilitySystem(UAbilitySystemComponent* InASC, A
     }
 
     if (BloodBarComponent) BloodBarComponent->BindAbilitySystem(AbilitySystemComponent.Get());
-
-    // 서버에서 고정 타입 태그 적용 및 클라이언트 복제
-    if (HasAuthority() && CharacterTypeTag.IsValid())
-    {
-        AbilitySystemComponent->SetLooseGameplayTagCount(CharacterTypeTag, 1, EGameplayTagReplicationState::TagOnly);
-    }
 }
 
 void ATBCharacterBase::UninitializeAbilitySystem()
@@ -105,6 +101,57 @@ void ATBCharacterBase::UninitializeAbilitySystem()
     {
         AbilitySystemComponent = nullptr;
     }
+}
+
+bool ATBCharacterBase::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage,
+    AActor* DamageSource, const FHitResult& HitResult)
+{
+    // 피격 대상의 ASC와 자식 클래스가 지정한 피해 GE를 가져온다.
+    UAbilitySystemComponent* TargetASC = GetAbilitySystemComponent();
+    const TSubclassOf<UGameplayEffect> EffectClass = GetAttackDamageEffect();
+    if (!HasAuthority() || !IsValid(TargetASC) || !EffectClass || !FMath::IsFinite(Damage)
+        || Damage <= 0.0f || !CanReceiveAttack(Damage)) return false;
+
+    // 공격자 ASC가 있으면 공격자 컨텍스트를 사용한다. Citizen은 기존처럼 자신의 ASC를 사용한다.
+    UAbilitySystemComponent* SourceASC = IsValid(DamageSource)
+        ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DamageSource) : nullptr;
+    UAbilitySystemComponent* SpecASC = UseSourceASCForAttackEffect() && IsValid(SourceASC) ? SourceASC : TargetASC;
+    FGameplayEffectContextHandle Context = SpecASC->MakeEffectContext();
+    if (IsValid(DamageSource))
+    {
+        Context.AddSourceObject(DamageSource);
+        if (UseSourceASCForAttackEffect() && !IsValid(SourceASC)) Context.AddInstigator(DamageSource, DamageSource);
+    }
+    // 기존 피해 GE의 부호 규칙에 맞춰 Data.Damage에 음수 피해량을 전달한다.
+    const FGameplayEffectSpecHandle Spec = SpecASC->MakeOutgoingSpec(EffectClass, 1.0f, Context);
+    if (!Spec.IsValid()) return false;
+    Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);
+    if (!TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied()) return false;
+
+    // GE 적용에 성공하면 공격자의 화면에서 이 대상을 마지막 공격 대상으로 선택한다.
+    // 적용 성공이 실제 Blood 감소를 항상 보장하는 것은 아니다.
+    if (IsValid(DamageSource))
+    {
+        if (UTBBloodBarComponent* AttackerBar = DamageSource->FindComponentByClass<UTBBloodBarComponent>())
+            AttackerBar->RecordAttackedTarget(this);
+    }
+    // 공통 처리 이후 몬스터의 Stagger, Citizen의 출혈 등 개별 반응을 실행한다.
+    OnAttackApplied(Damage, DamageSource);
+    return true;
+}
+
+bool ATBCharacterBase::CanReceiveAttack(float Damage) const
+{
+    return true;
+}
+
+TSubclassOf<UGameplayEffect> ATBCharacterBase::GetAttackDamageEffect() const
+{
+    return nullptr;
+}
+
+void ATBCharacterBase::OnAttackApplied(float Damage, AActor* DamageSource)
+{
 }
 
 void ATBCharacterBase::UnPossessed()

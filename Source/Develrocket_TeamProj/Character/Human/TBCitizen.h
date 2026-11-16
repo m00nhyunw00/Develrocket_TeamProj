@@ -23,7 +23,6 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	
 	// 피격 (ITBHitInterface) ----------------------
-	virtual bool ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult) override;
 
 	UFUNCTION(BlueprintPure, Category = "Citizen|Health")
 	bool IsInjured() const;                               // ABP에서 읽음 (State.Bleeding 태그 기준)
@@ -44,6 +43,11 @@ public:
 	virtual void OnPoolDeactivated_Implementation() override;     // [서버] 풀로 넣기 직전 정리
 
 protected:
+	virtual bool CanReceiveAttack(float Damage) const override;
+	virtual TSubclassOf<UGameplayEffect> GetAttackDamageEffect() const override;
+	virtual void OnAttackApplied(float Damage, AActor* DamageSource) override;
+	// Citizen 피해 GE는 기존과 같이 Citizen 자신의 ASC 컨텍스트를 사용한다.
+	virtual bool UseSourceASCForAttackEffect() const override { return false; }
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void PossessedBy(AController* NewController) override;

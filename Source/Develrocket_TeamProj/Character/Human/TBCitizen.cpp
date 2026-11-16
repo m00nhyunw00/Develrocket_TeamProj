@@ -40,7 +40,6 @@ ATBCitizen::ATBCitizen(const FObjectInitializer& ObjectInitializer) : Super(Obje
 	CitizenAttributes = CreateDefaultSubobject<UTBCitizenAttributeSet>(TEXT("CitizenAttributes"));
 
 	// 부모가 ASC 연결 시 복제 태그로 부여 (플레이어·몬스터와 같은 규칙)
-	CharacterTypeTag = TBGameplayTags::Character_Type_Human;
 }
 
 void ATBCitizen::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -345,37 +344,24 @@ bool ATBCitizen::IsInjured() const
 	return AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Bleeding);
 }
 
-bool ATBCitizen::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult)
+// 흡혈 등으로 무적이거나 사망한 Citizen은 공격을 거부한다.
+bool ATBCitizen::CanReceiveAttack(float Damage) const
 {
-	// 무적(흡혈 중)·사망이면 "피해 없음"으로 응답
-	// (Instant GE는 AttributeSet에서 실행이 거부돼도 적용 성공으로 보일 수 있어서 여기서 먼저 검사)
-	if (!HasAuthority() || !DamageEffectClass || !FMath::IsFinite(Damage) || Damage <= 0.f
-		|| AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable)
-		|| AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
-	{
-		return false;
-	}
+    return AbilitySystemComponent
+        && !AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable)
+        && !AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
+}
 
-	FGameplayEffectContextHandle Context = AbilitySystemComponent->MakeEffectContext();
-	if (IsValid(DamageSource))
-	{
-		Context.AddSourceObject(DamageSource);
-	}
+// Citizen에 설정된 피해 GE를 공통 처리에 제공한다.
+TSubclassOf<UGameplayEffect> ATBCitizen::GetAttackDamageEffect() const
+{
+    return DamageEffectClass;
+}
 
-	const FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(DamageEffectClass, 1.f, Context);
-	if (!Spec.IsValid())
-	{
-		return false;
-	}
-	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);   // 몬스터 ApplyDamage와 같은 부호 규칙
-
-	if (!AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied())
-	{
-		return false;
-	}
-
-	StartBleeding();                                 // 첫 피격이면 출혈 시작 (이미 출혈 중·이번에 사망했으면 무시)
-	return true;
+// 피격 GE 적용 후 기존 Citizen 출혈 처리를 시작한다.
+void ATBCitizen::OnAttackApplied(float Damage, AActor* DamageSource)
+{
+    StartBleeding();
 }
 
 void ATBCitizen::ResetVitals()

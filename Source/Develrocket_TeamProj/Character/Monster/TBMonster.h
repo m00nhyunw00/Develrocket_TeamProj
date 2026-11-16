@@ -42,6 +42,9 @@ public:
 	FTBMonsterDied OnMonsterDied;
 
 protected:
+	virtual bool CanReceiveAttack(float Damage) const override;
+	virtual TSubclassOf<UGameplayEffect> GetAttackDamageEffect() const override;
+	virtual void OnAttackApplied(float Damage, AActor* DamageSource) override;
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
@@ -77,7 +80,6 @@ private:
 	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
 	void Die();
 	void HandleDeath();
-	virtual bool ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult) override;
 	
 	bool bGameplayDataInitialized = false;
 	bool bDeathHandled = false;
