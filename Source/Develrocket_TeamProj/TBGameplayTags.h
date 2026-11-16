@@ -4,11 +4,6 @@
 
 namespace TBGameplayTags
 {
-	// 캐릭터 종류
-
-
-
-	
 	// 캐릭터 상태 ----------------------
 
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Dead);
@@ -17,6 +12,7 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Invulnerable);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Bleeding);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combat);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Draining);
 	
 	// 쿨다운 ----------------------
 	

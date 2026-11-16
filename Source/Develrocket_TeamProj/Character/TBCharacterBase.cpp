@@ -5,6 +5,7 @@
 #include "GameplayEffect.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/TBBloodBarComponent.h"
+#include "GameFramework/PlayerController.h"
 
 #include "Components/TBCharacterMovementComponent.h"
 #include "TBGameplayTags.h"
@@ -131,9 +132,10 @@ bool ATBCharacterBase::ReceiveAttackHit_Implementation(const FGameplayTag& Damag
 
     // GE 적용에 성공하면 공격자의 화면에서 이 대상을 마지막 공격 대상으로 선택한다.
     // 적용 성공이 실제 Blood 감소를 항상 보장하는 것은 아니다.
-    if (IsValid(DamageSource))
+    const APawn* AttackerPawn = Cast<APawn>(DamageSource);
+    if (IsValid(AttackerPawn) && Cast<APlayerController>(AttackerPawn->GetController()))
     {
-        if (UTBBloodBarComponent* AttackerBar = DamageSource->FindComponentByClass<UTBBloodBarComponent>())
+        if (UTBBloodBarComponent* AttackerBar = AttackerPawn->FindComponentByClass<UTBBloodBarComponent>())
             AttackerBar->RecordAttackedTarget(this);
     }
     // 공통 처리 이후 몬스터의 Stagger, Citizen의 출혈 등 개별 반응을 실행한다.
@@ -193,15 +195,28 @@ void ATBCharacterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 bool ATBCharacterBase::IsMovementBlocked() const
 {
+    // ASC가 유효하지 않거나 현재 캐릭터가 Avatar로 연결되지 않은 동안 이동 차단 판정
     if (!IsValid(AbilitySystemComponent.Get()) || AbilitySystemComponent->GetAvatarActor() != this)
     {
-        // ASC가 유효하지 않거나 현재 캐릭터가 Avatar로 연결되지 않은 동안 이동 차단 판정
         return true;
     }
 
     return AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
         || AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Stunned)
         || AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_MovementBlocked);
+}
+
+bool ATBCharacterBase::IsActionBlocked() const
+{
+    // ASC 미연결 또는 다른 Avatar 연결 상태에서 행동 차단
+    if (!IsValid(AbilitySystemComponent.Get()) || AbilitySystemComponent->GetAvatarActor() != this)
+    {
+        return true;
+    }
+
+    return AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
+        || AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Stunned)
+        || AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Draining);
 }
 
 void ATBCharacterBase::StartPrimaryAttack()

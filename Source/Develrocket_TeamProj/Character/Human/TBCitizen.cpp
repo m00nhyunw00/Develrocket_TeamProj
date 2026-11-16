@@ -4,6 +4,7 @@
 #include "TimerManager.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/TBSpawnManagerComponent.h"
+#include "Components/TBBloodBarComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Animation/AnimMontage.h"
@@ -115,13 +116,13 @@ void ATBCitizen::BeginInteract_Implementation(AActor* InteractInstigator)
 	}
 
 	DrainInstigator = InteractInstigator;            // 취소·완료가 같은 플레이어에게서 왔는지 확인용
-	SetCitizenState(ETBCitizenState::Draining);      // 1) BT·이동 먼저 정지 + 무적
+	SetCitizenState(ETBCitizenState::Drained);      // 1) BT·이동 먼저 정지 + 무적
 	AlignToFeeder(InteractInstigator);               // 2) 그 다음 위치 맞춤
 }
 
 void ATBCitizen::CancelInteract_Implementation(AActor* InteractInstigator)
 {
-	if (!HasAuthority() || CitizenState != ETBCitizenState::Draining || DrainInstigator.Get() != InteractInstigator)
+	if (!HasAuthority() || CitizenState != ETBCitizenState::Drained || DrainInstigator.Get() != InteractInstigator)
 	{
 		return;
 	}
@@ -137,7 +138,7 @@ void ATBCitizen::Interact_Implementation(AActor* InteractInstigator)
 		return;
 	}
 
-	if (CitizenState == ETBCitizenState::Draining && DrainInstigator.Get() != InteractInstigator)
+	if (CitizenState == ETBCitizenState::Drained && DrainInstigator.Get() != InteractInstigator)
 	{
 		return;                                      // 다른 플레이어의 결과 요청은 무시
 	}
@@ -167,6 +168,12 @@ UAnimMontage* ATBCitizen::GetInteractMontage_Implementation() const { return Fee
 UAnimMontage* ATBCitizen::GetInteractFirstPersonMontage_Implementation() const { return FeedFirstPersonMontage; }
 bool ATBCitizen::ShouldResolveOnStart_Implementation() const { return false; }
 
+bool ATBCitizen::IsDrainInteraction_Implementation() const
+{
+	// 시민은 흡혈 상호작용 제공
+	return true;
+}
+
 // 상태 =====================
 void ATBCitizen::SetCitizenState(ETBCitizenState NewState)
 {
@@ -187,7 +194,7 @@ void ATBCitizen::SetCitizenState(ETBCitizenState NewState)
 	AbilitySystemComponent->SetLooseGameplayTagCount(TBGameplayTags::State_Dead,
 		NewState == ETBCitizenState::Dead ? 1 : 0, EGameplayTagReplicationState::TagOnly);
 	AbilitySystemComponent->SetLooseGameplayTagCount(TBGameplayTags::State_Invulnerable,
-		NewState == ETBCitizenState::Draining ? 1 : 0, EGameplayTagReplicationState::TagOnly);
+		NewState == ETBCitizenState::Drained ? 1 : 0, EGameplayTagReplicationState::TagOnly);
 
 	// 2) 보이는 처리 (서버에서는 OnRep이 자동 호출되지 않음)
 	OnRep_CitizenState();
@@ -196,13 +203,13 @@ void ATBCitizen::SetCitizenState(ETBCitizenState NewState)
 	ATBCitizenAIController* CitizenAI = Cast<ATBCitizenAIController>(GetController());
 	switch (NewState)
 	{
-	case ETBCitizenState::Draining:
+	case ETBCitizenState::Drained:
 		if (CitizenAI) CitizenAI->PauseForDrain();
 		break;
 
 	case ETBCitizenState::Idle:
 		DrainInstigator.Reset();
-		if (OldState == ETBCitizenState::Draining && CitizenAI) CitizenAI->ResumeFromDrain();
+		if (OldState == ETBCitizenState::Drained && CitizenAI) CitizenAI->ResumeFromDrain();
 		break;
 
 	case ETBCitizenState::Dead:
@@ -223,7 +230,7 @@ void ATBCitizen::OnRep_CitizenState()
 {
 	switch (CitizenState)
 	{
-	case ETBCitizenState::Draining:
+	case ETBCitizenState::Drained:
 		if (VictimMontage) PlayAnimMontage(VictimMontage);
 		break;
 
@@ -313,6 +320,7 @@ void ATBCitizen::OnPoolDeactivated_Implementation()
 	{
 		return;
 	}
+	if (BloodBarComponent) BloodBarComponent->ClearSelectionsForPooledActor();
 
 	GetWorldTimerManager().ClearTimer(CorpseTimer);
 	GetCharacterMovement()->StopMovementImmediately();

@@ -6,6 +6,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
+#include "TBGameplayTags.h"
 #include "TimerManager.h"
 #include "UI/TBOverheadBloodBarWidget.h"
 
@@ -28,12 +29,31 @@ void UTBBloodBarComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 
 void UTBBloodBarComponent::RecordAttackedTarget(AActor* Target)
 {
-	AActor* Owner = GetOwner();
-	if (!IsValid(Owner) || !Owner->HasAuthority() || !IsValid(Target) || Owner == Target) return;
+	APawn* Owner = Cast<APawn>(GetOwner());
+	APlayerController* PlayerController = IsValid(Owner) ? Cast<APlayerController>(Owner->GetController()) : nullptr;
+	if (!IsValid(Owner) || !Owner->HasAuthority() || !IsValid(PlayerController) || !IsValid(Target) || Owner == Target) return;
 	LastAttackedTarget = Target;
 	Owner->ForceNetUpdate();
-	const APawn* Pawn = Cast<APawn>(Owner);
-	if (Pawn && Pawn->IsLocallyControlled() && GetNetMode() != NM_DedicatedServer) OnRep_LastAttackedTarget();
+	if (PlayerController->IsLocalController() && GetNetMode() != NM_DedicatedServer) OnRep_LastAttackedTarget();
+}
+
+void UTBBloodBarComponent::ClearSelectionsForPooledActor()
+{
+	AActor* Target = GetOwner();
+	UWorld* World = GetWorld();
+	if (!IsValid(Target) || !Target->HasAuthority() || !World) return;
+
+	// 같은 액터가 풀에서 재사용되기 전에 각 플레이어의 선택 참조를 해제합니다.
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		APlayerController* PlayerController = It->Get();
+		APawn* PlayerPawn = IsValid(PlayerController) ? PlayerController->GetPawn() : nullptr;
+		UTBBloodBarComponent* PlayerBar = IsValid(PlayerPawn) ? PlayerPawn->FindComponentByClass<UTBBloodBarComponent>() : nullptr;
+		if (!PlayerBar || PlayerBar->LastAttackedTarget != Target) continue;
+		PlayerBar->LastAttackedTarget = nullptr;
+		PlayerPawn->ForceNetUpdate();
+		if (PlayerController->IsLocalController() && GetNetMode() != NM_DedicatedServer) PlayerBar->OnRep_LastAttackedTarget();
+	}
 }
 
 void UTBBloodBarComponent::OnRep_LastAttackedTarget()
@@ -84,7 +104,7 @@ void UTBBloodBarComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void UTBBloodBarComponent::BindAbilitySystem(UAbilitySystemComponent* InASC)
 {
 	if (GetNetMode() == NM_DedicatedServer) return;
-	if (BoundASC.Get() == InASC && BloodChangedHandle.IsValid() && MaxBloodChangedHandle.IsValid())
+	if (BoundASC.Get() == InASC && BloodChangedHandle.IsValid() && MaxBloodChangedHandle.IsValid() && DeadTagChangedHandle.IsValid())
 	{
 		RefreshBloodBar();
 		return;
@@ -95,6 +115,8 @@ void UTBBloodBarComponent::BindAbilitySystem(UAbilitySystemComponent* InASC)
 	BoundASC = InASC;
 	BloodChangedHandle = InASC->GetGameplayAttributeValueChangeDelegate(UTBAttributeSetBase::GetBloodAttribute()).AddUObject(this, &ThisClass::HandleBloodChanged);
 	MaxBloodChangedHandle = InASC->GetGameplayAttributeValueChangeDelegate(UTBAttributeSetBase::GetMaxBloodAttribute()).AddUObject(this, &ThisClass::HandleBloodChanged);
+	// 체력이 남아 있어도 사망 상태가 적용되면 즉시 표시를 갱신합니다.
+	DeadTagChangedHandle = InASC->RegisterGameplayTagEvent(TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleDeadTagChanged);
 	RefreshBloodBar();
 }
 
@@ -104,16 +126,23 @@ void UTBBloodBarComponent::UnbindAbilitySystem()
 	{
 		ASC->GetGameplayAttributeValueChangeDelegate(UTBAttributeSetBase::GetBloodAttribute()).Remove(BloodChangedHandle);
 		ASC->GetGameplayAttributeValueChangeDelegate(UTBAttributeSetBase::GetMaxBloodAttribute()).Remove(MaxBloodChangedHandle);
+		ASC->UnregisterGameplayTagEvent(DeadTagChangedHandle, TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved);
 	}
 	BoundASC.Reset();
 	BloodChangedHandle.Reset();
 	MaxBloodChangedHandle.Reset();
+	DeadTagChangedHandle.Reset();
 	SetVisibility(false);
 }
 
 void UTBBloodBarComponent::HandleBloodChanged(const FOnAttributeChangeData& Data)
 {
 	RefreshBloodBar();
+}
+
+void UTBBloodBarComponent::HandleDeadTagChanged(FGameplayTag Tag, int32 NewCount)
+{
+	UpdateBarVisibility();
 }
 
 void UTBBloodBarComponent::RefreshBloodBar()
@@ -139,6 +168,7 @@ void UTBBloodBarComponent::UpdateBarVisibility()
 	APlayerController* Viewer = World ? World->GetFirstPlayerController() : nullptr;
 	const APawn* ViewerPawn = IsValid(Viewer) ? Viewer->GetPawn() : nullptr;
 	if (!bLocallySelected || !World || !IsValid(Target) || Target->IsHidden() || !IsValid(ASC) || !IsValid(Viewer)
+		|| ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
 		|| ASC->GetNumericAttribute(UTBAttributeSetBase::GetBloodAttribute()) <= 0.0f
 		|| ASC->GetNumericAttribute(UTBAttributeSetBase::GetMaxBloodAttribute()) <= 0.0f
 		|| !GetUserWidgetObject())

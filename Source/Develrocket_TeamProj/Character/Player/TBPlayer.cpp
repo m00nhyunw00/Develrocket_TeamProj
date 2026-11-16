@@ -251,6 +251,22 @@ bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
     return ReceiveAttackHit_Implementation(FGameplayTag(), Damage, DamageSource, FHitResult());
 }
 
+void ATBPlayer::ResetInputForDraining()
+{
+	// 이전 점프·앉기 요청 해제
+	StopJumping();
+	bCrouchInputHeld = false;
+	UnCrouch();
+
+	// 누적 이동 입력과 현재 이동 속도 정리
+	ConsumeMovementInputVector();
+
+	if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+	{
+		MovementComponent->StopMovementImmediately();
+	}
+}
+
 // PlayerState의 ASC가 초기화되어 현재 캐릭터를 Avatar로 사용 중인지 확인한다.
 bool ATBPlayer::CanReceiveAttack(float Damage) const
 {
@@ -721,8 +737,13 @@ void ATBPlayer::InputMove(const FInputActionValue& Value)
 
 void ATBPlayer::InputLook(const FInputActionValue& Value)
 {
-	const FVector2D Input = Value.Get<FVector2D>();
+	// 행동 제한 상태에서 시점 회전 입력 차단
+	if (IsActionBlocked())
+	{
+		return;
+	}
 
+	const FVector2D Input = Value.Get<FVector2D>();
 	// 입력 X축을 좌우 시점, Y축을 상하 시점 회전에 적용
 	AddControllerYawInput(Input.X);
 	AddControllerPitchInput(Input.Y);
@@ -753,15 +774,16 @@ void ATBPlayer::InputJumpStopped()
 
 void ATBPlayer::InputCrouchStarted()
 {
-	// 공중에서도 입력을 기억하여 착지 시 앉기 복구
-	bCrouchInputHeld = true;
-
 	const UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
 
+	// 이동 제한 상태에서는 앉기 입력 유지 상태도 기록하지 않음
 	if (IsMovementBlocked() || !IsValid(MovementComponent))
 	{
 		return;
 	}
+
+	// 공중에서도 입력을 기억하여 착지 시 앉기 복구
+	bCrouchInputHeld = true;
 
 	// 같은 프레임에 점프가 요청되었거나 공중에 있으면 착지까지 앉기 보류
 	if (bPressedJump || !MovementComponent->IsMovingOnGround())
@@ -783,6 +805,12 @@ void ATBPlayer::InputCrouchStopped()
 
 void ATBPlayer::InputPrimaryAttackStarted()
 {
+	// 행동 제한 상태에서 기본 공격 시작 차단
+	if (IsActionBlocked())
+	{
+		return;
+	}
+	
 	StartPrimaryAttack();
 }
 
@@ -795,6 +823,12 @@ void ATBPlayer::InputPrimaryAttackStopped()
 
 void ATBPlayer::InputSkillStarted()
 {
+	// 행동 제한 상태에서 스킬 시작 차단
+	if (IsActionBlocked())
+	{
+		return;
+	}
+	
 	StartSkill();
 }
 
@@ -809,6 +843,12 @@ void ATBPlayer::InputReloadStarted()
 	{
 		return;
 	}
+	
+	// 소유 플레이어의 행동 가능 상태에서만 재장전 요청
+	if (!IsLocallyControlled() || IsActionBlocked())
+	{
+		return;
+	}
 
 	if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
 	{
@@ -819,6 +859,12 @@ void ATBPlayer::InputReloadStarted()
 void ATBPlayer::InputInteractStarted()
 {
 	if (!IsLocallyControlled())
+	{
+		return;
+	}
+	
+	// 소유 플레이어의 행동 가능 상태에서만 상호작용 요청
+	if (!IsLocallyControlled() || IsActionBlocked())
 	{
 		return;
 	}

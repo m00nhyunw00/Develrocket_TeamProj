@@ -35,6 +35,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Character|State")
 	bool IsMovementBlocked() const;
 
+	// 사망·스턴·흡혈 상태에 따른 행동 입력 차단 여부 조회
+	UFUNCTION(BlueprintPure, Category = "Character|State")
+	bool IsActionBlocked() const;
+
 	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
 	virtual void StartPrimaryAttack();
 
