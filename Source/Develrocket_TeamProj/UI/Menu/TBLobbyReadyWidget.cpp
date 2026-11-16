@@ -1,4 +1,4 @@
-﻿#include "UI/TBLobbyReadyWidget.h"
+﻿#include "UI/Menu/TBLobbyReadyWidget.h"
 
 #include "Components/TextBlock.h"
 #include "Framework/TBLobbyManager.h"
