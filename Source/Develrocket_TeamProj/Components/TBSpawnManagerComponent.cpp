@@ -1,7 +1,7 @@
 #include "Components/TBSpawnManagerComponent.h"
 
 #include "Framework/TBLevelManager.h"
-#include "Interface/TBPoolable.h"
+#include "Interface/TBPoolInterface.h"
 #include "Framework/TBSpawnPoolData.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -43,7 +43,7 @@ void UTBSpawnManagerComponent::UpdatePools()
 		Entry.ActiveActors.RemoveAll([](const TObjectPtr<AActor>& Actor) { return !IsValid(Actor); });
 		Entry.AvailableActors.RemoveAll([](const TObjectPtr<AActor>& Actor) { return !IsValid(Actor); });
 		if (!Config.ActorClass || Config.PoolSize <= 0 || Config.MaxActiveCount <= 0) continue;
-		if (!Config.ActorClass->ImplementsInterface(UTBPoolable::StaticClass()))
+		if (!Config.ActorClass->ImplementsInterface(UTBPoolInterface::StaticClass()))
 		{
 			if (NextSpawnTimes[Index] <= World->GetTimeSeconds())
 			{
@@ -80,7 +80,7 @@ void UTBSpawnManagerComponent::UpdatePools()
 		Actor->SetActorHiddenInGame(false);
 		Actor->SetActorEnableCollision(true);
 		Actor->SetActorTickEnabled(true);
-		ITBPoolable::Execute_OnPoolActivated(Actor);
+		ITBPoolInterface::Execute_OnPoolActivated(Actor);
 		Actor->ForceNetUpdate();
 	}
 }
@@ -132,7 +132,7 @@ bool UTBSpawnManagerComponent::ReturnToPool(AActor* Actor)
 	{
 		if (!Entry.ActiveActors.Contains(Actor)) continue;
 		Entry.ActiveActors.Remove(Actor);
-		ITBPoolable::Execute_OnPoolDeactivated(Actor);
+		ITBPoolInterface::Execute_OnPoolDeactivated(Actor);
 		if (!IsValid(Actor)) return true;
 		Actor->SetActorEnableCollision(false);
 		Actor->SetActorHiddenInGame(true);

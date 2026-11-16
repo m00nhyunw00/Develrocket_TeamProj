@@ -2,17 +2,17 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
-#include "TBInteractable.generated.h"
+#include "TBInteractInterface.generated.h"
 
 class UAnimMontage;
 
 UINTERFACE(BlueprintType)
-class DEVELROCKET_TEAMPROJ_API UTBInteractable : public UInterface
+class DEVELROCKET_TEAMPROJ_API UTBInteractInterface : public UInterface
 {
 	GENERATED_BODY()
 };
 
-class DEVELROCKET_TEAMPROJ_API ITBInteractable
+class DEVELROCKET_TEAMPROJ_API ITBInteractInterface
 {
 	GENERATED_BODY()
 

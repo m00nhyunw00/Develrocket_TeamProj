@@ -5,7 +5,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
-#include "Interface/TBInteractable.h"
+#include "Interface/TBInteractInterface.h"
 #include "TimerManager.h"
 
 UTBInteractionComponent::UTBInteractionComponent()
@@ -104,13 +104,13 @@ void UTBInteractionComponent::Client_NotifyInteracted_Implementation(AActor* Tar
 {
 	// 이 함수는 상호작용한 플레이어의 클라이언트에서만 실행됨
 	// Target이 null이면 클라이언트에 존재하지 않는 액터 (스폰 후 bReplicates가 꺼진 액터 등)
-	if (!Target || !Target->Implements<UTBInteractable>())
+	if (!Target || !Target->Implements<UTBInteractInterface>())
 	{
 		return;
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[Interaction] Local -> %s"), *GetNameSafe(Target));
-	ITBInteractable::Execute_InteractLocal(Target, GetOwner());
+	ITBInteractInterface::Execute_InteractLocal(Target, GetOwner());
 }
 
 // [공용] 판정 규칙 ----------------------
@@ -151,8 +151,8 @@ AActor* UTBInteractionComponent::FindBestTarget(APawn* OwnerPawn, const FVector&
 		Checked.Add(Candidate);
 
 		// ② 상호작용 인터페이스 + 지금 상호작용 가능한 상태인지
-		if (!Candidate->Implements<UTBInteractable>()
-			|| !ITBInteractable::Execute_CanInteract(Candidate, OwnerPawn))
+		if (!Candidate->Implements<UTBInteractInterface>()
+			|| !ITBInteractInterface::Execute_CanInteract(Candidate, OwnerPawn))
 		{
 			continue;
 		}
