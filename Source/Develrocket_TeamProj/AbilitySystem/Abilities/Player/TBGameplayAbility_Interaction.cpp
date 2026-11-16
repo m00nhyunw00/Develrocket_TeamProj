@@ -6,6 +6,7 @@
 #include "Components/TBInteractionComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Interface/TBInteractInterface.h"
+#include "Character/Player/TBPlayer.h"
 
 class ATBPlayer;
 
@@ -111,6 +112,15 @@ void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
 		return;
 	}
 	
+	// 4-1. 흡혈(결과가 끝에 나는 상호작용)이면 내 화면 카메라를 애니 커브로 전환
+	if (IsLocallyControlled() && !ITBInteractInterface::Execute_ShouldResolveOnStart(Target))
+	{
+		if (ATBPlayer* Player = Cast<ATBPlayer>(GetAvatarActorFromActorInfo()))
+		{
+			Player->BeginFeedCamera();
+		}
+	}
+	
 	// 5. 서버: 시작 시 결과(대화) 또는 시작 알림(흡혈)
 	if (HasAuthority(&ActivationInfo))
 	{
@@ -160,7 +170,6 @@ void UTBGameplayAbility_Interaction::EndAbility(const FGameplayAbilitySpecHandle
 	DrainStateASC.Reset();
 	CurrentTarget.Reset();
 	bInteractionResolved = false;
-
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 

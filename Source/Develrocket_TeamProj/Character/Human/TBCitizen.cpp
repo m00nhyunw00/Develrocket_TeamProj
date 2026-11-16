@@ -334,15 +334,16 @@ void ATBCitizen::AlignToFeeder(const AActor* Feeder)
 	{
 		return;
 	}
+	
+	// 플레이어의 수평 정면·오른쪽 (카메라 위아래 각도는 무시)
+	const FRotator FeederYawRot(0.f, Feeder->GetActorRotation().Yaw, 0.f);
+	const FVector Forward = FeederYawRot.Vector();
+	const FVector Right = FRotationMatrix(FeederYawRot).GetUnitAxis(EAxis::Y);
 
-	// 플레이어의 수평 정면 (카메라 위아래 각도는 무시)
-	const float FeederYaw = Feeder->GetActorRotation().Yaw;
-	const FVector Forward = FRotator(0.f, FeederYaw, 0.f).Vector();
-
-	FVector NewLocation = Feeder->GetActorLocation() + Forward * FeedAlignDistance;
+	FVector NewLocation = Feeder->GetActorLocation() + Forward * FeedAlignDistance + Right * FeedAlignSideOffset;
 	NewLocation.Z = GetActorLocation().Z;            // 시민 자신의 높이 유지
 
-	const FRotator NewRotation(0.f, FeederYaw + FeedAlignYawOffset, 0.f);
+	const FRotator NewRotation(0.f, FeederYawRot.Yaw + FeedAlignYawOffset, 0.f);
 	SetActorLocationAndRotation(NewLocation, NewRotation, false, nullptr, ETeleportType::TeleportPhysics);
 }
 

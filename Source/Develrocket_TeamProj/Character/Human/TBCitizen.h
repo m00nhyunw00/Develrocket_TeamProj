@@ -71,7 +71,10 @@ protected:
 	
 	// 흡혈 시작 시 시민을 플레이어 정면 고정 위치로 맞춤 (Feed·Victim 몽타주가 맞물리도록)
 	UPROPERTY(EditDefaultsOnly, Category = "Interaction|Align", meta = (Units = "cm"))
-	float FeedAlignDistance = 80.f;                       // 플레이어 정면 기준 거리 (캡슐 반지름 합 이상)
+	float FeedAlignDistance = 72.f;                       // 애니 제작 기준 (rig.py OY=72)
+
+	UPROPERTY(EditDefaultsOnly, Category = "Interaction|Align", meta = (Units = "cm"))
+	float FeedAlignSideOffset = 12.f;                     // + = 플레이어 오른쪽 (rig.py OX=-12)	
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Interaction|Align", meta = (Units = "deg"))
 	float FeedAlignYawOffset = 180.f;                     // 180 = 플레이어를 마주봄, 0 = 등을 보임
