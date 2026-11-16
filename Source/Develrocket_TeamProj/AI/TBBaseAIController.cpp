@@ -22,12 +22,23 @@ AActor* ATBBaseAIController::FindReachablePatrolPoint(TSubclassOf<AActor> PointC
 		{
 			continue;
 		}
+		Candidates.Add(Point);
+	}
+	// 가까운 후보만 남긴 뒤 무작위 순서로 검사하고, 첫 번째 유효한 경로에서 종료한다.
+	Candidates.Sort([&Start](const AActor& A, const AActor& B)
+	{
+		return FVector::DistSquared(Start, A.GetActorLocation()) < FVector::DistSquared(Start, B.GetActorLocation());
+	});
+	Candidates.SetNum(FMath::Min(Candidates.Num(), FMath::Max(1, MaxPatrolCandidates)));
+	for (int32 Index = Candidates.Num() - 1; Index > 0; --Index)
+	{
+		Candidates.Swap(Index, FMath::RandRange(0, Index));
+	}
+	for (AActor* Point : Candidates)
+	{
 		const UNavigationPath* Path = UNavigationSystemV1::FindPathToLocationSynchronously(
 			World, Start, Point->GetActorLocation(), const_cast<APawn*>(ControlledPawn));
-		if (IsValid(Path) && Path->IsValid() && !Path->IsPartial())
-		{
-			Candidates.Add(Point);
-		}
+		if (IsValid(Path) && Path->IsValid() && !Path->IsPartial()) return Point;
 	}
-	return Candidates.IsEmpty() ? nullptr : Candidates[FMath::RandRange(0, Candidates.Num() - 1)];
+	return nullptr;
 }

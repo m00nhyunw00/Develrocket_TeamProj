@@ -7,6 +7,8 @@
 UBTTask_FindPatrolLocation::UBTTask_FindPatrolLocation()
 {
 	NodeName = TEXT("TB Find Patrol Location");
+	bCreateNodeInstance = true;
+	bNotifyTick = true;
 	
 	BlackboardKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(ThisClass, BlackboardKey));
 }
@@ -21,13 +23,28 @@ EBTNodeResult::Type UBTTask_FindPatrolLocation::ExecuteTask(UBehaviorTreeCompone
 	{
 		return EBTNodeResult::Failed;
 	}
+	RemainingSearchDelay = FMath::FRandRange(0.0f, FMath::Max(0.0f, MaxSearchDelay));
+	return EBTNodeResult::InProgress;
+}
 
+void UBTTask_FindPatrolLocation::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
+{
+	RemainingSearchDelay -= DeltaSeconds;
+	if (RemainingSearchDelay > 0.0f) return;
+	ATBBaseAIController* Controller = Cast<ATBBaseAIController>(OwnerComp.GetAIOwner());
+	UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
+	if (!IsValid(Controller) || !IsValid(Blackboard))
+	{
+		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
+		return;
+	}
 	const AActor* Point = Controller->FindReachablePatrolPoint(PatrolPointClass, SearchRadius);
 	if (!IsValid(Point))
 	{
-		return EBTNodeResult::Failed;
+		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
+		return;
 	}
 
 	Blackboard->SetValueAsVector(BlackboardKey.SelectedKeyName, Point->GetActorLocation());
-	return EBTNodeResult::Succeeded;
+	FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 }
