@@ -2,6 +2,7 @@
 
 #include "OnlineSessionSettings.h"
 #include "OnlineSubsystemUtils.h"
+#include "Online/OnlineSessionNames.h"
 
 void UTBSessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -19,6 +20,8 @@ void UTBSessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 	
 	SessionInterface = OnlineSubsystem->GetSessionInterface();
+	
+	bIsLAN = OnlineSubsystem->GetSubsystemName() == FName(TEXT("NULL"));
 	
 	UE_LOG(LogTemp, Log, TEXT("[TBSession] Subsystem: %s / Valid: %s"),
 		*OnlineSubsystem->GetSubsystemName().ToString(),
@@ -42,12 +45,16 @@ void UTBSessionSubsystem::HostSession(int32 NumPublicConnections)
 	
 	FOnlineSessionSettings SessionSettings;
 	SessionSettings.NumPublicConnections = NumPublicConnections;
-	SessionSettings.bIsLANMatch = true;
+	SessionSettings.bIsLANMatch = bIsLAN;
 	SessionSettings.bShouldAdvertise = true;
 	SessionSettings.bAllowJoinInProgress = true; // 데스 매치이지만 우선은 참가가능하도록
 	SessionSettings.bUsesPresence = true;
 	SessionSettings.bUseLobbiesIfAvailable = true;
 	SessionSettings.bIsDedicated = false;
+
+	// 480은 전 세계 개발자가 같이 쓰는 ID → 우리 방만 골라내기 위한 표시
+	SessionSettings.Set(FName(TEXT("TB_GAME")), FString(TEXT("TheBlood")),
+		EOnlineDataAdvertisementType::ViaOnlineService);
 	
 	CreateSessionCompleteDelegateHandle = SessionInterface->AddOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegate);
 	
@@ -73,7 +80,8 @@ void UTBSessionSubsystem::FindSessions(int32 MaxSearchResults)
 	
 	SessionSearch = MakeShared<FOnlineSessionSearch>();
 	SessionSearch->MaxSearchResults = MaxSearchResults;
-	SessionSearch->bIsLanQuery = true;
+	SessionSearch->bIsLanQuery = bIsLAN;
+	SessionSearch->QuerySettings.Set(SEARCH_LOBBIES, true, EOnlineComparisonOp::Equals);
 	
 	FindSessionsCompleteDelegateHandle = SessionInterface->AddOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegate);
 	
@@ -139,6 +147,12 @@ void UTBSessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
 	for (int32 i = 0; i < SessionSearch->SearchResults.Num();++i)
 	{
 		const FOnlineSessionSearchResult& Result = SessionSearch->SearchResults[i];
+		
+		FString GameKey;
+		if (!Result.Session.SessionSettings.Get(FName(TEXT("TB_GAME")), GameKey) || GameKey != TEXT("TheBlood"))
+		{
+			continue;   // 다른 게임(480 공용) 세션은 목록에서 제외
+		}
 		
 		FTBSessionInfo Info;
 		Info.SearchIndex = i;

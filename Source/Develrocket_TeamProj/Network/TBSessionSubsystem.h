@@ -57,6 +57,8 @@ private:
 private:
 	IOnlineSessionPtr SessionInterface;
 	
+	bool bIsLAN = true;
+	
 	FOnCreateSessionCompleteDelegate CreateSessionCompleteDelegate;
 	FDelegateHandle CreateSessionCompleteDelegateHandle;
 	
