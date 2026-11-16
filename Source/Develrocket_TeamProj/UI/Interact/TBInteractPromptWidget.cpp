@@ -1,4 +1,4 @@
-﻿#include "UI/TBInteractPromptWIdget.h"
+﻿#include "UI/Interact/TBInteractPromptWIdget.h"
 
 #include "Components/TextBlock.h"
 #include "Animation/WidgetAnimation.h"

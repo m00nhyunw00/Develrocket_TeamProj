@@ -1,12 +1,12 @@
-#include "UI/TBPlayerHUDWidget.h"
+#include "UI/HUD/TBPlayerHUDWidget.h"
 
-#include "TBSkillBarWidget.h"
-#include "UI/TBLowHealthOverlayWidget.h"
-#include "UI/TBCrosshairWidget.h"
-#include "UI/TBHealthBarWidget.h"
-#include "UI/TBAmmoWidget.h"
-#include "UI/TBHitMarkerWidget.h"
-#include "UI/TBInteractPromptWidget.h"
+#include "UI/HUD/TBSkillBarWidget.h"
+#include "UI/HUD/TBLowHealthOverlayWidget.h"
+#include "UI/HUD/TBCrosshairWidget.h"
+#include "UI/HUD/TBHealthBarWidget.h"
+#include "UI/HUD/TBAmmoWidget.h"
+#include "UI/HUD/TBHitMarkerWidget.h"
+#include "UI/Interact/TBInteractPromptWidget.h"
 
 void UTBPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {

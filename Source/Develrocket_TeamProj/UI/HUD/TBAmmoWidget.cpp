@@ -1,4 +1,4 @@
-﻿#include "UI/TBAmmoWidget.h"
+﻿#include "UI/HUD/TBAmmoWidget.h"
 #include "Components/TextBlock.h"
 
 void UTBAmmoWidget::SetAmmo(int32 CurrentAmmo, int32 AmmoAtLastReload, int32 MagazineSize, bool bCanReload)

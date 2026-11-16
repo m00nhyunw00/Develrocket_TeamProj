@@ -8,14 +8,14 @@
 #include "Framework/TBPlayerState.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
-#include "UI/TBPauseMenuWidget.h"
-#include "UI/TBPlayerHUDWidget.h"
-#include "UI/TBMatchWaitWidget.h"
+#include "UI/Menu/TBPauseMenuWidget.h"
+#include "UI/HUD/TBPlayerHUDWidget.h"
+#include "UI/Menu/TBMatchWaitWidget.h"
 #include "Framework/TBLevelManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/TBInteractionComponent.h"
 #include "Interface/TBInteractable.h"
-#include "UI/TBLobbyReadyWidget.h"
+#include "UI/Menu/TBLobbyReadyWidget.h"
 #include "Framework/TBLobbyManager.h"
 
 void ATBPlayerHUD::BeginPlay()
