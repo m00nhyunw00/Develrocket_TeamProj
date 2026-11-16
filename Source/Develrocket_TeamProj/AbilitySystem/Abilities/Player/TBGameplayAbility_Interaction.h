@@ -21,7 +21,16 @@ protected:
 	TSubclassOf<UGameplayEffect> DrainStateEffectClass;
 	
 	virtual void HandleActionMontageCompleted() override;
+	
+	// 시작 전 추가 조건 검사. false면 상호작용 취소
+	virtual bool CanStartInteraction(const FGameplayAbilityActorInfo* ActorInfo, AActor* Target) const;
 
+	// 몽타주 재생 직전 준비, false면 상호작용 취소
+	virtual bool PrepareInteraction(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, AActor* Target);
+	
+	// 종료시 정리 (흡혈: 상태 GE 제거)
+	virtual void CleanupInteraction(const FGameplayAbilityActorInfo* ActorInfo);
+	
 private:
 	// 흡혈 상태 적용 및 기존 전투·이동 입력 정리
 	bool ApplyDrainState(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo);
