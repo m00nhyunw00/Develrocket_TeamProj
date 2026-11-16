@@ -21,6 +21,7 @@ UTBGameplayAbility_Reload::UTBGameplayAbility_Reload()
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Combat);
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Dead);
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Stunned);
+    ActivationBlockedTags.AddTag(TBGameplayTags::State_Draining);
 }
 
 bool UTBGameplayAbility_Reload::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayTagContainer* OptionalRelevantTags) const

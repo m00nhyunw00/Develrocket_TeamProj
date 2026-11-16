@@ -16,9 +16,22 @@ public:
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
 protected:
+	// 흡혈 수행자에게 적용할 상태 관리 GE
+	UPROPERTY(EditDefaultsOnly, Category = "Interaction|Drain")
+	TSubclassOf<UGameplayEffect> DrainStateEffectClass;
+	
 	virtual void HandleActionMontageCompleted() override;
 
 private:
+	// 흡혈 상태 적용 및 기존 전투·이동 입력 정리
+	bool ApplyDrainState(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo);
+
+	// 이번 상호작용에서 적용한 상태 GE 핸들
+	FActiveGameplayEffectHandle DrainStateEffectHandle;
+
+	// 상태 GE를 적용한 ASC
+	TWeakObjectPtr<UAbilitySystemComponent> DrainStateASC;
+	
 	// [서버] Execute_Interact + Client_NotifyInteracted
 	void ResolveInteraction();
 

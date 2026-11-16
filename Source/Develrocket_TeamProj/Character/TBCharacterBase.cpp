@@ -193,15 +193,28 @@ void ATBCharacterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 bool ATBCharacterBase::IsMovementBlocked() const
 {
+    // ASC가 유효하지 않거나 현재 캐릭터가 Avatar로 연결되지 않은 동안 이동 차단 판정
     if (!IsValid(AbilitySystemComponent.Get()) || AbilitySystemComponent->GetAvatarActor() != this)
     {
-        // ASC가 유효하지 않거나 현재 캐릭터가 Avatar로 연결되지 않은 동안 이동 차단 판정
         return true;
     }
 
     return AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
         || AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Stunned)
         || AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_MovementBlocked);
+}
+
+bool ATBCharacterBase::IsActionBlocked() const
+{
+    // ASC 미연결 또는 다른 Avatar 연결 상태에서 행동 차단
+    if (!IsValid(AbilitySystemComponent.Get()) || AbilitySystemComponent->GetAvatarActor() != this)
+    {
+        return true;
+    }
+
+    return AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
+        || AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Stunned)
+        || AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Draining);
 }
 
 void ATBCharacterBase::StartPrimaryAttack()

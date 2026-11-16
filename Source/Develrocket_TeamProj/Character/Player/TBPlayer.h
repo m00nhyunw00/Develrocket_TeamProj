@@ -53,6 +53,11 @@ public:
 	// 서버 피해 적용
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Player|Damage")
 	bool ApplyDamage(float Damage, AActor* DamageSource);
+	
+	// 흡혈 처리 ----------------------
+	
+	// 흡혈 시작 시 이동 입력과 점프·앉기 유지 상태 정리
+	void ResetInputForDraining();
 
 	// 사망 상태 및 처리 ----------------------
 

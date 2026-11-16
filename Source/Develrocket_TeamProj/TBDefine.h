@@ -8,6 +8,6 @@ UENUM(BlueprintType)
 enum class ETBCitizenState : uint8
 {
 	Idle UMETA(DisplayName = "Idle"),
-	Draining UMETA(DisplayName = "Draining"),
+	Drained UMETA(DisplayName = "Drained"),
 	Dead UMETA(DisplayName = "Dead")
 };
