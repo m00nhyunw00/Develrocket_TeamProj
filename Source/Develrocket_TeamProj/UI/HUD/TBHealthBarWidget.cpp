@@ -1,4 +1,4 @@
-﻿#include "UI/TBHealthBarWidget.h"
+﻿#include "UI/HUD/TBHealthBarWidget.h"
 #include "Components/ProgressBar.h"
 
 void UTBHealthBarWidget::SetHealth(float CurrentHealth, float MaxHealth)

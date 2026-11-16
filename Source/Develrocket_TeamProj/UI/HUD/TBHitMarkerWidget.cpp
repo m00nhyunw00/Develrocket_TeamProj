@@ -1,4 +1,4 @@
-﻿#include "UI/TBHitMarkerWidget.h"
+﻿#include "UI/HUD/TBHitMarkerWidget.h"
 #include "Components/Image.h"
 
 void UTBHitMarkerWidget::SetShowHitMarker(bool bIsKill)

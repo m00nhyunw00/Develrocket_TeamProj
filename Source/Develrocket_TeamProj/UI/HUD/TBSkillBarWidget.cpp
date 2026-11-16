@@ -1,5 +1,5 @@
-﻿#include "UI/TBSkillBarWidget.h"
-#include "UI/TBSkillSlotWidget.h"
+﻿#include "UI/HUD/TBSkillBarWidget.h"
+#include "UI/HUD/TBSkillSlotWidget.h"
 
 void UTBSkillBarWidget::SetSkill(int32 Index, UTexture2D* Icon, const FText& Key)
 {

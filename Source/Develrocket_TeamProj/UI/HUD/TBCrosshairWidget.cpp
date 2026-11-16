@@ -1,4 +1,4 @@
-﻿#include "UI/TBCrosshairWidget.h"
+﻿#include "UI/HUD/TBCrosshairWidget.h"
 #include "Components/Image.h"
 
 void UTBCrosshairWidget::SetCrosshairSpread(float Spread)

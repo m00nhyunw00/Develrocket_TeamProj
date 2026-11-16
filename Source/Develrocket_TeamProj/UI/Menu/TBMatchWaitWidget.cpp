@@ -1,4 +1,4 @@
-#include "UI/TBMatchWaitWidget.h"
+#include "UI/Menu/TBMatchWaitWidget.h"
 
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
