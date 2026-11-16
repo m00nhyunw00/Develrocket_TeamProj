@@ -365,6 +365,7 @@ void ATBMonster::OnPoolDeactivated_Implementation()
 {
 	// 풀 반환 전에 서버에서 이동과 실행 중인 Ability를 중지합니다.
 	if (!HasAuthority()) return;
+	if (BloodBarComponent) BloodBarComponent->ClearSelectionsForPooledActor();
 	GetCharacterMovement()->StopMovementImmediately();
 	if (AbilitySystemComponent) AbilitySystemComponent->CancelAllAbilities();
 }
