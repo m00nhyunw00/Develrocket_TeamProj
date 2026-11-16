@@ -3,6 +3,7 @@
 #include "TBGameplayTags.h"
 #include "Components/TBInteractionComponent.h"
 #include "Interface/TBInteractInterface.h"
+#include "Character/Player/TBPlayer.h"
 
 UTBGameplayAbility_Interaction::UTBGameplayAbility_Interaction()
 {
@@ -61,6 +62,15 @@ void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
 		return;
 	}
 	
+	// 4-1. 흡혈(결과가 끝에 나는 상호작용)이면 내 화면 카메라를 애니 커브로 전환
+	if (IsLocallyControlled() && !ITBInteractInterface::Execute_ShouldResolveOnStart(Target))
+	{
+		if (ATBPlayer* Player = Cast<ATBPlayer>(GetAvatarActorFromActorInfo()))
+		{
+			Player->BeginFeedCamera();
+		}
+	}
+	
 	// 5. 서버: 시작 시 결과(대화) 또는 시작 알림(흡혈)
 	if (HasAuthority(&ActivationInfo))
 	{
@@ -91,6 +101,15 @@ void UTBGameplayAbility_Interaction::EndAbility(const FGameplayAbilitySpecHandle
 	
 	bInteractionBegun = false;
 	bInteractionResolved = false;
+	
+	// 흡혈 카메라 복구 (켜져 있지 않으면 EndFeedCamera가 아무것도 안 함)
+	if (ActorInfo && ActorInfo->IsLocallyControlled())
+	{
+		if (ATBPlayer* Player = Cast<ATBPlayer>(ActorInfo->AvatarActor.Get()))
+		{
+			Player->EndFeedCamera();
+		}
+	}
 	
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 	// 취소를 EndAbility에서 감지하는 이유 : 외부에서 CancelAbility호출, 플레이어 사망까지 모든 종료 경로가 EndAbility를 지나가기때문
