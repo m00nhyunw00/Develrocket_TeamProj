@@ -5,6 +5,7 @@
 #include "GameplayEffect.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/TBBloodBarComponent.h"
+#include "GameFramework/PlayerController.h"
 
 #include "Components/TBCharacterMovementComponent.h"
 #include "TBGameplayTags.h"
@@ -131,9 +132,10 @@ bool ATBCharacterBase::ReceiveAttackHit_Implementation(const FGameplayTag& Damag
 
     // GE 적용에 성공하면 공격자의 화면에서 이 대상을 마지막 공격 대상으로 선택한다.
     // 적용 성공이 실제 Blood 감소를 항상 보장하는 것은 아니다.
-    if (IsValid(DamageSource))
+    const APawn* AttackerPawn = Cast<APawn>(DamageSource);
+    if (IsValid(AttackerPawn) && Cast<APlayerController>(AttackerPawn->GetController()))
     {
-        if (UTBBloodBarComponent* AttackerBar = DamageSource->FindComponentByClass<UTBBloodBarComponent>())
+        if (UTBBloodBarComponent* AttackerBar = AttackerPawn->FindComponentByClass<UTBBloodBarComponent>())
             AttackerBar->RecordAttackedTarget(this);
     }
     // 공통 처리 이후 몬스터의 Stagger, Citizen의 출혈 등 개별 반응을 실행한다.

@@ -4,6 +4,7 @@
 #include "TimerManager.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/TBSpawnManagerComponent.h"
+#include "Components/TBBloodBarComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Animation/AnimMontage.h"
@@ -313,6 +314,7 @@ void ATBCitizen::OnPoolDeactivated_Implementation()
 	{
 		return;
 	}
+	if (BloodBarComponent) BloodBarComponent->ClearSelectionsForPooledActor();
 
 	GetWorldTimerManager().ClearTimer(CorpseTimer);
 	GetCharacterMovement()->StopMovementImmediately();

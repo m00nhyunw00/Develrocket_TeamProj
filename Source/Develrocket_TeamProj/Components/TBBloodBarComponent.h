@@ -6,6 +6,7 @@
 
 class UAbilitySystemComponent;
 struct FOnAttributeChangeData;
+struct FGameplayTag;
 
 // World-space blood bar bound to the owner's GAS attributes.
 UCLASS(ClassGroup=(UI), meta=(BlueprintSpawnableComponent))
@@ -18,6 +19,7 @@ public:
 	void BindAbilitySystem(UAbilitySystemComponent* InASC);
 	void UnbindAbilitySystem();
 	void RecordAttackedTarget(AActor* Target);
+	void ClearSelectionsForPooledActor();
 	AActor* GetLastAttackedTarget() const { return LastAttackedTarget; }
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -36,6 +38,7 @@ private:
 	void OnRep_LastAttackedTarget();
 	void SetLocallySelected(bool bSelected);
 	void HandleBloodChanged(const FOnAttributeChangeData& Data);
+	void HandleDeadTagChanged(FGameplayTag Tag, int32 NewCount);
 	void RefreshBloodBar();
 	void UpdateBarVisibility();
 	FTimerHandle VisibilityTimer;
@@ -44,4 +47,5 @@ private:
 	TWeakObjectPtr<UAbilitySystemComponent> BoundASC;
 	FDelegateHandle BloodChangedHandle;
 	FDelegateHandle MaxBloodChangedHandle;
+	FDelegateHandle DeadTagChangedHandle;
 };
