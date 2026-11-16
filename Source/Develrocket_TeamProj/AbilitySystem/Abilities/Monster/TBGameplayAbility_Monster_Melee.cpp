@@ -61,7 +61,7 @@ void UTBGameplayAbility_Monster_Melee::BeginHitWindow()
 	UWorld* World = Avatar ? Avatar->GetWorld() : nullptr;
 	if (!IsActive() || !IsValid(Avatar) || !Avatar->HasAuthority() || !World) return;
 	CheckHitWindow();
-	if (IsActive() && AttackTarget.IsValid() && !bTargetHit) World->GetTimerManager().SetTimer(HitTimer, this, &ThisClass::CheckHitWindow, 0.02f, true);
+	if (IsActive() && AttackTarget.IsValid() && !bTargetHit) World->GetTimerManager().SetTimer(HitTimer, this, &ThisClass::CheckHitWindow, 0.1f, true);
 }
 
 void UTBGameplayAbility_Monster_Melee::EndHitWindow()

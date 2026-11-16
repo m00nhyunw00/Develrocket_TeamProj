@@ -66,7 +66,7 @@ protected:
 	float LostSightMemorySeconds = 5.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception|Debug")
-	bool bDrawSightDebug = true;
+	bool bDrawSightDebug = false;
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception|Debug", meta = (ClampMin = "0.05", Units = "s", EditCondition = "bDrawSightDebug"))
 	float SightDebugInterval = 0.2f;

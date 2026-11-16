@@ -11,7 +11,6 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
-#include "EngineUtils.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "PhysicsEngine/SkeletalBodySetup.h"
@@ -120,7 +119,7 @@ void UTBGameplayAbility_Monster_Leap::LaunchLeap()
 	Monster->LaunchCharacter(Velocity, true, true);
 	CheckLeapMeshContacts();
 	if (!IsActive()) return;
-	Monster->GetWorldTimerManager().SetTimer(ContactTimer, this, &ThisClass::CheckLeapMeshContacts, 0.02f, true);
+	Monster->GetWorldTimerManager().SetTimer(ContactTimer, this, &ThisClass::CheckLeapMeshContacts, 0.1f, true);
 	if (FMath::IsFinite(HomingTurnRate) && HomingTurnRate > 0.0f)
 	{
 		LastHomingUpdateTime = Monster->GetWorld()->GetTimeSeconds();
@@ -169,26 +168,24 @@ void UTBGameplayAbility_Monster_Leap::CheckLeapMeshContacts()
 	if (!IsActive() || !bLaunched || bLanded || !IsValid(Monster) || !Monster->HasAuthority()
 		|| Monster->IsDead() || !IsValid(Mesh) || !IsValid(PhysicsAsset)) return;
 
-	for (TActorIterator<ACharacter> It(Monster->GetWorld()); It && IsActive(); ++It)
+	// 도약을 시작할 때 선택한 대상만 검사한다.
+	ACharacter* Target = Cast<ACharacter>(const_cast<AActor*>(LeapTarget.Get()));
+	if (!IsValidLeapTarget(Target) || DamagedActors.Contains(Target)) return;
+	UCapsuleComponent* TargetCapsule = Target->GetCapsuleComponent();
+	if (!IsValid(TargetCapsule) || TargetCapsule->GetCollisionEnabled() == ECollisionEnabled::NoCollision) return;
+	const FCollisionShape Shape = FCollisionShape::MakeCapsule(TargetCapsule->GetScaledCapsuleRadius(), TargetCapsule->GetScaledCapsuleHalfHeight());
+	for (const USkeletalBodySetup* Setup : PhysicsAsset->SkeletalBodySetups)
 	{
-		ACharacter* Target = *It;
-		if (!IsValidLeapTarget(Target) || DamagedActors.Contains(Target)) continue;
-		UCapsuleComponent* TargetCapsule = Target->GetCapsuleComponent();
-		if (!IsValid(TargetCapsule) || TargetCapsule->GetCollisionEnabled() == ECollisionEnabled::NoCollision) continue;
-		const FCollisionShape Shape = FCollisionShape::MakeCapsule(TargetCapsule->GetScaledCapsuleRadius(), TargetCapsule->GetScaledCapsuleHalfHeight());
-		for (const USkeletalBodySetup* Setup : PhysicsAsset->SkeletalBodySetups)
+		if (!IsValid(Setup)) continue;
+		FBodyInstance* Body = Mesh->GetBodyInstance(Setup->BoneName, false);
+		if (!Body || !Body->IsValidBodyInstance() || Body->GetBodySetup() != Setup) continue;
+		if (Body->OverlapTest(TargetCapsule->GetComponentLocation(), TargetCapsule->GetComponentQuat(), Shape))
 		{
-			if (!IsValid(Setup)) continue;
-			FBodyInstance* Body = Mesh->GetBodyInstance(Setup->BoneName, false);
-			if (!Body || !Body->IsValidBodyInstance() || Body->GetBodySetup() != Setup) continue;
-			if (Body->OverlapTest(TargetCapsule->GetComponentLocation(), TargetCapsule->GetComponentQuat(), Shape))
-			{
-				FHitResult Hit;
-				Hit.Location = TargetCapsule->GetComponentLocation();
-				Hit.ImpactPoint = Hit.Location;
-				ApplyLeapContactDamage(Target, Hit);
-				break;
-			}
+			FHitResult Hit;
+			Hit.Location = TargetCapsule->GetComponentLocation();
+			Hit.ImpactPoint = Hit.Location;
+			ApplyLeapContactDamage(Target, Hit);
+			break;
 		}
 	}
 }
@@ -207,7 +204,7 @@ void UTBGameplayAbility_Monster_Leap::ApplyLeapContactDamage(AActor* OtherActor,
 {
 	ATBMonster* Monster = LeapingMonster.Get();
 	if (!IsActive() || !bLaunched || bLanded || !IsValid(Monster) || !Monster->HasAuthority()
-		|| Monster->IsDead() || !IsValidLeapTarget(OtherActor) || DamagedActors.Contains(OtherActor)
+		|| Monster->IsDead() || OtherActor != LeapTarget.Get() || !IsValidLeapTarget(OtherActor) || DamagedActors.Contains(OtherActor)
 		|| !OtherActor->GetClass()->ImplementsInterface(UTBHitInterface::StaticClass())) return;
 
 	const UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(OtherActor);
