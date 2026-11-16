@@ -24,116 +24,137 @@ UTBGameplayAbility_Interaction::UTBGameplayAbility_Interaction()
 	bInteractionResolved = false;
 }
 
-void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
-	const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,
-	const FGameplayEventData* TriggerEventData)
+void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
-	// 재사용되는 어빌리티 인스턴스의 실행 상태 초기화
-	bInteractionBegun = false;
-	bInteractionResolved = false;
-	
-	// 1. 대상 찾기(서버는 판정용, 클라이언트는 보여주기 용)
-	AActor* Avatar = ActorInfo ? ActorInfo->AvatarActor.Get() : nullptr;
-	UTBInteractionComponent* InteractionComp = Avatar ? Avatar->FindComponentByClass<UTBInteractionComponent>(): nullptr;
-	
-	AActor* Target = nullptr;
-	if (InteractionComp)
-	{
-		Target = HasAuthority(&ActivationInfo) ? InteractionComp->FindTargetForServer() : InteractionComp->GetFocusedActor();
-	}
-	
-	CurrentTarget = Target;
-	
-	// 상호작용 대상과 인터페이스 구현 여부 검증
-	if (!IsValid(Target) || !Target->GetClass()->ImplementsInterface(UTBInteractInterface::StaticClass()))
-	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
-	}
+    // 재사용되는 어빌리티 인스턴스의 실행 상태 초기화
+    bInteractionBegun = false;
+    bInteractionResolved = false;
 
-	// 흡혈 상호작용 여부와 수행 플레이어 확인
-	const bool bIsDrainInteraction = ITBInteractInterface::Execute_IsDrainInteraction(Target);
-	ATBPlayer* Player = Cast<ATBPlayer>(Avatar);
+    // 서버 판정 또는 소유 클라이언트의 상호작용 대상 조회
+    AActor* Avatar = ActorInfo ? ActorInfo->AvatarActor.Get() : nullptr;
+    UTBInteractionComponent* InteractionComp = Avatar ? Avatar->FindComponentByClass<UTBInteractionComponent>() : nullptr;
 
-	if (bIsDrainInteraction)
-	{
-		const UCharacterMovementComponent* MovementComponent =
-			IsValid(Player) ? Player->GetCharacterMovement() : nullptr;
+    AActor* Target = nullptr;
 
-		// 점프 요청 또는 지상 이외의 상태에서 흡혈 시작 차단
-		if (!IsValid(Player)
-			|| !IsValid(MovementComponent)
-			|| Player->bPressedJump
-			|| !MovementComponent->IsMovingOnGround())
-		{
-			EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-			return;
-		}
-	}
+    if (InteractionComp)
+    {
+        Target = HasAuthority(&ActivationInfo)
+            ? InteractionComp->FindTargetForServer()
+            : InteractionComp->GetFocusedActor();
+    }
 
-	// 기존 대상 몽타주 조회
-	ThirdPersonMontage = Target ? ITBInteractInterface::Execute_GetInteractMontage(Target) : nullptr;
-	FirstPersonMontage = Target ? ITBInteractInterface::Execute_GetInteractFirstPersonMontage(Target) : nullptr;
-	
-	// 2. 몽타주 채우기 (대상이 없으면 반드시 비우기)
-	ThirdPersonMontage = Target ? ITBInteractInterface::Execute_GetInteractMontage(Target) : nullptr;
-	FirstPersonMontage = Target ? ITBInteractInterface::Execute_GetInteractFirstPersonMontage(Target) : nullptr;
-	
-	if (!ThirdPersonMontage)
-	{
-		if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
-		{
-			EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-			return;
-		}
-		
-		if (HasAuthority(&ActivationInfo) && Target)
-		{
-			ResolveInteraction();
-		}
-		
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
-		return;
-	}
-	
-	// 몽타주를 사용하는 흡혈 상호작용에만 상태 적용
-	if (ITBInteractInterface::Execute_IsDrainInteraction(Target) && !ApplyDrainState(Handle, ActorInfo, ActivationInfo))
-	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
-	}
-	
-	// 3. 부모: 검증 + Commit + 몽타주 재생	
-	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
-	
-	// 4. 부모가 종료시켰으면 중단
-	if (!IsActive())
-	{
-		return;
-	}
-	
-	// 4-1. 흡혈(결과가 끝에 나는 상호작용)이면 내 화면 카메라를 애니 커브로 전환
-	if (IsLocallyControlled() && !ITBInteractInterface::Execute_ShouldResolveOnStart(Target))
-	{
-		if (ATBPlayer* Player = Cast<ATBPlayer>(GetAvatarActorFromActorInfo()))
-		{
-			Player->BeginFeedCamera();
-		}
-	}
-	
-	// 5. 서버: 시작 시 결과(대화) 또는 시작 알림(흡혈)
-	if (HasAuthority(&ActivationInfo))
-	{
-		if (ITBInteractInterface::Execute_ShouldResolveOnStart(Target))
-		{
-			ResolveInteraction();
-		}
-		else
-		{
-			bInteractionBegun = true;
-			ITBInteractInterface::Execute_BeginInteract(Target, GetAvatarActorFromActorInfo());
-		}
-	}
+    CurrentTarget = Target;
+
+    // 상호작용 대상과 인터페이스 구현 여부 검증
+    if (!IsValid(Target) || !Target->GetClass()->ImplementsInterface(UTBInteractInterface::StaticClass()))
+    {
+        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+        return;
+    }
+
+    // 흡혈 상호작용 여부와 수행 플레이어 확인
+    const bool bIsDrainInteraction = ITBInteractInterface::Execute_IsDrainInteraction(Target);
+    ATBPlayer* Player = Cast<ATBPlayer>(Avatar);
+
+    if (bIsDrainInteraction)
+    {
+        const UCharacterMovementComponent* MovementComponent = IsValid(Player) ? Player->GetCharacterMovement() : nullptr;
+
+        // 점프 요청 또는 지상 이외의 상태에서 흡혈 시작 차단
+        if (!IsValid(Player)
+            || !IsValid(MovementComponent)
+            || Player->bPressedJump
+            || !MovementComponent->IsMovingOnGround())
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+            return;
+        }
+    }
+
+    // 대상의 3인칭·1인칭 상호작용 몽타주 조회
+    ThirdPersonMontage = ITBInteractInterface::Execute_GetInteractMontage(Target);
+    FirstPersonMontage = ITBInteractInterface::Execute_GetInteractFirstPersonMontage(Target);
+
+    // 몽타주가 없는 상호작용은 즉시 결과 처리
+    if (!ThirdPersonMontage)
+    {
+        if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+            return;
+        }
+
+        if (HasAuthority(&ActivationInfo))
+        {
+            ResolveInteraction();
+        }
+
+        EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
+        return;
+    }
+
+    if (bIsDrainInteraction)
+    {
+        // 흡혈 상태 적용 실패 시 종료
+        if (!ApplyDrainState(Handle, ActorInfo, ActivationInfo))
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+            return;
+        }
+
+        // 플레이어에서 시민으로 향하는 수평 방향 계산
+        FVector ToTarget = Target->GetActorLocation() - Player->GetActorLocation();
+        ToTarget.Z = 0.0f;
+
+        // 수평 위치가 겹치는 경우 기존 몸체 방향 유지
+        const float TargetYaw = ToTarget.IsNearlyZero()
+            ? Player->GetActorRotation().Yaw
+            : ToTarget.Rotation().Yaw;
+
+        // 상하·좌우 기울기를 제거한 수평 정면 회전
+        const FRotator FacingRotation(0.0f, TargetYaw, 0.0f);
+
+        // 이후 시민 정렬에서 사용할 플레이어 몸체 방향 적용
+        Player->SetActorRotation(FacingRotation);
+
+        if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+        {
+            // 현재 프레임에 누적된 회전 입력 정리
+            PC->RotationInput = FRotator::ZeroRotator;
+
+            // 플레이어 카메라 방향 정렬
+            PC->SetControlRotation(FacingRotation);
+
+            // 서버의 확정 방향을 소유 클라이언트에 전달
+            if (ActorInfo->IsNetAuthority())
+            {
+                PC->ClientSetRotation(FacingRotation, true);
+            }
+        }
+    }
+
+    // 부모의 검증·비용 처리·몽타주 재생
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // 부모 실행 중 어빌리티가 종료된 경우 중단
+    if (!IsActive())
+    {
+        return;
+    }
+
+    // 서버에서 시작 시 결과 처리 또는 상호작용 시작 알림
+    if (HasAuthority(&ActivationInfo))
+    {
+        if (ITBInteractInterface::Execute_ShouldResolveOnStart(Target))
+        {
+            ResolveInteraction();
+        }
+        else
+        {
+            bInteractionBegun = true;
+            ITBInteractInterface::Execute_BeginInteract(Target, Avatar);
+        }
+    }
 }
 
 void UTBGameplayAbility_Interaction::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
