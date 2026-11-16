@@ -29,8 +29,6 @@ ATBPlayer::ATBPlayer(const FObjectInitializer& ObjectInitializer)
 {
 	PrimaryActorTick.bCanEverTick = true;
 	
-	// 플레이어 타입 지정
-	CharacterTypeTag = TBGameplayTags::Character_Type_Player;
 	
 	// Controller의 좌우 회전만 캐릭터 몸체에 반영
 	bUseControllerRotationPitch = false;
@@ -242,51 +240,24 @@ void ATBPlayer::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 
 bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
 {
-	const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
-	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponent();
+    // 기존 Blueprint 호출도 공통 피격 경로로 전달한다.
+    return ReceiveAttackHit_Implementation(FGameplayTag(), Damage, DamageSource, FHitResult());
+}
 
-	// PlayerState 초기화 및 현재 캐릭터의 ASC 연결 검증
-	if (!HasAuthority() || !IsValid(PS) || !PS->IsGameplayDataInitialized()
-		|| !IsValid(PlayerASC) || PlayerASC != PS->GetAbilitySystemComponent()
-		|| PlayerASC->GetAvatarActor() != this)
-	{
-		return false;
-	}
+// PlayerState의 ASC가 초기화되어 현재 캐릭터를 Avatar로 사용 중인지 확인한다.
+bool ATBPlayer::CanReceiveAttack(float Damage) const
+{
+    const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    return IsValid(PS) && PS->IsGameplayDataInitialized() && IsValid(ASC)
+        && ASC == PS->GetAbilitySystemComponent() && ASC->GetAvatarActor() == this && !IsDead();
+}
 
-	const TSubclassOf<UGameplayEffect> DamageEffectClass = PS->GetDamageEffectClass();
-
-	// 사망 상태 및 피해 값 검증
-	if (IsDead() || !FMath::IsFinite(Damage) || Damage <= 0.0f || !DamageEffectClass)
-	{
-		return false;
-	}
-
-	UAbilitySystemComponent* SourceASC = IsValid(DamageSource) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DamageSource) : nullptr;
-	UAbilitySystemComponent* SpecASC = IsValid(SourceASC) ? SourceASC : PlayerASC;
-
-	FGameplayEffectContextHandle Context = SpecASC->MakeEffectContext();
-
-	if (IsValid(DamageSource))
-	{
-		Context.AddSourceObject(DamageSource);
-
-		if (!IsValid(SourceASC))
-		{
-			Context.AddInstigator(DamageSource, DamageSource);
-		}
-	}
-
-	const FGameplayEffectSpecHandle Spec = SpecASC->MakeOutgoingSpec(DamageEffectClass, 1.0f, Context);
-
-	if (!Spec.IsValid())
-	{
-		return false;
-	}
-
-	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);
-	const bool bApplied = PlayerASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
-
-	return bApplied;
+// 플레이어의 피해 GE 설정은 기존처럼 PlayerState에서 가져온다.
+TSubclassOf<UGameplayEffect> ATBPlayer::GetAttackDamageEffect() const
+{
+    const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
+    return IsValid(PS) ? PS->GetDamageEffectClass() : nullptr;
 }
 
 bool ATBPlayer::PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag, const FGameplayTag& DefaultImpactCueTag)
@@ -898,11 +869,7 @@ void ATBPlayer::TryBindLocalHUD()
 	}
 }
 
-bool ATBPlayer::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource,
-	const FHitResult& HitResult)
-{
-	return ApplyDamage(Damage, DamageSource);
-}
+
 
 float ATBPlayer::GetCameraRecoilPitch() const
 {

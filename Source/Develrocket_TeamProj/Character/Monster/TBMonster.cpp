@@ -19,8 +19,6 @@
 
 ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
-	// 몬스터 타입 지정
-	CharacterTypeTag = TBGameplayTags::Character_Type_Monster;
 	
 	// 몬스터가 직접 소유하는 ASC 생성
 	AbilitySystemComponent = CreateDefaultSubobject<UTBAbilitySystemComponent>(TEXT("MonsterASC"));
@@ -128,52 +126,35 @@ bool ATBMonster::IsDead() const
 	return AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
 }
 
-bool ATBMonster::ApplyDamage(float Damage,AActor* DamageSource)
+bool ATBMonster::ApplyDamage(float Damage, AActor* DamageSource)
 {
-	if (!HasAuthority() || !bGameplayDataInitialized || IsDead() || !FMath::IsFinite(Damage) || Damage <= 0.0f || !DamageEffectClass)
-	{
-		return false;
-	}
+    // 기존 Blueprint 호출도 공통 피격 경로로 전달한다.
+    return ReceiveAttackHit_Implementation(FGameplayTag(), Damage, DamageSource, FHitResult());
+}
 
-	UAbilitySystemComponent* SourceASC = IsValid(DamageSource) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DamageSource) : nullptr;
-	UAbilitySystemComponent* SpecASC = SourceASC ? SourceASC : AbilitySystemComponent.Get();
-	FGameplayEffectContextHandle Context = SpecASC->MakeEffectContext();
-	if (IsValid(DamageSource))
-	{
-		Context.AddSourceObject(DamageSource);
-		if (!SourceASC)
-		{
-			Context.AddInstigator(DamageSource, DamageSource);
-		}
-	}
-	const FGameplayEffectSpecHandle Spec = SpecASC->MakeOutgoingSpec(DamageEffectClass, 1.0f, Context);
-	
-	if (!Spec.IsValid())
-	{
-		return false;
-	}
-	Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);
-	
-	const bool bApplied = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied();
-	if (bApplied && IsValid(DamageSource))
-	{
-		if (UTBBloodBarComponent* AttackerBloodBar = DamageSource->FindComponentByClass<UTBBloodBarComponent>())
-		{
-			AttackerBloodBar->RecordAttackedTarget(this);
-		}
-	}
-	if (bApplied && !IsDead() && IsValid(DamageSource))
-	{
-		if (ATBMonsterAIController* MonsterController = Cast<ATBMonsterAIController>(GetController()))
-		{
-			MonsterController->InvestigateDamageSource(DamageSource);
-		}
-	}
-	if (bApplied && !IsDead() && !AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Stunned))
-	{
-		MonsterAttributes->AddStagger(Damage);
-	}
-	return bApplied;
+// 게임플레이 초기화가 끝난 살아 있는 몬스터만 피해를 받는다.
+bool ATBMonster::CanReceiveAttack(float Damage) const
+{
+    return bGameplayDataInitialized && !IsDead();
+}
+
+// 몬스터 BP에 설정된 피해 GE를 공통 처리에 제공한다.
+TSubclassOf<UGameplayEffect> ATBMonster::GetAttackDamageEffect() const
+{
+    return DamageEffectClass;
+}
+
+// 살아 있다면 공격자를 조사하고 Stun 상태가 아닐 때 Stagger를 누적한다.
+void ATBMonster::OnAttackApplied(float Damage, AActor* DamageSource)
+{
+    if (!IsDead() && IsValid(DamageSource))
+    {
+        if (ATBMonsterAIController* MonsterController = Cast<ATBMonsterAIController>(GetController()))
+            MonsterController->InvestigateDamageSource(DamageSource);
+    }
+    if (!IsDead() && AbilitySystemComponent && MonsterAttributes
+        && !AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Stunned))
+        MonsterAttributes->AddStagger(Damage);
 }
 
 void ATBMonster::HandleStaggerFull()
@@ -383,11 +364,7 @@ void ATBMonster::OnPoolDeactivated_Implementation()
 	GetCharacterMovement()->StopMovementImmediately();
 	if (AbilitySystemComponent) AbilitySystemComponent->CancelAllAbilities();
 }
-bool ATBMonster::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource,
-	const FHitResult& HitResult)
-{
-	return ApplyDamage(Damage, DamageSource);
-}
+
 
 void ATBMonster::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {

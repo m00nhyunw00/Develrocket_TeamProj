@@ -86,6 +86,8 @@ public:
 	bool TryGetWeaponSocketLocation(FName SocketName, FVector& OutLocation) const;
 
 protected:
+	virtual bool CanReceiveAttack(float Damage) const override;
+	virtual TSubclassOf<UGameplayEffect> GetAttackDamageEffect() const override;
 	virtual void BeginPlay() override;
 
 	// 카메라 및 높이 설정 ----------------------
@@ -195,7 +197,6 @@ private:
 	// 피격 및 사망 처리 상태 ----------------------
 
 	// 공격 인터페이스를 통한 피격 처리
-	virtual bool ReceiveAttackHit_Implementation(const FGameplayTag& DamageType,float Damage,AActor* DamageSource,const FHitResult& HitResult) override;
 
 	// 사망 처리 중복 방지
 	bool bDeathHandled = false;

@@ -14,6 +14,7 @@ class DEVELROCKET_TEAMPROJ_API UTBCitizenAttributeSet : public UTBAttributeSetBa
 
 public:
 	UTBCitizenAttributeSet();
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	// 무적·사망 상태에서 들어오는 혈액 감소 실행 거부 (피격·출혈 공통 관문)
 	virtual bool PreGameplayEffectExecute(FGameplayEffectModCallbackData& Data) override;

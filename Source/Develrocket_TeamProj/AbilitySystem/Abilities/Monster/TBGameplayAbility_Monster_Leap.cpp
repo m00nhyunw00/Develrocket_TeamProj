@@ -4,6 +4,8 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Character/Monster/TBMonster.h"
+#include "Character/Human/TBCitizen.h"
+#include "Character/Player/TBPlayer.h"
 #include "GameFramework/Character.h"
 #include "Interface/TBHitInterface.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -21,13 +23,13 @@
 
 namespace
 {
+	// 도약은 살아 있는 플레이어와 Citizen 및 각 자식 BP를 대상으로 한다.
 	bool IsValidLeapTarget(const AActor* Target)
 	{
 		const UAbilitySystemComponent* ASC = IsValid(Target) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target) : nullptr;
 		return IsValid(ASC) && ASC->GetAvatarActor() == Target
 			&& !ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-			&& (ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
-				|| ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human));
+			&& (Target->IsA<ATBPlayer>() || Target->IsA<ATBCitizen>());
 	}
 }
 

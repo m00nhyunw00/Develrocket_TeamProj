@@ -6,6 +6,8 @@
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Monster/TBMonster.h"
+#include "Character/Human/TBCitizen.h"
+#include "Character/Player/TBPlayer.h"
 #include "GameFramework/Character.h"
 #include "Interface/TBHitInterface.h"
 #include "Components/CapsuleComponent.h"
@@ -75,11 +77,11 @@ void UTBGameplayAbility_Monster_Melee::CheckHitWindow()
 	if (!IsValid(Mesh)) return;
 	{
 		ACharacter* Target = AttackTarget.Get();
+		// 클래스는 공격 대상 종류를, ASC는 Avatar 연결과 사망 상태를 확인한다.
 		UAbilitySystemComponent* TargetASC = IsValid(Target) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target) : nullptr;
 		if (!IsValid(TargetASC) || TargetASC->GetAvatarActor() != Target || bTargetHit
 			|| TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-			|| (!TargetASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
-				&& !TargetASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human))
+			|| (!Target->IsA<ATBPlayer>() && !Target->IsA<ATBCitizen>())
 			|| !Target->GetClass()->ImplementsInterface(UTBHitInterface::StaticClass())) { EndHitWindow(); return; }
 		UCapsuleComponent* Capsule = Target->GetCapsuleComponent();
 		if (!IsValid(Capsule) || Capsule->GetCollisionEnabled() == ECollisionEnabled::NoCollision) return;

@@ -14,6 +14,10 @@ void UTBPlayerAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
+	// 다른 클라이언트가 머리 위 HP 바를 갱신할 수 있도록 Blood를 복제한다.
+	RESET_REPLIFETIME_CONDITION(UTBAttributeSetBase, Blood, COND_None);
+	RESET_REPLIFETIME_CONDITION(UTBAttributeSetBase, MaxBlood, COND_None);
+
 	DOREPLIFETIME_CONDITION_NOTIFY(UTBPlayerAttributeSet, LoadedBlood,COND_OwnerOnly, REPNOTIFY_Always);
 
 	DOREPLIFETIME_CONDITION_NOTIFY(UTBPlayerAttributeSet, MaxLoadedBlood, COND_OwnerOnly, REPNOTIFY_Always);

@@ -13,6 +13,7 @@
 #include "DrawDebugHelpers.h"
 #include "EngineUtils.h"
 #include "TimerManager.h"
+#include "Character/Human/TBCitizen.h"
 #include "Navigation/PathFollowingComponent.h"
 
 ATBMonsterAIController::ATBMonsterAIController()
@@ -142,11 +143,11 @@ void ATBMonsterAIController::InvestigateDamageSource(AActor* DamageSource)
 	const ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
 	UBlackboardComponent* BlackboardComponent = GetBlackboardComponent();
 	if (!HasAuthority() || !IsValid(Monster) || Monster->IsDead() || !IsValid(DamageSource) || DamageSource == Monster || !BlackboardComponent) return;
+	// 플레이어와 Citizen의 자식 BP도 IsA 검사에 포함된다.
 	UAbilitySystemComponent* SourceASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DamageSource);
 	if (IsValid(SourceASC) && SourceASC->GetAvatarActor() == DamageSource
 		&& !SourceASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-		&& (SourceASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
-			|| SourceASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human)))
+		&& (DamageSource->IsA<ATBPlayer>() || DamageSource->IsA<ATBCitizen>()))
 	{
 		if (!bDamagePriorityTarget || !TrackedTarget.IsValid() || !TrackedTargetASC.IsValid()
 			|| TrackedTargetASC->GetAvatarActor() != TrackedTarget.Get()
@@ -300,8 +301,7 @@ void ATBMonsterAIController::RefreshTargetAfterStagger()
 	UBlackboardComponent* BlackboardComponent = GetBlackboardComponent();
 	if (!IsValid(Target) || !IsValid(ASC) || ASC->GetAvatarActor() != Target
 		|| ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-		|| (!ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
-			&& !ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human)) || !BlackboardComponent || !GetPerceptionComponent())
+		|| (!Target->IsA<ATBPlayer>() && !Target->IsA<ATBCitizen>()) || !BlackboardComponent || !GetPerceptionComponent())
 	{
 		UpdateTarget();
 		return;
@@ -361,13 +361,13 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 	{
 		return;
 	}
+	// Stagger 또는 피격 우선 추적 중에는 유효한 기존 대상을 유지한다.
 	AActor* PreservedTarget = TrackedTarget.Get();
 	UAbilitySystemComponent* PreservedASC = TrackedTargetASC.Get();
 	if ((bPreserveTargetDuringStagger || (bDamagePriorityTarget && !bMemoryExpired)) && IsValid(PreservedTarget) && PreservedTarget != ExcludedActor
 		&& IsValid(PreservedASC) && PreservedASC->GetAvatarActor() == PreservedTarget
 		&& !PreservedASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-		&& (PreservedASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
-			|| PreservedASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human)))
+		&& (PreservedTarget->IsA<ATBPlayer>() || PreservedTarget->IsA<ATBCitizen>()))
 	{
 		TArray<AActor*> SeenActors;
 		GetPerceptionComponent()->GetCurrentlyPerceivedActors(UAISense_Sight::StaticClass(), SeenActors);
@@ -388,12 +388,12 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 	GetPerceptionComponent()->GetCurrentlyPerceivedActors(UAISense_Sight::StaticClass(), PerceivedActors);
 	AActor* ClosestPlayer = nullptr;
 	double ClosestDistanceSquared = TNumericLimits<double>::Max();
+	// 시야에 들어온 살아 있는 플레이어와 Citizen 중 가장 가까운 대상을 찾는다.
 	for (AActor* Candidate : PerceivedActors)
 	{
 		UAbilitySystemComponent* ASC = IsValid(Candidate) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Candidate) : nullptr;
 		if (!IsValid(ASC) || Candidate == ExcludedActor || ASC->GetAvatarActor() != Candidate
-			|| (!ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
-				&& !ASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human))
+			|| (!Candidate->IsA<ATBPlayer>() && !Candidate->IsA<ATBCitizen>())
 			|| ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
 		{
 			continue;
@@ -411,8 +411,7 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 	UAbilitySystemComponent* PreviousASC = TrackedTargetASC.Get();
 	if (!ClosestPlayer && !bMemoryExpired && IsValid(PreviousTarget) && IsValid(PreviousASC)
 		&& PreviousASC->GetAvatarActor() == PreviousTarget
-		&& (PreviousASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Player)
-			|| PreviousASC->HasMatchingGameplayTag(TBGameplayTags::Character_Type_Human))
+		&& (PreviousTarget->IsA<ATBPlayer>() || PreviousTarget->IsA<ATBCitizen>())
 		&& !PreviousASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead) && PreviousTarget != ExcludedActor && LostSightMemorySeconds > 0.0f)
 	{
 		if (!GetWorldTimerManager().IsTimerActive(TargetMemoryTimer))
