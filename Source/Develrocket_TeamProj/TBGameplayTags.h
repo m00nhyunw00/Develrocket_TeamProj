@@ -30,6 +30,7 @@ namespace TBGameplayTags
 	
 	// 상호작용 Ability ----------------------
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Interaction);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Interaction_Drain);
 	
 	// 데미지 타입 ----------------------
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Type_Bullet);
