@@ -63,9 +63,8 @@ bool ATBNPCBase::ShouldResolveOnStart_Implementation() const
 
 FGameplayTag ATBNPCBase::GetInteractionAbilityTag_Implementation(AActor* InteractInstigator) const
 {
-	return TBGameplayTags::Ability_Interaction;
+	return TBGameplayTags::Ability_Interaction_Instant;
 }
-
 void ATBNPCBase::PlayReactMontage()
 {
 	if (!ReactMontage || !Mesh)

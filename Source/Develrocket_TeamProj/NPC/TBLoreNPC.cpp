@@ -52,3 +52,4 @@ void ATBLoreNPC::Interact_Implementation(AActor* InteractInstigator)
 	// [서버] 지금은 바꿀 게임 상태 없음
 	UE_LOG(LogTemp, Log, TEXT("[LoreNPC] Server: %s"), *GetNameSafe(InteractInstigator));
 }
+
