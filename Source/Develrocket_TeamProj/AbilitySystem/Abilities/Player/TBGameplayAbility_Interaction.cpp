@@ -75,26 +75,15 @@ void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
     ThirdPersonMontage = ITBInteractInterface::Execute_GetInteractMontage(Target);
     FirstPersonMontage = ITBInteractInterface::Execute_GetInteractFirstPersonMontage(Target);
 
-    // 몽타주가 없는 상호작용은 즉시 결과 처리
-    if (!ThirdPersonMontage)
+    if (bIsDrainInteraction)
     {
-        if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+        // 흡혈은 두 시점의 연출이 모두 필요한 상호작용
+        if (!ThirdPersonMontage || !FirstPersonMontage)
         {
             EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
             return;
         }
 
-        if (HasAuthority(&ActivationInfo))
-        {
-            ResolveInteraction();
-        }
-
-        EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
-        return;
-    }
-
-    if (bIsDrainInteraction)
-    {
         // 흡혈 상태 적용 실패 시 종료
         if (!ApplyDrainState(Handle, ActorInfo, ActivationInfo))
         {
@@ -139,6 +128,18 @@ void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
     // 부모 실행 중 어빌리티가 종료된 경우 중단
     if (!IsActive())
     {
+        return;
+    }
+
+    // 몽타주 없는 대화 등은 공통 검증·비용 처리 이후 즉시 결과 전달 및 종료
+    if (!ThirdPersonMontage && !FirstPersonMontage)
+    {
+        if (HasAuthority(&ActivationInfo))
+        {
+            ResolveInteraction();
+        }
+
+        EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
         return;
     }
 
