@@ -26,6 +26,8 @@ protected:
 	
 	// 종료 시 정리 * 성공, 취소, 준비 등 어느 경우에 불려도 안전해야함
 	virtual void CleanupInteraction(const FGameplayAbilityActorInfo* ActorInfo, AActor* Target);
+	
+	virtual bool ShouldResolveOnStart() const;
 
 private:
 	// [서버] Execute_Interact + Client_NotifyInteracted
