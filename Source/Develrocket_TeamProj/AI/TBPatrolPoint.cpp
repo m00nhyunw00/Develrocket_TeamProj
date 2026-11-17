@@ -24,10 +24,7 @@ ATBPatrolPoint::ATBPatrolPoint()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	
-	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
-	SetRootComponent(Root);
-	
-	SetActorEnableCollision(false);
+	USceneComponent* Root = GetRootComponent();
 	
 #if WITH_EDITORONLY_DATA
 	EditorIcon = CreateEditorOnlyDefaultSubobject<UBillboardComponent>(TEXT("EditorIcon"));

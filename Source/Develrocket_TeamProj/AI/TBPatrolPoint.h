@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
+#include "Engine/TargetPoint.h"
 #include "GameplayTagContainer.h"
 #include "TBPatrolPoint.generated.h"
 
@@ -10,7 +10,7 @@ class ANavigationData;
 class UTBPatrolPointSubsystem;
 
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API ATBPatrolPoint : public AActor
+class DEVELROCKET_TEAMPROJ_API ATBPatrolPoint : public ATargetPoint
 {
 	GENERATED_BODY()
 	

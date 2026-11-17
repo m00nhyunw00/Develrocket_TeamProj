@@ -1,5 +1,6 @@
 #include "AI/TBBaseAIController.h"
 #include "AI/TBPatrolPoint.h"
+#include "AI/TBPatrolPointSubsystem.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
@@ -21,11 +22,19 @@ AActor* ATBBaseAIController::SelectNextPatrolPoint(TSubclassOf<AActor> PointClas
 	UNavigationSystemV1* Nav = GetWorld() ? FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()) : nullptr;
 	const UNavMovementComponent* Movement = Cast<UNavMovementComponent>(ControlledPawn->GetMovementComponent());
 	const ANavigationData* Data = (Nav && Movement) ? Nav->GetNavDataForProps(Movement->GetNavAgentPropertiesRef(), ControlledPawn->GetActorLocation()) : nullptr;
-	ATBPatrolPoint* Next = CurrentPatrolPoint.IsValid() ? CurrentPatrolPoint->ChooseNextPoint(Data, PreviousPatrolPoint.Get()) : nullptr;
+	const UTBPatrolPointSubsystem* Patrols = GetWorld()->GetSubsystem<UTBPatrolPointSubsystem>();
+	ATBPatrolPoint* Next = (Patrols && Patrols->bPatrolGraphReady && CurrentPatrolPoint.IsValid()) ? CurrentPatrolPoint->ChooseNextPoint(Data, PreviousPatrolPoint.Get()) : nullptr;
 	if (Next && (!Next->IsA(PointClass) || FVector::DistSquared(ControlledPawn->GetActorLocation(), Next->GetActorLocation()) > FMath::Square(SearchRadius))) Next = nullptr;
-	if (!Next) Next = Cast<ATBPatrolPoint>(FindReachablePatrolPoint(PointClass, SearchRadius));
-	PendingPatrolPoint = Next;
-	return Next;
+	if (Next)
+	{
+		PendingPatrolPoint = Next;
+		return Next;
+	}
+	// Existing patrol Blueprints may not derive from ATBPatrolPoint.
+	// Keep the original search usable for those classes instead of discarding its result.
+	AActor* FallbackPoint = FindReachablePatrolPoint(PointClass, SearchRadius);
+	PendingPatrolPoint = Cast<ATBPatrolPoint>(FallbackPoint);
+	return FallbackPoint;
 }
 
 FPathFollowingRequestResult ATBBaseAIController::MoveTo(const FAIMoveRequest& MoveRequest, FNavPathSharedPtr* OutPath)
