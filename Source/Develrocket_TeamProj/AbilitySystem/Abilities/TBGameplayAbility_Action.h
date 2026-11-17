@@ -7,6 +7,7 @@
 class UAnimInstance;
 class UAnimMontage;
 class UAbilityTask_PlayMontageAndWait;
+class UAbilityTask_WaitDelay;
 
 UCLASS(Abstract)
 class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_Action : public UGameplayAbility
@@ -26,7 +27,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Cost")
 	bool bCommitOnActivate = true;
 
-	// 몽타주 ----------------------
+	// 선택적 몽타주: 둘 다 없으면 자식에서 실행 완료 및 종료 처리 ----------------------
 
 	UPROPERTY(EditDefaultsOnly, Category = "Animation")
 	TObjectPtr<UAnimMontage> ThirdPersonMontage;
@@ -39,7 +40,8 @@ protected:
 	virtual void HandleActionMontageCompleted();
 	virtual void HandleActionMontageInterrupted();
 	
-	// 몽타주 완료까지 Ability를 유지할지 여부 ----------------------
+	// 3인칭 우선, 1인칭만 있으면 해당 몽타주의 완료 대기 ----------------------
+	// 몽타주가 없거나 false인 경우 자식에서 EndAbility 호출
 	virtual bool ShouldWaitForMontageEnd() const
 	{
 		return true;
@@ -58,6 +60,17 @@ private:
 	UFUNCTION()
 	void OnMontageInterrupted();
 
+	// 실제로 재생한 1인칭 몽타주 인스턴스의 완료·중단 처리
+	void OnFirstPersonMontageEnded(UAnimMontage* Montage, bool bInterrupted, int32 MontageInstanceID);
+	void OnFirstPersonMontageBlendingOut(UAnimMontage* Montage, bool bInterrupted, int32 MontageInstanceID);
+
+	TWeakObjectPtr<UAnimInstance> PlayingFirstPersonAnimInstance;
+	int32 FirstPersonMontageInstanceID = INDEX_NONE;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UAbilityTask_PlayMontageAndWait> MontageTask;
+
+	// 1인칭 메시를 재생하지 않는 서버의 단발 몽타주 완료 대기
+	UPROPERTY(Transient)
+	TObjectPtr<UAbilityTask_WaitDelay> FirstPersonWaitTask;
 };

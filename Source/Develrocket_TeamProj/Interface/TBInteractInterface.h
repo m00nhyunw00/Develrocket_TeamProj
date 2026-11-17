@@ -41,7 +41,7 @@ public:
 	
 	// 연출 -------------------------
 	
-	// 상호작용할 때 플레이어가 재생할 3인칭 몽타주 (없으면 GA가 실행되지 않음)
+	// 상호작용할 때 플레이어가 재생할 선택적 3인칭 몽타주
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="Interaction|Animation")
 	UAnimMontage* GetInteractMontage() const;
 	
@@ -51,7 +51,7 @@ public:
 	
 	// 결과 시점 ----------------------
 	
-	// true : 몽타주 시작 시 결과(대화) / false : 몽타주가 끝나야 결과(흡혈)
+	// true : 시작 시 결과(대화) / false : 몽타주 완료 시 결과(흡혈), 둘 다 없으면 즉시 결과
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="Interaction")
 	bool ShouldResolveOnStart() const;
 	
