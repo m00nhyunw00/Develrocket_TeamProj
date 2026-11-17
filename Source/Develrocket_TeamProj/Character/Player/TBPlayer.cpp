@@ -83,13 +83,6 @@ void ATBPlayer::Tick(float DeltaSeconds)
 	{
 		return;
 	}
-	
-	// 흡혈 중에는 눈높이 보간 대신 애니 커브로 카메라 구동
-	if (bFeedCameraActive)
-	{
-		UpdateFeedCamera();
-		return;
-	}
 
 	FVector CameraLocation = FirstPersonCamera->GetRelativeLocation();
 
@@ -988,57 +981,3 @@ void ATBPlayer::InputPauseStarted()
 	}
 }
 
-// 흡혈 카메라 ----------------------
-
-void ATBPlayer::BeginFeedCamera()
-{
-	if (!IsLocallyControlled() || !FirstPersonCamera)
-	{
-		return;
-	}
-
-	// 애니는 피치 0에서 시작한다고 가정하고 만들었으므로 수평으로 맞춤
-	if (Controller)
-	{
-		Controller->SetControlRotation(FRotator(0.f, GetActorRotation().Yaw, 0.f));
-	}
-
-	// 컨트롤 회전 대신 커브로 상대 회전을 직접 지정
-	FirstPersonCamera->bUsePawnControlRotation = false;
-	bFeedCameraActive = true;
-	UpdateFeedCamera();
-}
-
-void ATBPlayer::EndFeedCamera()
-{
-	if (!bFeedCameraActive || !FirstPersonCamera)
-	{
-		return;
-	}
-
-	bFeedCameraActive = false;
-	FirstPersonCamera->bUsePawnControlRotation = true;
-	FirstPersonCamera->SetRelativeLocationAndRotation(FVector(0.f, 0.f, BaseEyeHeight), FRotator::ZeroRotator);
-}
-
-void ATBPlayer::UpdateFeedCamera()
-{
-	UAnimInstance* AnimInstance = FirstPersonMesh ? FirstPersonMesh->GetAnimInstance() : nullptr;
-	if (!AnimInstance)
-	{
-		return;
-	}
-
-	// 몽타주 블렌드 인·아웃 동안 커브 값도 같이 0에서 오르내림 → 시작·끝이 부드럽게 이어짐
-	const FVector Offset(
-		AnimInstance->GetCurveValue(TEXT("FeedCam_X")),
-		AnimInstance->GetCurveValue(TEXT("FeedCam_Y")),
-		AnimInstance->GetCurveValue(TEXT("FeedCam_Z")));
-
-	const FRotator Rotation(
-		AnimInstance->GetCurveValue(TEXT("FeedCam_Pitch")),
-		AnimInstance->GetCurveValue(TEXT("FeedCam_Yaw")),
-		0.f);
-
-	FirstPersonCamera->SetRelativeLocationAndRotation(FVector(0.f, 0.f, BaseEyeHeight) + Offset, Rotation);
-}
