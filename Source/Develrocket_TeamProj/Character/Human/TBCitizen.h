@@ -36,9 +36,7 @@ public:
 	virtual FText GetInteractPrompt_Implementation() const override;
 	virtual UAnimMontage* GetInteractMontage_Implementation() const override;
 	virtual UAnimMontage* GetInteractFirstPersonMontage_Implementation() const override;
-	virtual bool ShouldResolveOnStart_Implementation() const override;
 	virtual FGameplayTag GetInteractionAbilityTag_Implementation(AActor* InteractInstigator) const override;
-	virtual bool IsDrainInteraction_Implementation() const override;
 
 	// 풀링 계약 ----------------------
 	virtual void OnPoolActivated_Implementation() override;       // [서버] 풀에서 꺼낼 때 살아있는 상태로 복구
