@@ -252,3 +252,26 @@ void ATBCharacterBase::StopSkill()
     // 예: 차지 스킬 충전 종료, 유지형 스킬 사용 중단
     // 입력 해제 이후의 발동 또는 취소는 Ability에서 판단
 }
+
+bool ATBCharacterBase::LineTraceByChannel(FHitResult& OutHit, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel) const
+{
+    // 이전 호출의 충돌 정보 초기화
+    OutHit = FHitResult();
+
+    const UWorld* World = GetWorld();
+
+    // 월드 및 시작·끝 좌표의 유효성 검증
+    if (!World || Start.ContainsNaN() || End.ContainsNaN())
+    {
+        return false;
+    }
+
+    // 기존 공격과 동일한 단순 충돌 검사
+    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(TBCharacterLineTrace), false);
+
+    // 호출한 캐릭터와 해당 캐릭터 소유 컴포넌트 제외
+    QueryParams.AddIgnoredActor(this);
+
+    // 지정한 채널에서 처음 발견한 블로킹 충돌 반환
+    return World->LineTraceSingleByChannel(OutHit, Start, End, TraceChannel, QueryParams);
+}
