@@ -168,6 +168,11 @@ UAnimMontage* ATBCitizen::GetInteractMontage_Implementation() const { return Fee
 UAnimMontage* ATBCitizen::GetInteractFirstPersonMontage_Implementation() const { return FeedFirstPersonMontage; }
 bool ATBCitizen::ShouldResolveOnStart_Implementation() const { return false; }
 
+FGameplayTag ATBCitizen::GetInteractionAbilityTag_Implementation(AActor* InteractInstigator) const
+{
+	return TBGameplayTags::Ability_Interaction;
+}
+
 bool ATBCitizen::IsDrainInteraction_Implementation() const
 {
 	// 시민은 흡혈 상호작용 제공

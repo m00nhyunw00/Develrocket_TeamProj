@@ -51,76 +51,34 @@ void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
+	
+	// 대상이 요청한 절차가 이 어빌리티인지 검증
+	// 서버는 직접 다시 찾은 대상에게 다시 묻기 때문에, 클라이언트가 고른 값을 믿지 않음
+	const FGameplayTag RequestedTag = ITBInteractInterface::Execute_GetInteractionAbilityTag(Target, Avatar);
 
-    // 흡혈 상호작용 여부와 수행 플레이어 확인
-    const bool bIsDrainInteraction = ITBInteractInterface::Execute_IsDrainInteraction(Target);
-    ATBPlayer* Player = Cast<ATBPlayer>(Avatar);
-
-    if (bIsDrainInteraction)
-    {
-        const UCharacterMovementComponent* MovementComponent = IsValid(Player) ? Player->GetCharacterMovement() : nullptr;
-
-        // 점프 요청 또는 지상 이외의 상태에서 흡혈 시작 차단
-        if (!IsValid(Player)
-            || !IsValid(MovementComponent)
-            || Player->bPressedJump
-            || !MovementComponent->IsMovingOnGround())
-        {
-            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-            return;
-        }
-    }
+	if (!RequestedTag.IsValid() || !GetAssetTags().HasTagExact(RequestedTag))
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
 
     // 대상의 3인칭·1인칭 상호작용 몽타주 조회
     ThirdPersonMontage = ITBInteractInterface::Execute_GetInteractMontage(Target);
     FirstPersonMontage = ITBInteractInterface::Execute_GetInteractFirstPersonMontage(Target);
 
-    if (bIsDrainInteraction)
-    {
-        // 흡혈은 두 시점의 연출이 모두 필요한 상호작용
-        if (!ThirdPersonMontage || !FirstPersonMontage)
-        {
-            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-            return;
-        }
-
-        // 흡혈 상태 적용 실패 시 종료
-        if (!ApplyDrainState(Handle, ActorInfo, ActivationInfo))
-        {
-            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-            return;
-        }
-
-        // 플레이어에서 시민으로 향하는 수평 방향 계산
-        FVector ToTarget = Target->GetActorLocation() - Player->GetActorLocation();
-        ToTarget.Z = 0.0f;
-
-        // 수평 위치가 겹치는 경우 기존 몸체 방향 유지
-        const float TargetYaw = ToTarget.IsNearlyZero()
-            ? Player->GetActorRotation().Yaw
-            : ToTarget.Rotation().Yaw;
-
-        // 상하·좌우 기울기를 제거한 수평 정면 회전
-        const FRotator FacingRotation(0.0f, TargetYaw, 0.0f);
-
-        // 이후 시민 정렬에서 사용할 플레이어 몸체 방향 적용
-        Player->SetActorRotation(FacingRotation);
-
-        if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
-        {
-            // 현재 프레임에 누적된 회전 입력 정리
-            PC->RotationInput = FRotator::ZeroRotator;
-
-            // 플레이어 카메라 방향 정렬
-            PC->SetControlRotation(FacingRotation);
-
-            // 서버의 확정 방향을 소유 클라이언트에 전달
-            if (ActorInfo->IsNetAuthority())
-            {
-                PC->ClientSetRotation(FacingRotation, true);
-            }
-        }
-    }
+   // 시작 조건
+	if (!CanStartInteraction(ActorInfo, Target))
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+	
+	// 준비
+	if (!PrepareInteraction(Handle, ActorInfo, ActivationInfo, Target))
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}	
 
     // 부모의 검증·비용 처리·몽타주 재생
     Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
@@ -177,19 +135,11 @@ void UTBGameplayAbility_Interaction::EndAbility(const FGameplayAbilitySpecHandle
 			ITBInteractInterface::Execute_CancelInteract(Target, ActorInfo->AvatarActor.Get());
 		}
 	}
-
-	// 서버에서 이번 흡혈이 적용한 상태 GE만 제거
-	if (ActorInfo && ActorInfo->IsNetAuthority() && DrainStateEffectHandle.IsValid())
-	{
-		if (UAbilitySystemComponent* ASC = DrainStateASC.Get())
-		{
-			ASC->RemoveActiveGameplayEffect(DrainStateEffectHandle);
-		}
-	}
+	
+	// 정리
+	CleanupInteraction(ActorInfo, CurrentTarget.Get());
 
 	// 다음 상호작용을 위한 실행 정보 정리
-	DrainStateEffectHandle.Invalidate();
-	DrainStateASC.Reset();
 	CurrentTarget.Reset();
 	bInteractionResolved = false;
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
@@ -206,6 +156,105 @@ void UTBGameplayAbility_Interaction::HandleActionMontageCompleted()
     }
 
     Super::HandleActionMontageCompleted();
+}
+
+bool UTBGameplayAbility_Interaction::CanStartInteraction(const FGameplayAbilityActorInfo* ActorInfo,
+	AActor* Target) const
+{
+	// [1단계 임시] 흡혈이 아니면 추가 조건 없음 → 2단계에서 GA_Drain으로 이동
+	if (!ITBInteractInterface::Execute_IsDrainInteraction(Target))
+	{
+		return true;
+	}
+
+	// const 함수이므로 플레이어도 읽기 전용으로 가져옴
+	const ATBPlayer* Player = ActorInfo ? Cast<ATBPlayer>(ActorInfo->AvatarActor.Get()) : nullptr;
+	const UCharacterMovementComponent* MovementComponent = IsValid(Player) ? Player->GetCharacterMovement() : nullptr;
+
+	// 점프 요청 또는 지상 이외의 상태에서 흡혈 시작 차단
+	return IsValid(Player)
+		&& IsValid(MovementComponent)
+		&& !Player->bPressedJump
+		&& MovementComponent->IsMovingOnGround();
+}
+
+bool UTBGameplayAbility_Interaction::PrepareInteraction(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, AActor* Target)
+{
+	// [1단계 임시] 흡혈이 아니면 준비할 것 없음 → 2단계에서 GA_Drain으로 이동
+	if (!ITBInteractInterface::Execute_IsDrainInteraction(Target))
+	{
+		return true;
+	}
+
+	// 흡혈은 두 시점의 연출이 모두 필요한 상호작용
+	if (!ThirdPersonMontage || !FirstPersonMontage)
+	{
+		return false;
+	}
+
+	// 흡혈 상태 적용 실패 시 중단
+	if (!ApplyDrainState(Handle, ActorInfo, ActivationInfo))
+	{
+		return false;
+	}
+
+	// 방향 정렬 대상 플레이어
+	// 여기서 실패해도 EndAbility → CleanupInteraction에서 방금 적용한 GE가 제거됨
+	ATBPlayer* Player = Cast<ATBPlayer>(ActorInfo->AvatarActor.Get());
+	if (!IsValid(Player))
+	{
+		return false;
+	}
+
+	// 플레이어에서 시민으로 향하는 수평 방향 계산
+	FVector ToTarget = Target->GetActorLocation() - Player->GetActorLocation();
+	ToTarget.Z = 0.0f;
+
+	// 수평 위치가 겹치는 경우 기존 몸체 방향 유지
+	const float TargetYaw = ToTarget.IsNearlyZero()
+		? Player->GetActorRotation().Yaw
+		: ToTarget.Rotation().Yaw;
+
+	// 상하·좌우 기울기를 제거한 수평 정면 회전
+	const FRotator FacingRotation(0.0f, TargetYaw, 0.0f);
+
+	// 이후 시민 정렬에서 사용할 플레이어 몸체 방향 적용
+	Player->SetActorRotation(FacingRotation);
+
+	if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+	{
+		// 현재 프레임에 누적된 회전 입력 정리
+		PC->RotationInput = FRotator::ZeroRotator;
+
+		// 플레이어 카메라 방향 정렬
+		PC->SetControlRotation(FacingRotation);
+
+		// 서버의 확정 방향을 소유 클라이언트에 전달
+		if (ActorInfo->IsNetAuthority())
+		{
+			PC->ClientSetRotation(FacingRotation, true);
+		}
+	}
+
+	return true;
+}
+
+void UTBGameplayAbility_Interaction::CleanupInteraction(const FGameplayAbilityActorInfo* ActorInfo, AActor* Target)
+{
+	// 흡혈 여부 검사가 필요 없음: 흡혈이 아니었다면 핸들이 비어 있어 아무것도 하지 않음
+
+	// 서버에서 이번 흡혈이 적용한 상태 GE만 제거
+	if (ActorInfo && ActorInfo->IsNetAuthority() && DrainStateEffectHandle.IsValid())
+	{
+		if (UAbilitySystemComponent* ASC = DrainStateASC.Get())
+		{
+			ASC->RemoveActiveGameplayEffect(DrainStateEffectHandle);
+		}
+	}
+
+	// 다음 상호작용을 위한 실행 정보 정리
+	DrainStateEffectHandle.Invalidate();
+	DrainStateASC.Reset();
 }
 
 bool UTBGameplayAbility_Interaction::ApplyDrainState(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo)

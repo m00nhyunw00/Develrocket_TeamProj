@@ -37,6 +37,7 @@ public:
 	virtual UAnimMontage* GetInteractMontage_Implementation() const override;
 	virtual UAnimMontage* GetInteractFirstPersonMontage_Implementation() const override;
 	virtual bool ShouldResolveOnStart_Implementation() const override;
+	virtual FGameplayTag GetInteractionAbilityTag_Implementation(AActor* InteractInstigator) const override;
 	virtual bool IsDrainInteraction_Implementation() const override;
 
 	// 풀링 계약 ----------------------

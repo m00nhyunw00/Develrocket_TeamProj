@@ -19,6 +19,7 @@
 #include "Framework/TBPlayerState.h"
 #include "UI/TBPlayerHUD.h"
 #include "Components/TBInteractionComponent.h"
+#include "Interface/TBInteractInterface.h"
 
 class ATBPlayerState;
 
@@ -866,10 +867,27 @@ void ATBPlayer::InputInteractStarted()
 		return;
 	}
 	
-	if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+	UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent();
+
+	// 지금 바라보는 상호작용 대상 (GA가 클라이언트에서 대상을 얻는 방법과 동일)
+	AActor* Target = InteractionComponent ? InteractionComponent->GetFocusedActor() : nullptr;
+
+	if (!ASC || !IsValid(Target) || !Target->Implements<UTBInteractInterface>())
 	{
-		ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Interaction);
+		return;
 	}
+
+	// 대상에게 "어떤 절차로 상호작용할지" 질문
+	const FGameplayTag AbilityTag = ITBInteractInterface::Execute_GetInteractionAbilityTag(Target, this);
+
+	// 빈 태그 = 이 대상은 지금 상호작용하지 않음
+	if (!AbilityTag.IsValid())
+	{
+		return;
+	}
+
+	// 대상이 알려 준 태그로 발동 (예측 실행은 지금과 동일)
+	ASC->TryActivateAbilityByTag(AbilityTag);
 }
 
 void ATBPlayer::InitializeWeaponMeshes()
