@@ -3,6 +3,7 @@
 #include "Animation/AnimMontage.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "TBGameplayTags.h"
 
 ATBNPCBase::ATBNPCBase()
 {
@@ -54,12 +55,10 @@ UAnimMontage* ATBNPCBase::GetInteractFirstPersonMontage_Implementation() const
 	return InteractFirstPersonMontage;
 }
 
-bool ATBNPCBase::ShouldResolveOnStart_Implementation() const
+FGameplayTag ATBNPCBase::GetInteractionAbilityTag_Implementation(AActor* InteractInstigator) const
 {
-	// NPC 상호작용은 시작 즉시 결과 (흡혈처럼 끝까지 기다리지 않음)
-	return true;
+	return TBGameplayTags::Ability_Interaction_Instant;
 }
-
 void ATBNPCBase::PlayReactMontage()
 {
 	if (!ReactMontage || !Mesh)

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
+#include "GameplayTagContainer.h"
 #include "TBInteractInterface.generated.h"
 
 class UAnimMontage;
@@ -49,24 +50,16 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction|Animation")
 	UAnimMontage* GetInteractFirstPersonMontage() const;
 	
-	// 결과 시점 ----------------------
-	
-	// true : 시작 시 결과(대화) / false : 몽타주 완료 시 결과(흡혈), 둘 다 없으면 즉시 결과
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="Interaction")
-	bool ShouldResolveOnStart() const;
-	
 	// 진행 알림 --------------------
 	// [서버] 몽타주가 시작될 때 대상에게 알림. 흡혈 대상이 멈추는 용도
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
 	void BeginInteract(AActor* InteractInstigator);
 	
-	// [서버] 결과가 나기 전에 상호작용이 끊겼을 떄 알림 (몽타주 중단, 어빌리티 취소)
+	// [서버] 결과가 나기 전에 상호작용이 끊겼을 때 알림 (몽타주 중단, 어빌리티 취소)
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
 	void CancelInteract(AActor* InteractInstigator);
 	
-	// 
-	
-	// 플레이어에게 흡혈 상태를 부여하는 상호작용인지 판별
+	// 이 대상과 상호작용할 때 플레이어가 실행할 어빌리티 태그
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
-	bool IsDrainInteraction() const;
+	FGameplayTag GetInteractionAbilityTag(AActor* InteractInstigator) const;
 };

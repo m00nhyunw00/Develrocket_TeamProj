@@ -89,10 +89,6 @@ public:
 	// 무기 소켓 월드 위치 조회 ----------------------
 	
 	bool TryGetWeaponSocketLocation(FName SocketName, FVector& OutLocation) const;
-	
-	// 흡혈 중 카메라를 1인칭 애니 커브로 구동
-	void BeginFeedCamera();
-	void EndFeedCamera();
 
 protected:
 	virtual bool CanReceiveAttack(float Damage) const override;
@@ -260,9 +256,4 @@ private:
 
 	void InputInteractStarted();
 	void InputPauseStarted();
-	
-	// 흡혈 중 카메라 처리 ----------------------
-	
-	void UpdateFeedCamera();
-	bool bFeedCameraActive = false;
 };

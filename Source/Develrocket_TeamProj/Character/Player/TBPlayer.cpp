@@ -19,7 +19,7 @@
 #include "Framework/TBPlayerState.h"
 #include "UI/TBPlayerHUD.h"
 #include "Components/TBInteractionComponent.h"
-#include "Components/TBAIVisibilityReporterComponent.h"
+#include "Interface/TBInteractInterface.h"
 
 class ATBPlayerState;
 
@@ -41,7 +41,6 @@ ATBPlayer::ATBPlayer(const FObjectInitializer& ObjectInitializer)
 	
 	// 시선 앞 상호작용 대상 탐지
 	InteractionComponent = CreateDefaultSubobject<UTBInteractionComponent>(TEXT("InteractionComponent"));
-	CreateDefaultSubobject<UTBAIVisibilityReporterComponent>(TEXT("AIVisibilityReporter"));
 
 	// 캡슐을 기준으로 1인칭 카메라 배치
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
@@ -82,13 +81,6 @@ void ATBPlayer::Tick(float DeltaSeconds)
 
 	if (!IsLocallyControlled() || !FirstPersonCamera)
 	{
-		return;
-	}
-	
-	// 흡혈 중에는 눈높이 보간 대신 애니 커브로 카메라 구동
-	if (bFeedCameraActive)
-	{
-		UpdateFeedCamera();
 		return;
 	}
 
@@ -324,17 +316,14 @@ bool ATBPlayer::PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag, const
 	GetActorEyesViewPoint(TraceStart, TraceRotation);
 
 	const FVector TraceEnd = TraceStart + TraceRotation.Vector() * TraceRange;
-
-	// 공격자 자신과 자신의 컴포넌트 제외
-	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(TBPrimaryAttackTrace), false);
-	QueryParams.AddIgnoredActor(this);
-
+	
 	// 프로젝트 설정의 WeaponTrace 채널
 	constexpr ECollisionChannel WeaponTraceChannel = ECC_GameTraceChannel2;
 
+	// 부모의 공통 트레이스로 충돌 결과 조회
 	FHitResult HitResult;
-	const bool bBlockingHit = World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, WeaponTraceChannel, QueryParams);
-
+	const bool bBlockingHit = LineTraceByChannel(HitResult, TraceStart, TraceEnd, WeaponTraceChannel);
+	
 	// 충돌 시 표면 위치, 미충돌 시 최대 사거리 끝점 사용
 	const FVector TrailEnd = bBlockingHit ? HitResult.ImpactPoint : TraceEnd;
 
@@ -860,7 +849,7 @@ void ATBPlayer::InputReloadStarted()
 
 void ATBPlayer::InputInteractStarted()
 {
-	if (!IsLocallyControlled())
+	if (!IsLocallyControlled() || IsActionBlocked())
 	{
 		return;
 	}
@@ -871,10 +860,27 @@ void ATBPlayer::InputInteractStarted()
 		return;
 	}
 	
-	if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+	UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent();
+
+	// 지금 바라보는 상호작용 대상 (GA가 클라이언트에서 대상을 얻는 방법과 동일)
+	AActor* Target = InteractionComponent ? InteractionComponent->GetFocusedActor() : nullptr;
+
+	if (!ASC || !IsValid(Target) || !Target->Implements<UTBInteractInterface>())
 	{
-		ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Interaction);
+		return;
 	}
+
+	// 대상에게 "어떤 절차로 상호작용할지" 질문
+	const FGameplayTag AbilityTag = ITBInteractInterface::Execute_GetInteractionAbilityTag(Target, this);
+
+	// 빈 태그 = 이 대상은 지금 상호작용하지 않음
+	if (!AbilityTag.IsValid())
+	{
+		return;
+	}
+
+	// 대상이 알려 준 태그로 발동 (예측 실행은 지금과 동일)
+	ASC->TryActivateAbilityByTag(AbilityTag);
 }
 
 void ATBPlayer::InitializeWeaponMeshes()
@@ -975,57 +981,3 @@ void ATBPlayer::InputPauseStarted()
 	}
 }
 
-// 흡혈 카메라 ----------------------
-
-void ATBPlayer::BeginFeedCamera()
-{
-	if (!IsLocallyControlled() || !FirstPersonCamera)
-	{
-		return;
-	}
-
-	// 애니는 피치 0에서 시작한다고 가정하고 만들었으므로 수평으로 맞춤
-	if (Controller)
-	{
-		Controller->SetControlRotation(FRotator(0.f, GetActorRotation().Yaw, 0.f));
-	}
-
-	// 컨트롤 회전 대신 커브로 상대 회전을 직접 지정
-	FirstPersonCamera->bUsePawnControlRotation = false;
-	bFeedCameraActive = true;
-	UpdateFeedCamera();
-}
-
-void ATBPlayer::EndFeedCamera()
-{
-	if (!bFeedCameraActive || !FirstPersonCamera)
-	{
-		return;
-	}
-
-	bFeedCameraActive = false;
-	FirstPersonCamera->bUsePawnControlRotation = true;
-	FirstPersonCamera->SetRelativeLocationAndRotation(FVector(0.f, 0.f, BaseEyeHeight), FRotator::ZeroRotator);
-}
-
-void ATBPlayer::UpdateFeedCamera()
-{
-	UAnimInstance* AnimInstance = FirstPersonMesh ? FirstPersonMesh->GetAnimInstance() : nullptr;
-	if (!AnimInstance)
-	{
-		return;
-	}
-
-	// 몽타주 블렌드 인·아웃 동안 커브 값도 같이 0에서 오르내림 → 시작·끝이 부드럽게 이어짐
-	const FVector Offset(
-		AnimInstance->GetCurveValue(TEXT("FeedCam_X")),
-		AnimInstance->GetCurveValue(TEXT("FeedCam_Y")),
-		AnimInstance->GetCurveValue(TEXT("FeedCam_Z")));
-
-	const FRotator Rotation(
-		AnimInstance->GetCurveValue(TEXT("FeedCam_Pitch")),
-		AnimInstance->GetCurveValue(TEXT("FeedCam_Yaw")),
-		0.f);
-
-	FirstPersonCamera->SetRelativeLocationAndRotation(FVector(0.f, 0.f, BaseEyeHeight) + Offset, Rotation);
-}

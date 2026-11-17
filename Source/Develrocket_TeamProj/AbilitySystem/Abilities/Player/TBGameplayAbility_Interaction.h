@@ -4,7 +4,7 @@
 #include "AbilitySystem/Abilities/TBGameplayAbility_Action.h"
 #include "TBGameplayAbility_Interaction.generated.h"
 
-UCLASS()
+UCLASS(Abstract)
 class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_Interaction : public UTBGameplayAbility_Action
 {
 	GENERATED_BODY()
@@ -15,23 +15,21 @@ public:
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
-protected:
-	// 흡혈 수행자에게 적용할 상태 관리 GE
-	UPROPERTY(EditDefaultsOnly, Category = "Interaction|Drain")
-	TSubclassOf<UGameplayEffect> DrainStateEffectClass;
-	
+protected:	
 	virtual void HandleActionMontageCompleted() override;
+	
+	// 시작 전 추가 조건 검사, false면 상호작용 취소
+	virtual bool CanStartInteraction(const FGameplayAbilityActorInfo* ActorInfo, AActor* Target) const;
+	
+	// 몽타주 재생 직전 준비 (상태 적용, 정렬 등), false면 상호작용 취소
+	virtual bool PrepareInteraction(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, AActor* Target);
+	
+	// 종료 시 정리 * 성공, 취소, 준비 등 어느 경우에 불려도 안전해야함
+	virtual void CleanupInteraction(const FGameplayAbilityActorInfo* ActorInfo, AActor* Target);
+	
+	virtual bool ShouldResolveOnStart() const;
 
 private:
-	// 흡혈 상태 적용 및 기존 전투·이동 입력 정리
-	bool ApplyDrainState(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo);
-
-	// 이번 상호작용에서 적용한 상태 GE 핸들
-	FActiveGameplayEffectHandle DrainStateEffectHandle;
-
-	// 상태 GE를 적용한 ASC
-	TWeakObjectPtr<UAbilitySystemComponent> DrainStateASC;
-	
 	// [서버] Execute_Interact + Client_NotifyInteracted
 	void ResolveInteraction();
 

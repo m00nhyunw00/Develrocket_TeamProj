@@ -25,7 +25,7 @@ public:
 	virtual FText GetInteractPrompt_Implementation() const override;
 	virtual UAnimMontage* GetInteractMontage_Implementation() const override;
 	virtual UAnimMontage* GetInteractFirstPersonMontage_Implementation() const override;
-	virtual bool ShouldResolveOnStart_Implementation() const override;
+	virtual FGameplayTag GetInteractionAbilityTag_Implementation(AActor* InteractInstigator) const override;
 
 protected:
 	// 컴포넌트 ----------------------
