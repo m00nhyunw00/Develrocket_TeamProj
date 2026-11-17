@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
+#include "GameplayTagContainer.h"
 #include "TBInteractInterface.generated.h"
 
 class UAnimMontage;
@@ -64,7 +65,10 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
 	void CancelInteract(AActor* InteractInstigator);
 	
-	// 
+	// 이 대상과 상호작용할 떄 플레이어가 실행할 어빌리티 태그
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
+	FGameplayTag GetInteractionAbilityTag(AActor* InteractInstigator) const;
+	
 	
 	// 플레이어에게 흡혈 상태를 부여하는 상호작용인지 판별
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")

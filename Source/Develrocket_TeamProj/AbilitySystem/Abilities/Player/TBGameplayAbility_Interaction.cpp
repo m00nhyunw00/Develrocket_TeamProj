@@ -51,6 +51,16 @@ void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
+	
+	// 대상이 요청한 절차가 이 어빌리티인지 검증
+	// 서버는 직접 다시 찾은 대상에게 다시 묻기 때문에, 클라이언트가 고른 값을 믿지 않음
+	const FGameplayTag RequestedTag = ITBInteractInterface::Execute_GetInteractionAbilityTag(Target, Avatar);
+
+	if (!RequestedTag.IsValid() || !GetAssetTags().HasTagExact(RequestedTag))
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
 
     // 대상의 3인칭·1인칭 상호작용 몽타주 조회
     ThirdPersonMontage = ITBInteractInterface::Execute_GetInteractMontage(Target);
