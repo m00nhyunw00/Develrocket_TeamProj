@@ -1,4 +1,5 @@
 #include "PCG/CityNavMeshComponent.h"
+#include "AI/TBPatrolPointSubsystem.h"
 
 #include "AI/Navigation/NavigationDirtyArea.h"
 #include "Engine/World.h"
@@ -94,6 +95,7 @@ void UCityNavMeshComponent::PollNavigationUpdate()
     World->GetTimerManager().ClearTimer(PollTimer);
     bCityNavigationReady = true;
     ReadyRevision = PendingRevision;
+	if (UTBPatrolPointSubsystem* Patrols = World->GetSubsystem<UTBPatrolPointSubsystem>()) Patrols->RequestRebuild();
     UE_LOG(LogCityNavigation, Display, TEXT("Navigation update settled for city revision %d."), ReadyRevision);
     OnCityNavigationReady.Broadcast(ReadyRevision);
 }

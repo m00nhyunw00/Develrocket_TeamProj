@@ -16,6 +16,8 @@ class DEVELROCKET_TEAMPROJ_API ATBCitizenAIController : public ATBBaseAIControll
 public:
 	ATBCitizenAIController();
 
+	virtual ETeamAttitude::Type GetTeamAttitudeTowards(const AActor& Other) const override;
+
 	void StopFleeing();                           // 사망 시 시민이 호출: BT와 감지 정지
 
 	static const FName ThreatActorKey;            // 블랙보드 키 이름을 한 곳에서 관리 (문자열 오타 방지)

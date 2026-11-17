@@ -18,14 +18,14 @@ namespace
 	}
 }
 
-void UTBAnimNotify_MonsterMeleeStart::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
+void UTBAnimNotifyState_MonsterMelee::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference)
 {
-	Super::Notify(MeshComp, Animation, EventReference);
+	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
 	if (UTBGameplayAbility_Monster_Melee* Ability = GetActiveMelee(MeshComp)) Ability->BeginHitWindow();
 }
 
-void UTBAnimNotify_MonsterMeleeEnd::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
+void UTBAnimNotifyState_MonsterMelee::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
 {
-	Super::Notify(MeshComp, Animation, EventReference);
+	Super::NotifyEnd(MeshComp, Animation, EventReference);
 	if (UTBGameplayAbility_Monster_Melee* Ability = GetActiveMelee(MeshComp)) Ability->EndHitWindow();
 }
