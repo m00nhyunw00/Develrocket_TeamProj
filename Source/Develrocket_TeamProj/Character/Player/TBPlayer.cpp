@@ -19,6 +19,7 @@
 #include "Framework/TBPlayerState.h"
 #include "UI/TBPlayerHUD.h"
 #include "Components/TBInteractionComponent.h"
+#include "Components/TBAIVisibilityReporterComponent.h"
 
 class ATBPlayerState;
 
@@ -40,6 +41,7 @@ ATBPlayer::ATBPlayer(const FObjectInitializer& ObjectInitializer)
 	
 	// 시선 앞 상호작용 대상 탐지
 	InteractionComponent = CreateDefaultSubobject<UTBInteractionComponent>(TEXT("InteractionComponent"));
+	CreateDefaultSubobject<UTBAIVisibilityReporterComponent>(TEXT("AIVisibilityReporter"));
 
 	// 캡슐을 기준으로 1인칭 카메라 배치
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
