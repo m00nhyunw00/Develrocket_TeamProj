@@ -2,13 +2,8 @@
 
 #include "AbilitySystemComponent.h"
 #include "TBGameplayTags.h"
-#include "Character/Player/TBPlayer.h"
 #include "Components/TBInteractionComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "Interface/TBInteractInterface.h"
-#include "Character/Player/TBPlayer.h"
-
-class ATBPlayer;
 
 UTBGameplayAbility_Interaction::UTBGameplayAbility_Interaction()
 {

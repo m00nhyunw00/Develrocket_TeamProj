@@ -166,18 +166,11 @@ void ATBCitizen::InteractLocal_Implementation(AActor* InteractInstigator)
 FText ATBCitizen::GetInteractPrompt_Implementation() const { return InteractPrompt; }
 UAnimMontage* ATBCitizen::GetInteractMontage_Implementation() const { return FeedMontage; }
 UAnimMontage* ATBCitizen::GetInteractFirstPersonMontage_Implementation() const { return FeedFirstPersonMontage; }
-bool ATBCitizen::ShouldResolveOnStart_Implementation() const { return false; }
 
 FGameplayTag ATBCitizen::GetInteractionAbilityTag_Implementation(AActor* InteractInstigator) const
 {
 	// 시민은 흡혈 절차(GA_Drain)로 상호작용
 	return TBGameplayTags::Ability_Interaction_Drain;
-}
-
-bool ATBCitizen::IsDrainInteraction_Implementation() const
-{
-	// 시민은 흡혈 상호작용 제공 (5단계에서 삭제 예정)
-	return true;
 }
 
 // 상태 =====================

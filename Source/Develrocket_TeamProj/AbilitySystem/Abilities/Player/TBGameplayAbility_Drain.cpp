@@ -9,6 +9,8 @@
 UTBGameplayAbility_Drain::UTBGameplayAbility_Drain()
 {
 	SetAssetTags(FGameplayTagContainer(TBGameplayTags::Ability_Interaction_Drain));
+	ActivationOwnedTags.AddTag(TBGameplayTags::State_Draining);
+	ActivationOwnedTags.AddTag(TBGameplayTags::State_MovementBlocked);
 }
 
 bool UTBGameplayAbility_Drain::CanStartInteraction(const FGameplayAbilityActorInfo* ActorInfo, AActor* Target) const
@@ -41,8 +43,8 @@ bool UTBGameplayAbility_Drain::PrepareInteraction(const FGameplayAbilitySpecHand
 		return false;
 	}
 
-	// 흡혈 상태 적용 실패 시 중단
-	if (!ApplyDrainState(Handle, ActorInfo, ActivationInfo))
+	// 전투 취소·입력 정리 실패 시 중단
+	if (!PrepareDrainInput(Handle, ActorInfo, ActivationInfo))
 	{
 		return false;
 	}
@@ -87,59 +89,21 @@ bool UTBGameplayAbility_Drain::PrepareInteraction(const FGameplayAbilitySpecHand
 	return true;
 }
 
-void UTBGameplayAbility_Drain::CleanupInteraction(const FGameplayAbilityActorInfo* ActorInfo, AActor* Target)
-{
-	// 서버에서 이번 흡혈이 적용한 상태 GE만 제거
-	if (ActorInfo && ActorInfo->IsNetAuthority() && DrainStateEffectHandle.IsValid())
-	{
-		if (UAbilitySystemComponent* ASC = DrainStateASC.Get())
-		{
-			ASC->RemoveActiveGameplayEffect(DrainStateEffectHandle);
-		}
-	}
 
-	// 다음 상호작용을 위한 실행 정보 정리
-	DrainStateEffectHandle.Invalidate();
-	DrainStateASC.Reset();
-	
-	Super::CleanupInteraction(ActorInfo, Target);
-}
 
-bool UTBGameplayAbility_Drain::ApplyDrainState(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo)
+bool UTBGameplayAbility_Drain::PrepareDrainInput(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo)
 {
 	UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
-	const UGameplayEffect* Effect = DrainStateEffectClass ? DrainStateEffectClass.GetDefaultObject() : nullptr;
-	
-	if (!IsValid(ASC)
-		|| !Effect
-		|| Effect->DurationPolicy != EGameplayEffectDurationType::Infinite
-		|| !Effect->GetGrantedTags().HasTagExact(TBGameplayTags::State_Draining)
-		|| !Effect->GetGrantedTags().HasTagExact(TBGameplayTags::State_MovementBlocked))
+	if (!IsValid(ASC))
 	{
 		return false;
 	}
 
-	const FGameplayEffectSpecHandle Spec = MakeOutgoingGameplayEffectSpec(Handle, ActorInfo, ActivationInfo, DrainStateEffectClass, 1.0f);
-
-	if (!Spec.IsValid())
-	{
-		return false;
-	}
-
-	// 소유 클라이언트 예측 및 서버 상태 적용
-	DrainStateEffectHandle = ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, Spec);
-
-	if (!DrainStateEffectHandle.IsValid())
-	{
-		return false;
-	}
-
-	DrainStateASC = ASC;
-
-	// 실행 중인 전투 어빌리티 취소
+	// 실행 중인 전투 어빌리티 취소 (지상 검사를 통과한 뒤에만 취소되도록 코드에서 처리)
 	const FGameplayTagContainer CombatTags(TBGameplayTags::Ability_Combat);
 	ASC->CancelAbilities(&CombatTags, nullptr, this);
 
+	// 다른 어빌리티 취소 중 연쇄 반응으로 이 어빌리티가 끝났는지 확인
 	if (!IsActive())
 	{
 		return false;

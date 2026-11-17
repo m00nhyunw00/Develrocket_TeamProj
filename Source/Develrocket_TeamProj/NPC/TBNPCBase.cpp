@@ -55,12 +55,6 @@ UAnimMontage* ATBNPCBase::GetInteractFirstPersonMontage_Implementation() const
 	return InteractFirstPersonMontage;
 }
 
-bool ATBNPCBase::ShouldResolveOnStart_Implementation() const
-{
-	// NPC 상호작용은 시작 즉시 결과 (흡혈처럼 끝까지 기다리지 않음)
-	return true;
-}
-
 FGameplayTag ATBNPCBase::GetInteractionAbilityTag_Implementation(AActor* InteractInstigator) const
 {
 	return TBGameplayTags::Ability_Interaction_Instant;
