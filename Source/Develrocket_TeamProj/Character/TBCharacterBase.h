@@ -50,6 +50,9 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
 	virtual void StopSkill();
+	
+	// 자신을 제외한 단일 라인 트레이스 및 충돌 정보 반환
+	bool LineTraceByChannel(FHitResult& OutHit, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel) const;
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")

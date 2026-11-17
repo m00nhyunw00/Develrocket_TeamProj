@@ -322,17 +322,14 @@ bool ATBPlayer::PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag, const
 	GetActorEyesViewPoint(TraceStart, TraceRotation);
 
 	const FVector TraceEnd = TraceStart + TraceRotation.Vector() * TraceRange;
-
-	// 공격자 자신과 자신의 컴포넌트 제외
-	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(TBPrimaryAttackTrace), false);
-	QueryParams.AddIgnoredActor(this);
-
+	
 	// 프로젝트 설정의 WeaponTrace 채널
 	constexpr ECollisionChannel WeaponTraceChannel = ECC_GameTraceChannel2;
 
+	// 부모의 공통 트레이스로 충돌 결과 조회
 	FHitResult HitResult;
-	const bool bBlockingHit = World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, WeaponTraceChannel, QueryParams);
-
+	const bool bBlockingHit = LineTraceByChannel(HitResult, TraceStart, TraceEnd, WeaponTraceChannel);
+	
 	// 충돌 시 표면 위치, 미충돌 시 최대 사거리 끝점 사용
 	const FVector TrailEnd = bBlockingHit ? HitResult.ImpactPoint : TraceEnd;
 
