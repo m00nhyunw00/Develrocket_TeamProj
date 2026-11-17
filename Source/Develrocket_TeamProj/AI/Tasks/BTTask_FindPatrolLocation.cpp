@@ -38,7 +38,7 @@ void UBTTask_FindPatrolLocation::TickTask(UBehaviorTreeComponent& OwnerComp, uin
 		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
 		return;
 	}
-	const AActor* Point = Controller->FindReachablePatrolPoint(PatrolPointClass, SearchRadius);
+	const AActor* Point = Controller->SelectNextPatrolPoint(PatrolPointClass, SearchRadius);
 	if (!IsValid(Point))
 	{
 		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
