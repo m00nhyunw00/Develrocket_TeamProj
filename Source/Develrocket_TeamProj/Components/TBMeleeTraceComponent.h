@@ -44,7 +44,7 @@ struct FTBMeleeTraceProfile
 };
 
 // 새로운 대상과 접촉했을 때 전달할 타격 정보
-DECLARE_MULTICAST_DELEGATE_OneParam(FTBMeleeTraceHit, const FHitResult&, HitResult);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTBMeleeTraceHit, const FHitResult&, HitResult);
 
 UCLASS(ClassGroup = (Combat), meta = (BlueprintSpawnableComponent))
 class DEVELROCKET_TEAMPROJ_API UTBMeleeTraceComponent : public UActorComponent

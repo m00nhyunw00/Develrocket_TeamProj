@@ -849,7 +849,7 @@ void ATBPlayer::InputReloadStarted()
 
 void ATBPlayer::InputInteractStarted()
 {
-	if (!IsLocallyControlled())
+	if (!IsLocallyControlled() || IsActionBlocked())
 	{
 		return;
 	}

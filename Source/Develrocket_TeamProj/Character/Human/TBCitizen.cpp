@@ -170,12 +170,13 @@ bool ATBCitizen::ShouldResolveOnStart_Implementation() const { return false; }
 
 FGameplayTag ATBCitizen::GetInteractionAbilityTag_Implementation(AActor* InteractInstigator) const
 {
-	return TBGameplayTags::Ability_Interaction;
+	// 시민은 흡혈 절차(GA_Drain)로 상호작용
+	return TBGameplayTags::Ability_Interaction_Drain;
 }
 
 bool ATBCitizen::IsDrainInteraction_Implementation() const
 {
-	// 시민은 흡혈 상호작용 제공
+	// 시민은 흡혈 상호작용 제공 (5단계에서 삭제 예정)
 	return true;
 }
 

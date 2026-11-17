@@ -19,6 +19,7 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_Reload, "Ability.Combat.Reload");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Death, "Ability.Death");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Interaction, "Ability.Interaction");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Interaction_Drain, "Ability.Interaction.Drain");
 	
 	UE_DEFINE_GAMEPLAY_TAG(Damage_Type_Bullet, "Ability.Type.Bullet");
 	
