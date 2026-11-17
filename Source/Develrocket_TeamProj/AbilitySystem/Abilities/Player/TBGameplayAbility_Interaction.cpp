@@ -104,7 +104,7 @@ void UTBGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
     // 서버에서 시작 시 결과 처리 또는 상호작용 시작 알림
     if (HasAuthority(&ActivationInfo))
     {
-        if (ITBInteractInterface::Execute_ShouldResolveOnStart(Target))
+        if (ShouldResolveOnStart())
         {
             ResolveInteraction();
         }
@@ -149,8 +149,8 @@ void UTBGameplayAbility_Interaction::HandleActionMontageCompleted()
 {
     AActor* Target = CurrentTarget.Get();
 
-    // 흡혈: 몽타주 완료 시 결과 (서버만)
-	if (CurrentActorInfo && CurrentActorInfo->IsNetAuthority() && Target && !ITBInteractInterface::Execute_ShouldResolveOnStart(Target))
+	// 몽타주 완료 시 결과를 내는 절차 (서버만)
+	if (CurrentActorInfo && CurrentActorInfo->IsNetAuthority() && Target && !ShouldResolveOnStart())
     {
         ResolveInteraction();
     }
@@ -172,6 +172,11 @@ bool UTBGameplayAbility_Interaction::PrepareInteraction(const FGameplayAbilitySp
 void UTBGameplayAbility_Interaction::CleanupInteraction(const FGameplayAbilityActorInfo* ActorInfo, AActor* Target)
 {
 	
+}
+
+bool UTBGameplayAbility_Interaction::ShouldResolveOnStart() const
+{
+	return false;
 }
 
 void UTBGameplayAbility_Interaction::ResolveInteraction()
