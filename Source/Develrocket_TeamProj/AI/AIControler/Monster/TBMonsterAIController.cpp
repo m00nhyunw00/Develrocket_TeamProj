@@ -25,6 +25,13 @@ ATBMonsterAIController::ATBMonsterAIController()
 	PerceptionComp->SetDominantSense(UAISense_Sight::StaticClass());
 }
 
+ETeamAttitude::Type ATBMonsterAIController::GetTeamAttitudeTowards(const AActor& Other) const
+{
+	if (Other.IsA<ATBPlayer>() || Other.IsA<ATBCitizen>()) return ETeamAttitude::Hostile;
+	if (Other.IsA<ATBMonster>()) return ETeamAttitude::Friendly;
+	return ETeamAttitude::Neutral;
+}
+
 void ATBMonsterAIController::BeginPlay()
 {
 	Super::BeginPlay();
@@ -38,8 +45,8 @@ void ATBMonsterAIController::BeginPlay()
 	SightConfig->PeripheralVisionAngleDegrees = PeripheralVisionAngle;
 	
 	SightConfig->DetectionByAffiliation.bDetectEnemies = true;
-	SightConfig->DetectionByAffiliation.bDetectNeutrals = true;
-	SightConfig->DetectionByAffiliation.bDetectFriendlies = true;
+	SightConfig->DetectionByAffiliation.bDetectNeutrals = false;
+	SightConfig->DetectionByAffiliation.bDetectFriendlies = false;
 	
 	GetPerceptionComponent()->ConfigureSense(*SightConfig);
 	GetPerceptionComponent()->SetDominantSense(SightConfig->GetSenseImplementation());

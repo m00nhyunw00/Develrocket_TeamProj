@@ -18,6 +18,8 @@ class DEVELROCKET_TEAMPROJ_API ATBMonsterAIController : public ATBBaseAIControll
 public:
 	 ATBMonsterAIController();
 
+	virtual ETeamAttitude::Type GetTeamAttitudeTowards(const AActor& Other) const override;
+
 	void InvestigateDamageSource(AActor* DamageSource);
 	void TryStartPendingInvestigation();
 	void PreserveTargetDuringStagger();

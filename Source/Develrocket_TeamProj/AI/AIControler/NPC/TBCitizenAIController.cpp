@@ -8,6 +8,7 @@
 #include "BrainComponent.h"                       // StopLogic
 #include "Character/Player/TBPlayer.h"
 #include "Character/Monster/TBMonster.h"
+#include "Character/Human/TBCitizen.h"
 
 const FName ATBCitizenAIController::ThreatActorKey(TEXT("ThreatActor"));   // BB_Citizen의 키 이름과 똑같아야 함
 
@@ -45,6 +46,13 @@ ATBCitizenAIController::ATBCitizenAIController()
 	PerceptionComp->SetDominantSense(UAISense_Sight::StaticClass());
 }
 
+ETeamAttitude::Type ATBCitizenAIController::GetTeamAttitudeTowards(const AActor& Other) const
+{
+	if (Other.IsA<ATBPlayer>() || Other.IsA<ATBMonster>()) return ETeamAttitude::Hostile;
+	if (Other.IsA<ATBCitizen>()) return ETeamAttitude::Friendly;
+	return ETeamAttitude::Neutral;
+}
+
 void ATBCitizenAIController::BeginPlay()
 {
 	Super::BeginPlay();                           // 부모 BeginPlay 먼저 호출 (필수)
@@ -59,10 +67,10 @@ void ATBCitizenAIController::BeginPlay()
 	SightConfig->LoseSightRadius = LoseSightRadius;
 	SightConfig->PeripheralVisionAngleDegrees = PeripheralVisionAngle;
 
-	// 팀(Affiliation) 구분을 아직 안 쓰므로 적/중립/아군 모두 감지
+	// Detect only actors classified as threats by GetTeamAttitudeTowards.
 	SightConfig->DetectionByAffiliation.bDetectEnemies = true;
-	SightConfig->DetectionByAffiliation.bDetectNeutrals = true;
-	SightConfig->DetectionByAffiliation.bDetectFriendlies = true;
+	SightConfig->DetectionByAffiliation.bDetectNeutrals = false;
+	SightConfig->DetectionByAffiliation.bDetectFriendlies = false;
 
 	GetPerceptionComponent()->ConfigureSense(*SightConfig);    // 바뀐 수치를 다시 등록
 
