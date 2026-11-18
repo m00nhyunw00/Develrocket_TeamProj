@@ -36,8 +36,7 @@ public:
 	const UTBMonsterSkillSet* GetSkillSet() const { return SkillSet; }
 
 	// 서버에서 피해 GE를 적용하는 공통 진입점; 클라이언트 RPC가 아닌 권한 검사 함수
-	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Monster|Damage")
-	bool ApplyDamage(float Damage, AActor* DamageSource);
+	virtual bool ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag) override;
 
 	UPROPERTY(BlueprintAssignable, Category = "Monster|State")
 	FTBMonsterDied OnMonsterDied;

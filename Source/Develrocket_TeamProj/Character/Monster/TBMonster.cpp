@@ -120,10 +120,30 @@ bool ATBMonster::IsDead() const
 	return AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
 }
 
-bool ATBMonster::ApplyDamage(float Damage, AActor* DamageSource)
+bool ATBMonster::ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag)
 {
-    // 기존 Blueprint 호출도 공통 피격 경로로 전달한다.
-    return ReceiveAttackHit_Implementation(FGameplayTag(), Damage, DamageSource, FHitResult());
+	// 서버 판정 및 공격자 상태 검증
+	if (!HasAuthority() || IsDead() || IsActionBlocked())
+	{
+		return false;
+	}
+
+	// 이거 반드시 수정해야해
+	float Damage = 20.f;
+
+	if (!FMath::IsFinite(Damage) || Damage <= 0.0f)
+	{
+		return false;
+	}
+
+	AActor* HitActor = HitResult.GetActor();
+
+	if (!IsValid(HitActor) || HitActor == this || !HitActor->Implements<UTBHitInterface>())
+	{
+		return false;
+	}
+	
+	return ITBHitInterface::Execute_ReceiveAttackHit(HitActor, DamageTypeTag, Damage, this, HitResult);
 }
 
 // 게임플레이 초기화가 끝난 살아 있는 몬스터만 피해를 받는다.
