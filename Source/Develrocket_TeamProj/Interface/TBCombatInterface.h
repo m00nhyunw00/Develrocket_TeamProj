@@ -6,7 +6,6 @@
 
 class USkeletalMeshComponent;
 
-// 캐릭터의 C++ 구현을 통해 사용하는 공통 전투 요청
 UINTERFACE(MinimalAPI, meta = (CannotImplementInterfaceInBlueprint))
 class UTBCombatInterface : public UInterface
 {
@@ -18,9 +17,9 @@ class DEVELROCKET_TEAMPROJ_API ITBCombatInterface
 	GENERATED_BODY()
 
 public:
-	// 지정한 설정으로 새로운 근접 판정 구간 시작
-	virtual bool BeginMeleeTrace(FName ProfileName, USkeletalMeshComponent* SourceMesh, const UObject* WindowOwner, int32 MontageInstanceID) = 0;
+	// 애니메이션을 실행한 메시의 판정 시작 요청
+	virtual void BeginMeleeTrace(USkeletalMeshComponent* SourceMesh) = 0;
 
-	// 시작 요청과 일치하는 근접 판정 구간 종료
-	virtual void EndMeleeTrace(USkeletalMeshComponent* SourceMesh, const UObject* WindowOwner, int32 MontageInstanceID) = 0;
+	// 애니메이션을 실행한 메시의 판정 종료 요청
+	virtual void EndMeleeTrace(USkeletalMeshComponent* SourceMesh) = 0;
 };
