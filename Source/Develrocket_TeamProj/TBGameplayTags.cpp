@@ -16,6 +16,7 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat, "Ability.Combat");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_MonsterLeap, "Ability.Combat.MonsterLeap");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_PrimaryAttack, "Ability.Combat.PrimaryAttack");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_Melee, "Ability.Combat.Melee");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_Reload, "Ability.Combat.Reload");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Death, "Ability.Death");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Interaction, "Ability.Interaction");

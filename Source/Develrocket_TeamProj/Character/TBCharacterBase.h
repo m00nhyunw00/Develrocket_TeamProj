@@ -5,8 +5,10 @@
 #include "GameFramework/Character.h"
 #include "Interface/TBPoolInterface.h"
 #include "Interface/TBHitInterface.h"
+#include "Interface/TBCombatInterface.h"
 #include "TBCharacterBase.generated.h"
 
+class UTBMeleeTraceComponent;
 class UTBAbilitySystemComponent;
 class UAbilitySystemComponent;
 class UTBBloodBarComponent;
@@ -14,7 +16,7 @@ class UGameplayEffect;
 
 UCLASS(Abstract)
 class DEVELROCKET_TEAMPROJ_API ATBCharacterBase
-	: public ACharacter, public IAbilitySystemInterface, public ITBHitInterface, public ITBPoolInterface
+	: public ACharacter, public IAbilitySystemInterface, public ITBHitInterface, public ITBPoolInterface, public ITBCombatInterface
 {
 	GENERATED_BODY()
 
@@ -24,6 +26,18 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	
 	UTBAbilitySystemComponent* GetTBAbilitySystemComponent() const;
+	
+	UTBMeleeTraceComponent* GetMeleeTraceComponent() const;
+	
+	// 컴포넌트가 검출한 근접 적중 결과로 공격 처리
+	virtual bool PerformMeleeAttackHit(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag);
+
+	// 소켓 검사에 사용할 메시 반환
+	virtual UPrimitiveComponent* GetMeleeTraceMesh() const;
+
+	virtual void BeginMeleeTrace(USkeletalMeshComponent* SourceMesh) override;
+
+	virtual void EndMeleeTrace(USkeletalMeshComponent* SourceMesh) override;
 	
 	// 피격 대상에 설정된 혈액 연출 태그 반환
 	FGameplayTag GetBloodImpactCueTag() const
@@ -44,6 +58,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
 	virtual void StopPrimaryAttack();
+	
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StartMeleeAttack();
 
 	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
 	virtual void StartSkill();
@@ -57,6 +74,9 @@ public:
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<UTBBloodBarComponent> BloodBarComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	TObjectPtr<UTBMeleeTraceComponent> MeleeTraceComponent;
 
 	virtual void UnPossessed() override;
 

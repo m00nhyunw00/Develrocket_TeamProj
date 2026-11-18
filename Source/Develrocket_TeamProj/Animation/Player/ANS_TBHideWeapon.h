@@ -2,10 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimNotifies/AnimNotifyState.h"
-#include "TBAnimNotify_TBHideWeapon.generated.h"
+#include "ANS_TBHideWeapon.generated.h"
 
-UCLASS(meta=(DisplayName = "Tb Hide Weapon"))
-class DEVELROCKET_TEAMPROJ_API UTBAnimNotify_TBHideWeapon : public UAnimNotifyState
+UCLASS(meta=(DisplayName = "Hide Weapon"))
+class DEVELROCKET_TEAMPROJ_API UANS_TBHideWeapon : public UAnimNotifyState
 {
 	GENERATED_BODY()
 	

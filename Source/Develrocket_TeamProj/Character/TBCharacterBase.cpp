@@ -11,6 +11,7 @@
 #include "TBGameplayTags.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "Components/DecalComponent.h"
+#include "Components/TBMeleeTraceComponent.h"
 
 // 기본 이동 컴포넌트를 프로젝트의 커스텀 클래스로 교체
 ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
@@ -43,6 +44,8 @@ ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
     // 앉기·일어서기 높이 설정
     BaseEyeHeight = 80.0f;
     CrouchedEyeHeight = 48.0f;
+    
+    MeleeTraceComponent =CreateDefaultSubobject<UTBMeleeTraceComponent>(TEXT("MeleeTraceComponent"));
 }
 
 UAbilitySystemComponent* ATBCharacterBase::GetAbilitySystemComponent() const
@@ -53,6 +56,40 @@ UAbilitySystemComponent* ATBCharacterBase::GetAbilitySystemComponent() const
 UTBAbilitySystemComponent* ATBCharacterBase::GetTBAbilitySystemComponent() const
 {
     return AbilitySystemComponent.Get();
+}
+
+UTBMeleeTraceComponent* ATBCharacterBase::GetMeleeTraceComponent() const
+{
+    return MeleeTraceComponent.Get();
+}
+
+bool ATBCharacterBase::PerformMeleeAttackHit(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag)
+{
+    return false;
+}
+
+UPrimitiveComponent* ATBCharacterBase::GetMeleeTraceMesh() const
+{
+    return GetMesh();
+}
+
+void ATBCharacterBase::BeginMeleeTrace(USkeletalMeshComponent* SourceMesh)
+{
+    // 서버의 3인칭 메시에서만 판정 시작
+    if (HasAuthority() && SourceMesh == GetMesh() && !IsActionBlocked() && MeleeTraceComponent)
+    {
+        MeleeTraceComponent->StartTrace();
+    }
+}
+
+
+void ATBCharacterBase::EndMeleeTrace(USkeletalMeshComponent* SourceMesh)
+{
+    // 사망·스턴 상태에서도 종료 요청 허용
+    if (HasAuthority() && SourceMesh == GetMesh() && MeleeTraceComponent)
+    {
+        MeleeTraceComponent->StopTrace();
+    }
 }
 
 void ATBCharacterBase::InitializeAbilitySystem(UAbilitySystemComponent* InASC, AActor* InOwnerActor)
@@ -236,6 +273,19 @@ void ATBCharacterBase::StopPrimaryAttack()
 {
     // 단발 공격은 입력 해제에 따른 추가 처리 없음
     // 연사·차지 공격 구현 시 입력 해제 전달 추가
+}
+
+void ATBCharacterBase::StartMeleeAttack()
+{
+    if (!IsLocallyControlled())
+    {
+        return;
+    }
+
+    if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+    {
+        ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Combat_Melee);
+    }
 }
 
 void ATBCharacterBase::StartSkill()

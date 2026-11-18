@@ -1,17 +1,17 @@
-﻿#include "Animation/Player/TBAnimNotify_TBHideWeapon.h"
+﻿#include "Animation/Player/ANS_TBHideWeapon.h"
 
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Character/Player/TBPlayer.h"
 
-void UTBAnimNotify_TBHideWeapon::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
+void UANS_TBHideWeapon::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
 	float TotalDuration, const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
 	SetWeaponsHidden(MeshComp, true);
 }
 
-void UTBAnimNotify_TBHideWeapon::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
+void UANS_TBHideWeapon::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
 	const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyEnd(MeshComp, Animation, EventReference);
@@ -26,7 +26,7 @@ void UTBAnimNotify_TBHideWeapon::NotifyEnd(USkeletalMeshComponent* MeshComp, UAn
 	SetWeaponsHidden(MeshComp, false);
 }
 
-void UTBAnimNotify_TBHideWeapon::SetWeaponsHidden(USkeletalMeshComponent* MeshComp, bool bHidden)
+void UANS_TBHideWeapon::SetWeaponsHidden(USkeletalMeshComponent* MeshComp, bool bHidden)
 {
 	if (!MeshComp)
 	{

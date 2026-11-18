@@ -49,7 +49,10 @@ public:
 	
 	// 서버 기본 공격 판정, 궤적·피격 연출 요청 및 피해 적용 결과 반환
 	bool PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag, const FGameplayTag& DefaultImpactCueTag);
-
+	
+	// PlayerState의 피해량으로 근접 공격 처리
+	virtual bool PerformMeleeAttackHit(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag) override;
+	
 	// 서버 피해 적용
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Player|Damage")
 	bool ApplyDamage(float Damage, AActor* DamageSource);
@@ -164,6 +167,9 @@ protected:
 	TObjectPtr<UInputAction> PrimaryAttackAction;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> MeleeAction;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> SkillAction;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
@@ -242,6 +248,10 @@ private:
 
 	void InputPrimaryAttackStarted();
 	void InputPrimaryAttackStopped();
+	
+	// 근접 공격 입력 시작 처리 ----------------------
+	
+	void InputMeleeStarted();
 
 	// 스킬 입력 처리 ----------------------
 

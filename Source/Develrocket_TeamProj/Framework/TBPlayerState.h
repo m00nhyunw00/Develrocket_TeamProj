@@ -41,6 +41,9 @@ protected:
 	// 기본 공격 피해량
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|PrimaryAttack", meta = (ClampMin = "0.0"))
 	float PrimaryAttackDamage = 10.0f;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|MeleeAttack", meta = (ClampMin = "0.0"))
+	float MeleeAttackDamage = 20.0f;
 
 	// 기본 공격 사거리(cm)
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|PrimaryAttack", meta = (ClampMin = "1.0"))
@@ -118,6 +121,12 @@ public:
 	float GetPrimaryAttackDamage() const
 	{
 		return PrimaryAttackDamage;
+	}
+	
+	// 플레이어 근접 공격 피해량 조회
+	float GetMeleeAttackDamage() const
+	{
+		return MeleeAttackDamage;
 	}
 
 	// 기본 공격 사거리 조회

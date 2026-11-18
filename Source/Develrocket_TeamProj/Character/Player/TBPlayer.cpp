@@ -416,6 +416,51 @@ bool ATBPlayer::PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag, const
 	return bApplied;
 }
 
+bool ATBPlayer::PerformMeleeAttackHit(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag)
+{
+	// 서버 판정 및 공격자 상태 검증
+	if (!HasAuthority() || IsDead() || IsActionBlocked())
+	{
+		return false;
+	}
+
+	const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
+	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponent();
+
+	// PlayerState 초기화 및 ASC 유효성 검증
+	if (!IsValid(PS) || !PS->IsGameplayDataInitialized()
+		|| !IsValid(PlayerASC) || !GetController())
+	{
+		return false;
+	}
+
+	// 현재 캐릭터의 ASC 연결 검증
+	if (PlayerASC != PS->GetAbilitySystemComponent()
+		|| PlayerASC->GetAvatarActor() != this)
+	{
+		return false;
+	}
+
+	// 기본 공격처럼 공격 처리 함수 안에서 PlayerState 조회
+	const float Damage = PS->GetMeleeAttackDamage();
+
+	if (!FMath::IsFinite(Damage) || Damage <= 0.0f)
+	{
+		return false;
+	}
+
+	AActor* HitActor = HitResult.GetActor();
+
+	if (!IsValid(HitActor) || HitActor == this
+		|| !HitActor->Implements<UTBHitInterface>())
+	{
+		return false;
+	}
+
+	// 기본 공격과 동일한 대상 피격 경로 호출
+	return ITBHitInterface::Execute_ReceiveAttackHit(HitActor, DamageTypeTag, Damage, this, HitResult);
+}
+
 // 빙의 및 네트워크 초기화 ----------------------
 
 void ATBPlayer::PossessedBy(AController* NewController)
@@ -528,6 +573,11 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		EnhancedInput->BindAction(PrimaryAttackAction, ETriggerEvent::Started, this, &ATBPlayer::InputPrimaryAttackStarted);
 		EnhancedInput->BindAction(PrimaryAttackAction, ETriggerEvent::Completed, this, &ATBPlayer::InputPrimaryAttackStopped);
 		EnhancedInput->BindAction(PrimaryAttackAction, ETriggerEvent::Canceled, this, &ATBPlayer::InputPrimaryAttackStopped);
+	}
+	
+	if (MeleeAction)
+	{
+		EnhancedInput->BindAction(MeleeAction, ETriggerEvent::Started, this, &ATBPlayer::InputMeleeStarted);
 	}
 
 	// 스킬의 입력 시작·해제를 공통 캐릭터 함수에 전달
@@ -808,6 +858,19 @@ void ATBPlayer::InputPrimaryAttackStarted()
 void ATBPlayer::InputPrimaryAttackStopped()
 {
 	StopPrimaryAttack();
+}
+
+// 근접 공격 입력 전달 ----------------------
+
+void ATBPlayer::InputMeleeStarted()
+{
+	// 행동 제한 상태에서 기본 공격 시작 차단
+	if (IsActionBlocked())
+	{
+		return;
+	}
+	
+	StartMeleeAttack();
 }
 
 // 스킬 입력 전달 ----------------------
