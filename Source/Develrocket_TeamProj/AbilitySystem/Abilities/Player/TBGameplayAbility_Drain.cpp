@@ -66,7 +66,7 @@ bool UTBGameplayAbility_Drain::PrepareInteraction(const FGameplayAbilitySpecHand
 		: ToTarget.Rotation().Yaw;
 
 	// 상하·좌우 기울기를 제거한 수평 정면 회전
-	const FRotator FacingRotation(0.0f, TargetYaw, 0.0f);
+	const FRotator FacingRotation(-7.0f, TargetYaw, 0.0f);
 
 	// 이후 시민 정렬에서 사용할 플레이어 몸체 방향 적용
 	Player->SetActorRotation(FacingRotation);

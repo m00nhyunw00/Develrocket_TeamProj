@@ -7,6 +7,9 @@
 #include "Components/TBMeleeTraceComponent.h"
 #include "Interface/TBHitInterface.h"
 #include "TBGameplayTags.h"
+#include "Character/Human/TBCitizen.h"
+#include "Character/Monster/TBMonster.h"
+#include "Character/Player/TBPlayer.h"
 
 UTBGameplayAbility_Melee::UTBGameplayAbility_Melee()
 {
@@ -22,6 +25,12 @@ UTBGameplayAbility_Melee::UTBGameplayAbility_Melee()
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Dead);
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Stunned);
     ActivationBlockedTags.AddTag(TBGameplayTags::State_Draining);
+    
+    AllowedTargetClasses = {
+        ATBPlayer::StaticClass(),
+        ATBMonster::StaticClass(),
+        ATBCitizen::StaticClass()
+    };
 }
 
 void UTBGameplayAbility_Melee::ActivateAbility(
@@ -30,12 +39,9 @@ void UTBGameplayAbility_Melee::ActivateAbility(
     FGameplayAbilityActivationInfo ActivationInfo,
     const FGameplayEventData* TriggerEventData)
 {
-    ATBCharacterBase* Character = ActorInfo
-        ? Cast<ATBCharacterBase>(ActorInfo->AvatarActor.Get())
-        : nullptr;
+    ATBCharacterBase* Character = ActorInfo ? Cast<ATBCharacterBase>(ActorInfo->AvatarActor.Get()) : nullptr;
 
-    if (!IsValid(Character) || !ThirdPersonMontage
-        || AllowedTargetClasses.IsEmpty())
+    if (!IsValid(Character) || !ThirdPersonMontage || AllowedTargetClasses.IsEmpty())
     {
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
@@ -44,13 +50,10 @@ void UTBGameplayAbility_Melee::ActivateAbility(
     // 실제 판정 준비와 피해 구독은 서버에서만 수행
     if (ActorInfo->IsNetAuthority())
     {
-        UTBMeleeTraceComponent* Trace =
-            Character->GetMeleeTraceComponent();
-
+        UTBMeleeTraceComponent* Trace =  Character->GetMeleeTraceComponent();
         USkeletalMeshComponent* Mesh = Character->GetMesh();
 
-        if (!Trace || !IsValid(Mesh)
-            || !Trace->PrepareAttack(Character->GetMeleeTraceMesh()))
+        if (!Trace || !IsValid(Mesh) || !Trace->PrepareAttack(Character->GetMeleeTraceMesh()))
         {
             EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
             return;
@@ -61,18 +64,15 @@ void UTBGameplayAbility_Melee::ActivateAbility(
 
         // 전용 서버에서도 공격 소켓 위치 갱신
         PreviousTickOption = Mesh->VisibilityBasedAnimTickOption;
-        Mesh->VisibilityBasedAnimTickOption =
-            EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+        Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 
         Trace->AddTickPrerequisiteComponent(Mesh);
 
-        HitDelegateHandle = Trace->OnHit.AddUObject(
-            this, &ThisClass::HandleMeleeHit);
+        HitDelegateHandle = Trace->OnHit.AddUObject(this, &ThisClass::HandleMeleeHit);
     }
 
     // 구독을 마친 뒤 Action에서 몽타주 재생
-    Super::ActivateAbility(
-        Handle, ActorInfo, ActivationInfo, TriggerEventData);
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 }
 
 void UTBGameplayAbility_Melee::HandleMeleeHit(const FHitResult& HitResult)
@@ -100,8 +100,7 @@ void UTBGameplayAbility_Melee::HandleMeleeHit(const FHitResult& HitResult)
         return;
     }
 
-    UAbilitySystemComponent* TargetASC =
-        UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
+    UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
 
     // 대상 ASC 연결 및 피격 가능 상태 확인
     if (!IsValid(TargetASC) || TargetASC->GetAvatarActor() != Target
@@ -112,7 +111,7 @@ void UTBGameplayAbility_Melee::HandleMeleeHit(const FHitResult& HitResult)
     }
 
     // 공격 캐릭터에서 피해량 조회 및 대상 피격 요청
-    Attacker->PerformMeleeAttackHit(HitResult, DamageTypeTag);
+    Attacker->ApplyMeleeDamage(HitResult, DamageTypeTag);
 }
 
 void UTBGameplayAbility_Melee::EndAbility(

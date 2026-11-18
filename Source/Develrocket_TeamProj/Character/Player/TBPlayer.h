@@ -47,11 +47,12 @@ public:
 
 	// 공격 및 피해 처리 ----------------------
 	
-	// 서버 기본 공격 판정, 궤적·피격 연출 요청 및 피해 적용 결과 반환
-	bool PerformPrimaryAttackTrace(const FGameplayTag& TrailCueTag, const FGameplayTag& DefaultImpactCueTag);
-	
-	// PlayerState의 피해량으로 근접 공격 처리
-	virtual bool PerformMeleeAttackHit(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag) override;
+	// 서버에서 한 발을 검사하고 궤적·탄착 연출 후 충돌 결과 반환
+	FHitResult TraceHitscanShot(const FGameplayTag& TrailCueTag, const FGameplayTag& DefaultImpactCueTag);
+
+	// PlayerState의 공격별 피해량으로 대상 피격 요청
+	virtual bool ApplyHitscanDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag) override;
+	virtual bool ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag) override;
 	
 	// 서버 피해 적용
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Player|Damage")
@@ -170,7 +171,10 @@ protected:
 	TObjectPtr<UInputAction> MeleeAction;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	TObjectPtr<UInputAction> SkillAction;
+	TObjectPtr<UInputAction> Skill1Action;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> Skill2Action;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> ReloadAction;
@@ -255,8 +259,11 @@ private:
 
 	// 스킬 입력 처리 ----------------------
 
-	void InputSkillStarted();
-	void InputSkillStopped();
+	void InputSkill1Started();
+	void InputSkill1Stopped();
+	
+	void InputSkill2Started();
+	void InputSkill2Stopped();
 
 	// 재장전 입력 처리 ----------------------
 
