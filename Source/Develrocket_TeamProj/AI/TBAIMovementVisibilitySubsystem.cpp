@@ -1,6 +1,7 @@
 #include "AI/TBAIMovementVisibilitySubsystem.h"
 #include "Character/Monster/TBMonster.h"
 #include "Character/Human/TBCitizen.h"
+#include "Components/TBCharacterMovementComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -42,6 +43,14 @@ void UTBAIMovementVisibilitySubsystem::UpdateReport(APlayerController* Viewer, c
 	}
 }
 
+void UTBAIMovementVisibilitySubsystem::RestoreMovementTick(ACharacter& Character)
+{
+	if (ThrottledCharacters.Remove(&Character) > 0)
+	{
+		Character.GetCharacterMovement()->SetComponentTickIntervalAndCooldown(0.0f);
+	}
+}
+
 void UTBAIMovementVisibilitySubsystem::UpdateMovementIntervals()
 {
 	UWorld* World = GetWorld();
@@ -61,6 +70,12 @@ void UTBAIMovementVisibilitySubsystem::UpdateMovementIntervals()
 	{
 		ACharacter* Character = *It;
 		if (!Character->IsA<ATBMonster>() && !Character->IsA<ATBCitizen>()) continue;
+		const auto* Movement = Cast<UTBCharacterMovementComponent>(Character->GetCharacterMovement());
+		if (Movement && Movement->HasActiveSkillMovement())
+		{
+			RestoreMovementTick(*Character);
+			continue;
+		}
 		bool bVisible = !bAllReportsValid || Character->IsHidden();
 		if (!bVisible) for (const FViewerReport* Report : Viewers) if (Report->VisibleActors.Contains(Character)) { bVisible = true; break; }
 		const bool bThrottled = ThrottledCharacters.Contains(Character);
@@ -71,8 +86,7 @@ void UTBAIMovementVisibilitySubsystem::UpdateMovementIntervals()
 		}
 		else if (bVisible && bThrottled)
 		{
-			Character->GetCharacterMovement()->SetComponentTickIntervalAndCooldown(0.0f);
-			ThrottledCharacters.Remove(Character);
+			RestoreMovementTick(*Character);
 		}
 	}
 	for (auto It = ThrottledCharacters.CreateIterator(); It; ++It) if (!It->IsValid()) It.RemoveCurrent();

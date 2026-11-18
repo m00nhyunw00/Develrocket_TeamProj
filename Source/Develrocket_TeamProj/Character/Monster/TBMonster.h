@@ -5,9 +5,9 @@
 #include "TBMonster.generated.h"
 
 class UGameplayAbility;
+class UTBMonsterSkillSet;
 class UGameplayEffect;
 class UTBMonsterAttributeSet;
-class UTBGameplayAbility_Monster_Leap;
 class ATBMonster;
 struct FAbilityEndedData;
 struct FGameplayTag;
@@ -32,7 +32,8 @@ public:
 	bool IsDead() const;
 
 	TSubclassOf<UGameplayAbility> GetMeleeAbilityClass() const { return MeleeAbilityClass; }
-	TSubclassOf<UTBGameplayAbility_Monster_Leap> GetLeapAbilityClass() const { return LeapAbilityClass; }
+	float GetMeleeAttackRange() const { return MeleeAttackRange; }
+	const UTBMonsterSkillSet* GetSkillSet() const { return SkillSet; }
 
 	// 서버에서 피해 GE를 적용하는 공통 진입점; 클라이언트 RPC가 아닌 권한 검사 함수
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Monster|Damage")
@@ -42,6 +43,9 @@ public:
 	FTBMonsterDied OnMonsterDied;
 
 protected:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Combat")
+	TObjectPtr<UTBMonsterSkillSet> SkillSet;
+
 	virtual bool CanReceiveAttack(float Damage) const override;
 	virtual TSubclassOf<UGameplayEffect> GetAttackDamageEffect() const override;
 	virtual void OnAttackApplied(float Damage, AActor* DamageSource) override;
@@ -51,9 +55,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Combat")
 	TSubclassOf<UGameplayAbility> MeleeAbilityClass;
 
-	// 몬스터 BP에서 지정하는 선택형 도약 어빌리티
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Combat")
-	TSubclassOf<UTBGameplayAbility_Monster_Leap> LeapAbilityClass;
+	// Distance between actor origins. Zero uses the behavior tree's attack range.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS|Combat", meta = (ClampMin = "0.0", Units = "cm"))
+	float MeleeAttackRange = 0.0f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
 	TObjectPtr<UTBMonsterAttributeSet> MonsterAttributes;

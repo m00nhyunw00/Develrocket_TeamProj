@@ -26,8 +26,15 @@ EBTNodeResult::Type UBTTask_MonsterAttack::ExecuteTask(UBehaviorTreeComponent& O
 
 	if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead()
 		|| !IsValid(TargetASC) || TargetASC->GetAvatarActor() != Target
-		|| TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead) || !FMath::IsFinite(AttackRange) || AttackRange <= 0.0f
-		|| FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(AttackRange))
+		|| TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
+	{
+		return EBTNodeResult::Failed;
+	}
+
+	const float MonsterRange = Monster->GetMeleeAttackRange();
+	const float EffectiveRange = MonsterRange == 0.0f ? AttackRange : MonsterRange;
+	if (!FMath::IsFinite(EffectiveRange) || EffectiveRange <= 0.0f
+		|| FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(EffectiveRange))
 	{
 		return EBTNodeResult::Failed;
 	}

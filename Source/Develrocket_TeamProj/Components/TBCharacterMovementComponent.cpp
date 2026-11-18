@@ -33,3 +33,15 @@ bool UTBCharacterMovementComponent::CanAttemptJump() const
 {
 	return !IsMovementBlockedByState() && Super::CanAttemptJump();
 }
+
+FVector UTBCharacterMovementComponent::ConsumeInputVector()
+{
+	if (HasChargeInput() && !IsMovementBlockedByState())
+	{
+		// Replace incidental input so the authoritative charge keeps its original direction.
+		Super::ConsumeInputVector();
+		AddInputVector(ChargeInputDirection, true);
+	}
+
+	return Super::ConsumeInputVector();
+}
