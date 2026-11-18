@@ -15,6 +15,7 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 	void UpdateReport(APlayerController* Viewer, const TArray<AActor*>& VisibleActors, bool bComplete);
+	void RestoreMovementTick(ACharacter& Character);
 
 private:
 	struct FViewerReport

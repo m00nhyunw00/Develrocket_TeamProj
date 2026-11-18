@@ -11,7 +11,7 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(State_Draining, "State.Draining");
 	
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_PrimaryAttack, "Cooldown.PrimaryAttack");
-	UE_DEFINE_GAMEPLAY_TAG(Cooldown_MonsterLeap, "Cooldown.MonsterLeap");
+	UE_DEFINE_GAMEPLAY_TAG(Cooldown_MonsterSkill, "Cooldown.MonsterSkill");
 
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat, "Ability.Combat");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_MonsterLeap, "Ability.Combat.MonsterLeap");

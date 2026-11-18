@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AbilitySystem/Abilities/TBGameplayAbility_Action.h"
+#include "AbilitySystem/Abilities/Monster/TBGameplayAbility_MonsterSkill.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "TBGameplayAbility_Monster_Leap.generated.h"
 
@@ -11,7 +11,7 @@ class UPrimitiveComponent;
 
 // 몬스터 전용 서버 도약 및 착지 공격 어빌리티
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_Monster_Leap : public UTBGameplayAbility_Action
+class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_Monster_Leap : public UTBGameplayAbility_MonsterSkill
 {
 	GENERATED_BODY()
 
@@ -24,6 +24,10 @@ public:
 	void LaunchLeap();
 	// Shared spatial and state checks for BT decision making and activation.
 	bool CanLeapAtTarget(const ATBMonster* Monster, const AActor* Target) const;
+	virtual bool CanUseAgainst(const ATBMonster* Monster, const AActor* Target) const override
+	{
+		return CanLeapAtTarget(Monster, Target);
+	}
 
 protected:
 	virtual void HandleActionMontageCompleted() override;
@@ -41,16 +45,19 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Leap|Homing", meta = (ClampMin = "0.0", Units = "deg/s"))
 	float HomingTurnRate = 90.0f;
 
-	// Stop steering near the target to prevent abrupt turns or circling.
-	UPROPERTY(EditDefaultsOnly, Category = "Leap|Homing", meta = (ClampMin = "0.0", Units = "cm"))
+	// Slow lateral movement near the target while continuing to steer.
+	UPROPERTY(EditDefaultsOnly, Category = "Leap|Homing", meta = (ClampMin = "0.0", Units = "cm", DisplayName = "Homing Slowdown Distance"))
 	float HomingStopDistance = 150.0f;
 
 private:
 	void EndLeap(bool bCancelled);
 	void HandleLandingTimeout();
-	void UpdateLeapHoming();
-	void CheckLeapMeshContacts();
+	void StopLeapTracking();
+	void CheckLeapContacts();
 	void ApplyLeapContactDamage(AActor* OtherActor, const FHitResult& Hit);
+
+	UFUNCTION()
+	void UpdateLeapHoming(float DeltaSeconds, FVector OldLocation, FVector OldVelocity);
 
 	UFUNCTION()
 	void HandleLeapHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
@@ -64,8 +71,7 @@ private:
 	// 한 번의 도약 동안 추적하는 시전자와 발동 시점의 목표 위치
 	TWeakObjectPtr<ATBMonster> LeapingMonster;
 	TWeakObjectPtr<const AActor> LeapTarget;
-	FTimerHandle HomingTimer;
-	double LastHomingUpdateTime = 0.0;
+	float LeapHorizontalSpeed = 0.f;
 	FVector LeapDestination = FVector::ZeroVector;
 	TWeakObjectPtr<USkeletalMeshComponent> AttackMesh;
 	EVisibilityBasedAnimTickOption PreviousTickOption{};

@@ -6,7 +6,6 @@
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBMonsterAttributeSet.h"
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Stagger.h"
-#include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Leap.h"
 #include "BrainComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -113,13 +112,7 @@ void ATBMonster::InitializeGameplayData()
 		return;
 	}
 
-	// 기존 단일 근접 Ability 설정과 새 초기 Ability 목록의 중복 방지
 	AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
-	// 도약 어빌리티가 지정된 몬스터의 ASC에 스킬 부여
-	if (LeapAbilityClass)
-	{
-		AbilitySystemComponent->AddCharacterAbilities({LeapAbilityClass});
-	}
 }
 
 bool ATBMonster::IsDead() const

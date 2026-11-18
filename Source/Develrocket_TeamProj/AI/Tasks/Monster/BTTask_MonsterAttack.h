@@ -20,7 +20,7 @@ protected:
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	virtual EBTNodeResult::Type AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 
-	// Distance between actor origins in Unreal units (cm).
+	// Fallback distance when the monster does not override its melee attack range.
 	UPROPERTY(EditAnywhere, Category = "Attack", meta = (ClampMin = "0.0", Units = "cm"))
 	float AttackRange = 150.0f;
 

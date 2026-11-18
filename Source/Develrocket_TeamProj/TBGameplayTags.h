@@ -18,7 +18,7 @@ namespace TBGameplayTags
 	
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_PrimaryAttack);
 	// 도약 쿨다운 Gameplay Effect가 부여하는 재사용 제한 태그
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_MonsterLeap);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_MonsterSkill);
 
 	// 전투 Ability ----------------------
 
