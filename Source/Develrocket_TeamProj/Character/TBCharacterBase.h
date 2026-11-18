@@ -29,9 +29,12 @@ public:
 	
 	UTBMeleeTraceComponent* GetMeleeTraceComponent() const;
 	
-	// 컴포넌트가 검출한 근접 적중 결과로 공격 처리
-	virtual bool PerformMeleeAttackHit(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag);
+	// 히트스캔 명중 대상에게 피해 적용
+	virtual bool ApplyHitscanDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag);
 
+	// 근접 타격 대상에게 피해 적용
+	virtual bool ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag);
+	
 	// 소켓 검사에 사용할 메시 반환
 	virtual UPrimitiveComponent* GetMeleeTraceMesh() const;
 
@@ -63,10 +66,16 @@ public:
 	virtual void StartMeleeAttack();
 
 	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
-	virtual void StartSkill();
+	virtual void StartSkill1();
 	
 	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
-	virtual void StopSkill();
+	virtual void StopSkill1();
+	
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StartSkill2();
+	
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StopSkill2();
 	
 	// 자신을 제외한 단일 라인 트레이스 및 충돌 정보 반환
 	bool LineTraceByChannel(FHitResult& OutHit, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel) const;
@@ -105,7 +114,6 @@ protected:
 	TObjectPtr<UTBAbilitySystemComponent> AbilitySystemComponent;
 	
 	// 캐릭터 BP에서 지정할 혈액 피격 연출 태그
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|GameplayCue",
-		meta = (Categories = "GameplayCue"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|GameplayCue", meta = (Categories = "GameplayCue"))
 	FGameplayTag BloodImpactCueTag;
 };

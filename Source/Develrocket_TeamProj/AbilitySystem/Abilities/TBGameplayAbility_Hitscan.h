@@ -2,19 +2,26 @@
 
 #include "CoreMinimal.h"
 #include "AbilitySystem/Abilities/TBGameplayAbility_Action.h"
-#include "TBGameplayAbility_PrimaryAttack.generated.h"
+#include "TBGameplayAbility_Hitscan.generated.h"
 
 UCLASS()
-class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_PrimaryAttack : public UTBGameplayAbility_Action
+class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_Hitscan : public UTBGameplayAbility_Action
 {
 	GENERATED_BODY()
 
 public:
-	UTBGameplayAbility_PrimaryAttack();
+	UTBGameplayAbility_Hitscan();
 
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 
 protected:
+	UPROPERTY(EditDefaultsOnly, Category = "Combat|Hitscan")
+	FGameplayTag DamageTypeTag;
+
+	// 이 공격으로 피해를 줄 수 있는 대상 클래스
+	UPROPERTY(EditDefaultsOnly, Category = "Combat|Hitscan")
+	TArray<TSubclassOf<AActor>> AllowedTargetClasses;
+	
 	// 일반 공격에 사용할 총격 궤적 Cue
 	UPROPERTY(EditDefaultsOnly, Category = "Effects", meta = (Categories = "GameplayCue"))
 	FGameplayTag BulletTrailCueTag;
@@ -46,4 +53,7 @@ protected:
 
 	// PlayerState 설정으로 쿨다운 적용
 	virtual void ApplyCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const override;
+
+private:
+	void HandleHitscanHit(const FHitResult& HitResult);
 };

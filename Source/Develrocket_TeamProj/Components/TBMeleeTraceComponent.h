@@ -57,9 +57,6 @@ protected:
     TArray<FTBMeleeTraceSegment> TraceSegments;
 
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Melee")
-    TArray<TEnumAsByte<EObjectTypeQuery>> TraceObjectTypes;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Combat|Melee")
     TEnumAsByte<EDrawDebugTrace::Type> DrawDebugType = EDrawDebugTrace::None;
 
 private:

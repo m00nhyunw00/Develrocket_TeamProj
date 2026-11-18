@@ -9,8 +9,6 @@ UTBMeleeTraceComponent::UTBMeleeTraceComponent()
     PrimaryComponentTick.bCanEverTick = true;
     PrimaryComponentTick.bStartWithTickEnabled = false;
     PrimaryComponentTick.TickGroup = TG_PostPhysics;
-
-    TraceObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
 }
 
 bool UTBMeleeTraceComponent::PrepareAttack(UPrimitiveComponent* InMesh)
@@ -22,7 +20,7 @@ bool UTBMeleeTraceComponent::PrepareAttack(UPrimitiveComponent* InMesh)
         || !World || !World->IsGameWorld()
         || bAttackPrepared || !IsValid(InMesh)
         || InMesh->GetWorld() != World
-        || TraceSegments.IsEmpty() || TraceObjectTypes.IsEmpty())
+        || TraceSegments.IsEmpty())
     {
         return false;
     }
@@ -110,6 +108,7 @@ void UTBMeleeTraceComponent::TickComponent(float DeltaTime, ELevelTick TickType,
     }
 
     const uint32 CurrentRevision = TraceRevision;
+    constexpr ECollisionChannel MeleeTraceChannel = ECC_GameTraceChannel3;
 
     for (const FTBMeleeTraceSegment& Segment : TraceSegments)
     {
@@ -117,11 +116,10 @@ void UTBMeleeTraceComponent::TickComponent(float DeltaTime, ELevelTick TickType,
         const FVector End = Mesh->GetSocketLocation(Segment.EndSocket);
 
         TArray<FHitResult> Hits;
-
-        UKismetSystemLibrary::SphereTraceMultiForObjects(
+        UKismetSystemLibrary::SphereTraceMulti(
             OwnerActor, Start, End, Segment.Radius,
-            TraceObjectTypes, false, IgnoredActors,
-            DrawDebugType, Hits, true);
+            UEngineTypes::ConvertToTraceType(MeleeTraceChannel),
+            false, IgnoredActors, DrawDebugType, Hits, true);
 
         for (const FHitResult& Hit : Hits)
         {
@@ -133,11 +131,9 @@ void UTBMeleeTraceComponent::TickComponent(float DeltaTime, ELevelTick TickType,
                 continue;
             }
 
-            // 다른 소켓이나 프레임에서 검출되어도 한 번만 전달
             HitActors.Add(TargetKey);
             OnHit.Broadcast(Hit);
 
-            // 피해 처리 도중 종료되거나 재시작된 판정의 후속 처리 중단
             if (!bTracing || TraceRevision != CurrentRevision)
             {
                 return;
