@@ -26,6 +26,7 @@ public class Develrocket_TeamProj : ModuleRules
 
 		PublicDependencyModuleNames.Add("PCG");
 		PrivateDependencyModuleNames.Add("Niagara");
+		PrivateDependencyModuleNames.Add("RHI");
 		PrivateDependencyModuleNames.AddRange(new string[] { "NavigationSystem" });
 
 		// Uncomment if you are using Slate UI
