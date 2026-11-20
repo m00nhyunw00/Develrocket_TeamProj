@@ -149,7 +149,7 @@ bool ATBMonster::ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTa
 // 게임플레이 초기화가 끝난 살아 있는 몬스터만 피해를 받는다.
 bool ATBMonster::CanReceiveAttack(float Damage) const
 {
-    return bGameplayDataInitialized && !IsDead();
+    return bGameplayDataInitialized && !bReturnedToPool && !IsDead();
 }
 
 // 몬스터 BP에 설정된 피해 GE를 공통 처리에 제공한다.
@@ -227,7 +227,7 @@ void ATBMonster::HandleStaggerFull()
 
 void ATBMonster::HandleAbilityEnded(const FAbilityEndedData& EndedData)
 {
-	if (HasAuthority() && !IsDead() && MonsterAttributes
+	if (HasAuthority() && !bReturnedToPool && !IsDead() && MonsterAttributes
 		&& IsValid(EndedData.AbilityThatEnded)
 		&& EndedData.AbilityThatEnded->IsA<UTBGameplayAbility_Monster_Stagger>())
 	{
@@ -359,25 +359,48 @@ void ATBMonster::RestorePoolVisualState()
 
 void ATBMonster::OnPoolActivated_Implementation()
 {
-	// 서버에서 사망했던 몬스터를 재사용할 때 GAS 상태와 체력을 초기화합니다.
-	if (!HasAuthority() || !bDeathHandled || !AbilitySystemComponent || !MonsterAttributes) return;
+	if (!HasAuthority() || !bReturnedToPool || !AbilitySystemComponent || !MonsterAttributes) return;
 	SetLifeSpan(0.0f);
 	AbilitySystemComponent->CancelAllAbilities();
-	// 현재 구현은 활성 Gameplay Effect를 모두 제거합니다.
-	AbilitySystemComponent->RemoveActiveEffects(FGameplayEffectQuery());
-	AbilitySystemComponent->UnBlockAbilitiesWithTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat));
+	if (bDeathHandled)
+	{
+		AbilitySystemComponent->RemoveActiveEffects(FGameplayEffectQuery());
+		AbilitySystemComponent->UnBlockAbilitiesWithTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat));
+	}
 	RestorePoolVisualState();
 	MonsterAttributes->SetStagger(0.0f);
 	MonsterAttributes->SetIncomingDamage(0.0f);
 	MonsterAttributes->SetBlood(MonsterAttributes->GetMaxBlood());
-	if (ATBMonsterAIController* AI = Cast<ATBMonsterAIController>(GetController())) AI->ReactivateFromPool();
-	ForceNetUpdate();
+}
+
+void ATBMonster::OnPoolReady()
+{
+	if (!HasAuthority() || !bReturnedToPool) return;
+	bReturnedToPool = false;
+	if (ATBMonsterAIController* AI = Cast<ATBMonsterAIController>(GetController()))
+	{
+		AI->ReactivateFromPool();
+	}
+	else if (AAIController* AIController = Cast<AAIController>(GetController()))
+	{
+		if (UBrainComponent* Brain = AIController->GetBrainComponent()) Brain->RestartLogic();
+	}
 }
 
 void ATBMonster::OnPoolDeactivated_Implementation()
 {
 	// 풀 반환 전에 서버에서 이동과 실행 중인 Ability를 중지합니다.
 	if (!HasAuthority()) return;
+	bReturnedToPool = true;
+	if (ATBMonsterAIController* AI = Cast<ATBMonsterAIController>(GetController()))
+	{
+		AI->DeactivateForPool();
+	}
+	else if (AAIController* AIController = Cast<AAIController>(GetController()))
+	{
+		if (UBrainComponent* Brain = AIController->GetBrainComponent()) Brain->StopLogic(TEXT("Monster returned to pool"));
+		AIController->StopMovement();
+	}
 	if (BloodBarComponent) BloodBarComponent->ClearSelectionsForPooledActor();
 	GetCharacterMovement()->StopMovementImmediately();
 	if (AbilitySystemComponent) AbilitySystemComponent->CancelAllAbilities();

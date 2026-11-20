@@ -1,12 +1,15 @@
 #include "Components/TBSpawnManagerComponent.h"
+#include "Components/TBPoolStateComponent.h"
 
 #include "Framework/TBLevelManager.h"
 #include "Interface/TBPoolInterface.h"
 #include "Framework/TBSpawnPoolData.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/PawnMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "NavigationSystem.h"
+#include "NavigationData.h"
 #include "PCG/CityLayoutCoordinator.h"
 #include "TimerManager.h"
 
@@ -75,12 +78,21 @@ void UTBSpawnManagerComponent::UpdatePools()
 			Actor = World->SpawnActor<AActor>(Config.ActorClass, Transform, Params);
 		}
 		if (!IsValid(Actor)) continue;
+		UTBPoolStateComponent* PoolState = Actor->FindComponentByClass<UTBPoolStateComponent>();
+		if (!PoolState)
+		{
+			PoolState = NewObject<UTBPoolStateComponent>(Actor);
+			Actor->AddInstanceComponent(PoolState);
+			PoolState->RegisterComponent();
+		}
 		// 액터별 초기화는 인터페이스에 맡기고 서버에서 상태 동기화를 요청합니다.
 		Entry.ActiveActors.Add(Actor);
-		Actor->SetActorHiddenInGame(false);
-		Actor->SetActorEnableCollision(true);
-		Actor->SetActorTickEnabled(true);
 		ITBPoolInterface::Execute_OnPoolActivated(Actor);
+		if (!IsValid(Actor) || !IsValid(PoolState) || !Entry.ActiveActors.Contains(Actor)) continue;
+		PoolState->SetPoolActive(true);
+		// Collision restoration may dispatch overlap callbacks that return the actor.
+		if (!IsValid(Actor) || !Entry.ActiveActors.Contains(Actor)) continue;
+		if (ITBPoolInterface* NativePoolActor = Cast<ITBPoolInterface>(Actor)) NativePoolActor->OnPoolReady();
 		Actor->ForceNetUpdate();
 	}
 }
@@ -134,11 +146,12 @@ bool UTBSpawnManagerComponent::ReturnToPool(AActor* Actor)
 		Entry.ActiveActors.Remove(Actor);
 		ITBPoolInterface::Execute_OnPoolDeactivated(Actor);
 		if (!IsValid(Actor)) return true;
-		Actor->SetActorEnableCollision(false);
-		Actor->SetActorHiddenInGame(true);
-		Actor->SetActorTickEnabled(false);
-		Actor->ForceNetUpdate();
-		Entry.AvailableActors.Add(Actor);
+		if (UTBPoolStateComponent* PoolState = Actor->FindComponentByClass<UTBPoolStateComponent>())
+		{
+			PoolState->SetPoolActive(false);
+			if (IsValid(Actor)) Entry.AvailableActors.Add(Actor);
+		}
+		else Actor->Destroy();
 		return true;
 	}
 	return false;
@@ -153,12 +166,39 @@ bool UTBSpawnManagerComponent::FindSpawnTransform(const FTBSpawnPoolConfig& Entr
 	FBox FloorBounds(ForceInit);
 	int32 MaxAttempts = 0;
 	float TraceHeight = 0.0f;
-	const UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+	UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
 	if (!Nav || !PoolOwner->GetSpawnFloorSearchParameters(Floor, FloorBounds, MaxAttempts, TraceHeight)) return false;
 
 	// Native character capsules retain their existing clearance. Other actors use the
 	// configurable capsule and collision profile in the spawn entry.
 	const AActor* Defaults = Entry.ActorClass->GetDefaultObject<AActor>();
+	const APawn* PawnDefaults = Cast<APawn>(Defaults);
+	const UPawnMovementComponent* Movement = PawnDefaults ? PawnDefaults->GetMovementComponent() : nullptr;
+	const ANavigationData* NavData = nullptr;
+	if (Movement)
+	{
+		FNavAgentProperties Agent = Movement->GetNavAgentPropertiesRef();
+		const UCapsuleComponent* AgentCapsule = Cast<UCapsuleComponent>(PawnDefaults->GetRootComponent());
+		if (AgentCapsule && Movement->ShouldUpdateNavAgentWithOwnersCollision())
+		{
+			Agent.AgentRadius = AgentCapsule->GetScaledCapsuleRadius();
+			Agent.AgentHeight = AgentCapsule->GetScaledCapsuleHalfHeight() * 2.0f;
+		}
+		// GetNavDataForProps can fall back to another agent while the intended data is missing.
+		const FNavDataConfig* ConfiguredAgent = Nav->GetSupportedAgents().FindByPredicate(
+			[&Agent](const FNavDataConfig& Config)
+			{
+				return Config.bCanFly == Agent.bCanFly && Config.IsEquivalent(Agent);
+			});
+		NavData = ConfiguredAgent ? Nav->GetNavDataForAgentName(ConfiguredAgent->Name) : Nav->GetNavDataForProps(Agent);
+		if (!ConfiguredAgent && IsValid(NavData) && (NavData->GetConfig().AgentRadius < Agent.AgentRadius
+			|| NavData->GetConfig().AgentHeight < Agent.AgentHeight))
+		{
+			return false;
+		}
+	}
+	else NavData = Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate);
+	if (!IsValid(NavData)) return false;
 	const UCapsuleComponent* Capsule = Entry.bUseActorCapsule && Defaults ? Defaults->FindComponentByClass<UCapsuleComponent>() : nullptr;
 	if (Entry.bUseActorCapsule && !Capsule)
 	{
@@ -178,7 +218,7 @@ bool UTBSpawnManagerComponent::FindSpawnTransform(const FTBSpawnPoolConfig& Entr
 		FHitResult Hit;
 		if (!World->LineTraceSingleByChannel(Hit, FVector(X, Y, FloorBounds.Max.Z + TraceHeight), FVector(X, Y, FloorBounds.Min.Z - 1000.0), ECC_Visibility, Query) || Hit.GetActor() != Floor) continue;
 		FNavLocation NavLocation;
-		if (!Nav->ProjectPointToNavigation(Hit.ImpactPoint, NavLocation, FVector(100.0, 100.0, 250.0))) continue;
+		if (!Nav->ProjectPointToNavigation(Hit.ImpactPoint, NavLocation, NavData->GetConfig().DefaultQueryExtent, NavData)) continue;
 		if (FVector::DistSquared2D(Hit.ImpactPoint, NavLocation.Location) > FMath::Square(25.0f) || FMath::Abs(Hit.ImpactPoint.Z - NavLocation.Location.Z) > 50.0f) continue;
 		const FVector Location = NavLocation.Location + FVector(0.0, 0.0, HalfHeight + 3.0f);
 		bool bTooClose = false;

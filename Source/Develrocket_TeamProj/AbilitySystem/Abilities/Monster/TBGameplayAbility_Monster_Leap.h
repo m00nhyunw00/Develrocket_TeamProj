@@ -38,6 +38,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Leap", meta = (ClampMin = "0.1", Units = "s"))
 	float FlightTime = 0.65f;
 
+	// Maximum time from activation through windup, flight and recovery.
+	UPROPERTY(EditDefaultsOnly, Category = "Leap", meta = (ClampMin = "0.1", Units = "s"))
+	float MaxActiveDuration = 10.0f;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Leap", meta = (ClampMin = "0.0"))
 	float AttackDamage = 30.0f;
 
@@ -51,7 +55,7 @@ protected:
 
 private:
 	void EndLeap(bool bCancelled);
-	void HandleLandingTimeout();
+	void HandleAbilityTimeout();
 	void StopLeapTracking();
 	void CheckLeapContacts();
 	void ApplyLeapContactDamage(AActor* OtherActor, const FHitResult& Hit);
@@ -75,7 +79,7 @@ private:
 	FVector LeapDestination = FVector::ZeroVector;
 	TWeakObjectPtr<USkeletalMeshComponent> AttackMesh;
 	EVisibilityBasedAnimTickOption PreviousTickOption{};
-	FTimerHandle LandingTimeout;
+	FTimerHandle AbilityTimeout;
 	FTimerHandle ContactTimer;
 	TSet<TWeakObjectPtr<AActor>> DamagedActors;
 	bool bLaunched = false;

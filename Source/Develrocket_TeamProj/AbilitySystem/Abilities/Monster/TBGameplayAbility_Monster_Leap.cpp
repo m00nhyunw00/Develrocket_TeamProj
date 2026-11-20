@@ -52,6 +52,7 @@ bool UTBGameplayAbility_Monster_Leap::CanLeapAtTarget(const ATBMonster* Monster,
 		|| Target->GetWorld() != Monster->GetWorld() || !Monster->GetCharacterMovement()
 		|| !Monster->GetCharacterMovement()->IsMovingOnGround()
 		|| !FMath::IsFinite(FlightTime) || FlightTime <= 0.0f
+		|| !FMath::IsFinite(MaxActiveDuration) || MaxActiveDuration <= 0.0f
 		|| !FMath::IsFinite(MaxLeapRange) || MaxLeapRange <= 0.0f
 		|| FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(MaxLeapRange))
 	{
@@ -92,6 +93,7 @@ void UTBGameplayAbility_Monster_Leap::ActivateAbility(FGameplayAbilitySpecHandle
 	PreviousTickOption = Mesh->VisibilityBasedAnimTickOption;
 	Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 
+	Monster->GetWorldTimerManager().SetTimer(AbilityTimeout, this, &ThisClass::HandleAbilityTimeout, MaxActiveDuration, false);
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 }
 
@@ -132,8 +134,6 @@ void UTBGameplayAbility_Monster_Leap::LaunchLeap()
 	Monster->LaunchCharacter(Velocity, true, true);
 	if (!IsActive()) return;
 	Monster->GetWorldTimerManager().SetTimer(ContactTimer, this, &ThisClass::CheckLeapContacts, 0.05f, true);
-	// 착지 이벤트가 누락돼도 BT 태스크가 종료되도록 시간 제한 설정
-	Monster->GetWorldTimerManager().SetTimer(LandingTimeout, this, &ThisClass::HandleLandingTimeout, FlightTime + 1.0f, false);
 }
 
 void UTBGameplayAbility_Monster_Leap::UpdateLeapHoming(float DeltaSeconds, FVector OldLocation, FVector OldVelocity)
@@ -247,7 +247,6 @@ void UTBGameplayAbility_Monster_Leap::HandleLanded(const FHitResult& Hit)
 	// 최초 착지만 처리하고 실제 착지 위치 기준으로 피해 대상 판정
 	bLanded = true;
 	StopLeapTracking();
-	Monster->GetWorldTimerManager().ClearTimer(LandingTimeout);
 	Monster->GetWorldTimerManager().ClearTimer(ContactTimer);
 
 	if (IsActive() && bMontageCompleted) EndLeap(false);
@@ -260,13 +259,8 @@ void UTBGameplayAbility_Monster_Leap::HandleActionMontageCompleted()
 	if (!bLaunched || bLanded) EndLeap(!bLaunched);
 }
 
-void UTBGameplayAbility_Monster_Leap::HandleLandingTimeout()
+void UTBGameplayAbility_Monster_Leap::HandleAbilityTimeout()
 {
-	if (ATBMonster* Monster = LeapingMonster.Get(); IsValid(Monster) && Monster->GetCharacterMovement()->IsFalling())
-	{
-		Monster->GetWorldTimerManager().SetTimer(LandingTimeout, this, &ThisClass::HandleLandingTimeout, 1.f, false);
-		return;
-	}
 	EndLeap(true);
 }
 
@@ -291,17 +285,21 @@ void UTBGameplayAbility_Monster_Leap::EndLeap(bool bCancelled)
 void UTBGameplayAbility_Monster_Leap::EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
 	// 착지 구독과 타이머 해제 및 취소된 도약 이동 정리
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(AbilityTimeout);
+		World->GetTimerManager().ClearTimer(ContactTimer);
+	}
+	if (USkeletalMeshComponent* Mesh = AttackMesh.Get())
+	{
+		Mesh->OnComponentHit.RemoveDynamic(this, &ThisClass::HandleLeapHit);
+		Mesh->OnComponentBeginOverlap.RemoveDynamic(this, &ThisClass::HandleLeapOverlap);
+		Mesh->VisibilityBasedAnimTickOption = PreviousTickOption;
+	}
 	if (ATBMonster* Monster = LeapingMonster.Get())
 	{
 		StopLeapTracking();
-		if (USkeletalMeshComponent* Mesh = AttackMesh.Get())
-		{
-			Mesh->OnComponentHit.RemoveDynamic(this, &ThisClass::HandleLeapHit);
-			Mesh->OnComponentBeginOverlap.RemoveDynamic(this, &ThisClass::HandleLeapOverlap);
-		}
 		Monster->LandedDelegate.RemoveDynamic(this, &ThisClass::HandleLanded);
-		Monster->GetWorldTimerManager().ClearTimer(LandingTimeout);
-		Monster->GetWorldTimerManager().ClearTimer(ContactTimer);
 		if (bWasCancelled && bLaunched && !bLanded)
 		{
 			Monster->GetCharacterMovement()->StopMovementImmediately();
@@ -309,7 +307,6 @@ void UTBGameplayAbility_Monster_Leap::EndAbility(FGameplayAbilitySpecHandle Hand
 		}
 	}
 	// 원래 메시 틱 설정과 다음 도약을 위한 실행 상태 복구
-	if (USkeletalMeshComponent* Mesh = AttackMesh.Get()) Mesh->VisibilityBasedAnimTickOption = PreviousTickOption;
 	LeapingMonster.Reset();
 	LeapTarget.Reset();
 	LeapHorizontalSpeed = 0.f;

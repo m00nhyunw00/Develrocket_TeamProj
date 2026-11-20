@@ -74,9 +74,14 @@ void ATBBaseAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFol
 
 void ATBBaseAIController::OnUnPossess()
 {
+	ResetPatrolState();
+	Super::OnUnPossess();
+}
+
+void ATBBaseAIController::ResetPatrolState()
+{
 	CurrentPatrolPoint.Reset(); PreviousPatrolPoint.Reset(); PendingPatrolPoint.Reset();
 	PatrolRequestID = FAIRequestID::InvalidRequest;
-	Super::OnUnPossess();
 }
 
 AActor* ATBBaseAIController::FindReachablePatrolPoint(TSubclassOf<AActor> PointClass, float SearchRadius) const

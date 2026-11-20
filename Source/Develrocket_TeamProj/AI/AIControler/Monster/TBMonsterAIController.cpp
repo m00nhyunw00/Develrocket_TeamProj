@@ -99,6 +99,7 @@ void ATBMonsterAIController::OnPossess(APawn* InPawn)
 
 void ATBMonsterAIController::OnUnPossess()
 {
+	bPoolSuspended = false;
 	bPreserveTargetDuringStagger = false;
 	PendingInvestigationLocation.Reset();
 	FinishInvestigation(true);
@@ -116,6 +117,17 @@ void ATBMonsterAIController::OnUnPossess()
 void ATBMonsterAIController::HandleMonsterDied(ATBMonster* Monster)
 {
 	if (!HasAuthority() || Monster != GetPawn()) return;
+	DeactivateForPool();
+}
+
+void ATBMonsterAIController::DeactivateForPool()
+{
+	if (!HasAuthority() || bPoolSuspended) return;
+	bPoolSuspended = true;
+	bPausedBrainForInvestigation = false;
+	if (UBrainComponent* Brain = GetBrainComponent()) Brain->StopLogic(TEXT("Monster inactive"));
+	StopMovement();
+	ResetPatrolState();
 	bPreserveTargetDuringStagger = false;
 	PendingInvestigationLocation.Reset();
 	FinishInvestigation(true);
@@ -133,14 +145,19 @@ void ATBMonsterAIController::HandleMonsterDied(ATBMonster* Monster)
 void ATBMonsterAIController::ReactivateFromPool()
 {
 	// 재사용 시 기존 감지 정보를 지우고 시야 및 AI Brain을 다시 시작합니다.
-	if (!HasAuthority()) return;
+	if (!HasAuthority() || !bPoolSuspended) return;
+	bPoolSuspended = false;
 	if (UAIPerceptionComponent* Perception = GetPerceptionComponent())
 	{
 		Perception->ForgetAll();
 		Perception->SetSenseEnabled(UAISense_Sight::StaticClass(), true);
 		Perception->RequestStimuliListenerUpdate();
 	}
-	if (UBrainComponent* Brain = GetBrainComponent()) Brain->RestartLogic();
+	if (UBrainComponent* Brain = GetBrainComponent())
+	{
+		if (Brain->IsPaused()) Brain->ResumeLogic(TEXT("Monster reactivated"));
+		Brain->RestartLogic();
+	}
 #if ENABLE_DRAW_DEBUG
 	if (bDrawSightDebug) GetWorldTimerManager().SetTimer(SightDebugTimer, this, &ThisClass::DrawSightDebug, FMath::Max(0.05f, SightDebugInterval), true);
 #endif
@@ -149,7 +166,7 @@ void ATBMonsterAIController::InvestigateDamageSource(AActor* DamageSource)
 {
 	const ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
 	UBlackboardComponent* BlackboardComponent = GetBlackboardComponent();
-	if (!HasAuthority() || !IsValid(Monster) || Monster->IsDead() || !IsValid(DamageSource) || DamageSource == Monster || !BlackboardComponent) return;
+	if (!HasAuthority() || bPoolSuspended || !IsValid(Monster) || Monster->IsDead() || !IsValid(DamageSource) || DamageSource == Monster || !BlackboardComponent) return;
 	// 플레이어와 Citizen의 자식 BP도 IsA 검사에 포함된다.
 	UAbilitySystemComponent* SourceASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DamageSource);
 	if (IsValid(SourceASC) && SourceASC->GetAvatarActor() == DamageSource
@@ -184,7 +201,7 @@ void ATBMonsterAIController::TryStartPendingInvestigation()
 	ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
 	UBlackboardComponent* BlackboardComponent = GetBlackboardComponent();
 	UBrainComponent* Brain = GetBrainComponent();
-	if (!HasAuthority() || !PendingInvestigationLocation.IsSet() || !IsValid(Monster) || Monster->IsDead() || !BlackboardComponent) return;
+	if (!HasAuthority() || bPoolSuspended || !PendingInvestigationLocation.IsSet() || !IsValid(Monster) || Monster->IsDead() || !BlackboardComponent) return;
 	if (BlackboardComponent->GetValueAsObject(TEXT("TargetActor")))
 	{
 		PendingInvestigationLocation.Reset();
@@ -357,7 +374,7 @@ void ATBMonsterAIController::SetTrackedTarget(AActor* Target)
 
 void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExpired)
 {
-	if (!HasAuthority() || !GetPawn() || !GetPerceptionComponent())
+	if (!HasAuthority() || bPoolSuspended || !GetPawn() || !GetPerceptionComponent())
 	{
 		return;
 	}

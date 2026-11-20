@@ -26,6 +26,7 @@ public:
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnPoolActivated_Implementation() override;
 	virtual void OnPoolDeactivated_Implementation() override;
+	virtual void OnPoolReady() override;
 	void RestorePoolVisualState();
 
 	UFUNCTION(BlueprintPure, Category = "Monster|State")
@@ -86,6 +87,7 @@ private:
 	
 	bool bGameplayDataInitialized = false;
 	bool bDeathHandled = false;
+	bool bReturnedToPool = false;
 	bool bPausedBrainForStagger = false;
 	FDelegateHandle OutOfBloodHandle;
 	FDelegateHandle StaggerFullHandle;
