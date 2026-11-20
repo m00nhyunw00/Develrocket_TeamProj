@@ -17,6 +17,7 @@ class DEVELROCKET_TEAMPROJ_API UTBMainMenuWidget : public UUserWidget
 protected:
 	virtual void NativeOnInitialized() override;
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 	
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
@@ -47,6 +48,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Session")
 	int32 MaxSearchResults = 15;
 	
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UUserWidget> HostingPopup;
+	
 private:
 	void ShowMenuButtons();
 	
@@ -58,4 +62,8 @@ private:
 	void OnQuitButtonClicked();
 	
 	void HandleSessionListBack();
+	
+	void SetHostingPopupVisible(bool bVisible);
+	
+	void HandleHostSessionFailed();
 };

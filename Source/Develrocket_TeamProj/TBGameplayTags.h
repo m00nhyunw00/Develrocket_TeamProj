@@ -30,6 +30,7 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_Reload);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Death);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_MonsterLeap);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_MonsterBoom);
 	
 	// 상호작용 Ability ----------------------
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Interaction);

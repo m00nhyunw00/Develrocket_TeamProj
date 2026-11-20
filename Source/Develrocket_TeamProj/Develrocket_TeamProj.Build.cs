@@ -22,10 +22,12 @@ public class Develrocket_TeamProj : ModuleRules
 			"GameplayTags",
 			"GameplayTasks",
 			"AIModule",
+			"MoviePlayer"
 		});
 
 		PublicDependencyModuleNames.Add("PCG");
 		PrivateDependencyModuleNames.Add("Niagara");
+		PrivateDependencyModuleNames.Add("RHI");
 		PrivateDependencyModuleNames.AddRange(new string[] { "NavigationSystem" });
 
 		// Uncomment if you are using Slate UI

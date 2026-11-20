@@ -6,6 +6,7 @@
 
 class UPCGComponent;
 class UCityNavMeshComponent;
+class ULocalFogVolumeComponent;
 
 USTRUCT(BlueprintType)
 // 도시 배치 재현에 필요한 시드와 세대 번호
@@ -33,6 +34,15 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="City|Navigation")
     TObjectPtr<UCityNavMeshComponent> CityNavMesh;
 
+    UPROPERTY(EditInstanceOnly, Category="City|Fog", meta=(ClampMin="0", ClampMax="32", UIMin="0", UIMax="16"))
+    int32 MaxRoadFogVolumes = 8;
+
+    UPROPERTY(EditInstanceOnly, Category="City|Fog", meta=(ClampMin="500", Units="cm"))
+    float RoadFogRadius = 1500.0f;
+
+    UPROPERTY(EditInstanceOnly, Category="City|Fog", meta=(ClampMin="0", UIMax="2"))
+    float RoadFogDensity = 0.65f;
+
     UPROPERTY(ReplicatedUsing=OnRep_Layout, VisibleInstanceOnly, BlueprintReadOnly, Category="City")
     FReplicatedCityLayout Layout;
 
@@ -49,6 +59,7 @@ protected:
 
 private:
     UPROPERTY(Transient) TObjectPtr<UPCGComponent> CityPCG;
+    UPROPERTY(Transient) TArray<TObjectPtr<ULocalFogVolumeComponent>> RoadFogVolumes;
     int32 GeneratingRevision = 0;
     int32 CompletedRevision = 0;
     bool bInitialized = false;
@@ -56,5 +67,8 @@ private:
     UFUNCTION() void OnRep_Layout();
     UFUNCTION() void OnGenerated(UPCGComponent* Component);
     UFUNCTION() void OnCancelled(UPCGComponent* Component);
+    UFUNCTION() void OnCleaned(UPCGComponent* Component);
     void ApplyLatestLayout();
+    void BuildRoadFog();
+    void ClearRoadFog();
 };

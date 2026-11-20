@@ -1,7 +1,7 @@
 #include "AI/TBAIMovementVisibilitySubsystem.h"
 #include "Character/Monster/TBMonster.h"
 #include "Character/Human/TBCitizen.h"
-#include "Components/TBCharacterMovementComponent.h"
+#include "Components/TBMonsterMovementComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -70,7 +70,7 @@ void UTBAIMovementVisibilitySubsystem::UpdateMovementIntervals()
 	{
 		ACharacter* Character = *It;
 		if (!Character->IsA<ATBMonster>() && !Character->IsA<ATBCitizen>()) continue;
-		const auto* Movement = Cast<UTBCharacterMovementComponent>(Character->GetCharacterMovement());
+		const auto* Movement = Cast<UTBMonsterMovementComponent>(Character->GetCharacterMovement());
 		if (Movement && Movement->HasActiveSkillMovement())
 		{
 			RestoreMovementTick(*Character);

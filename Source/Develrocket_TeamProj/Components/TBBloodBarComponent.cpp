@@ -132,6 +132,10 @@ void UTBBloodBarComponent::UnbindAbilitySystem()
 	BloodChangedHandle.Reset();
 	MaxBloodChangedHandle.Reset();
 	DeadTagChangedHandle.Reset();
+	if (UTBOverheadBloodBarWidget* BloodWidget = Cast<UTBOverheadBloodBarWidget>(GetUserWidgetObject()))
+	{
+		BloodWidget->SetBlood(0.0f, 0.0f);
+	}
 	SetVisibility(false);
 }
 

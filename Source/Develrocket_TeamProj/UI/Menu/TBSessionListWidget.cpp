@@ -4,6 +4,7 @@
 #include "Components/ScrollBox.h"
 #include "Components/TextBlock.h"
 #include "UI/Menu/TBSessionRowWidget.h"
+#include "TimerManager.h"
 #include "UI/Menu/TBSessionListWidget.h"
 
 void UTBSessionListWidget::StartSearch()
@@ -16,11 +17,10 @@ void UTBSessionListWidget::StartSearch()
 	
 	SessionScrollBox->ClearChildren();
 	
-	StatusText->SetText(FText::FromString(TEXT("SEARCHING...")));
 	StatusText->SetVisibility(ESlateVisibility::HitTestInvisible);
+	StartSearchingTextAnimation();
 	
-	RefreshButton->SetIsEnabled(false);
-	
+	RefreshButton->SetIsEnabled(false);	
 	Session->FindSessions(MaxSearchResults);
 }
 
@@ -72,6 +72,8 @@ void UTBSessionListWidget::OnBackClicked()
 
 void UTBSessionListWidget::HandleSessionsFound(const TArray<FTBSessionInfo>& Sessions, bool bWasSuccessful)
 {
+	StopSearchingTextAnimation();
+	
 	RefreshButton->SetIsEnabled(true);
 	SessionScrollBox->ClearChildren();
 	
@@ -114,4 +116,44 @@ UTBSessionSubsystem* UTBSessionListWidget::GetSessionSubsystem() const
 {
 	UGameInstance* GI = GetGameInstance();
 	return GI ? GI->GetSubsystem<UTBSessionSubsystem>() : nullptr;
+}
+
+void UTBSessionListWidget::StartSearchingTextAnimation()
+{
+	StopSearchingTextAnimation();
+	
+	SearchingTextFrame = 0;
+	UpdateSearchingTextAnimation();
+	
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(SearchingTextTimerHandle, this, &ThisClass::UpdateSearchingTextAnimation, 0.35f, true);
+	}
+}
+
+void UTBSessionListWidget::UpdateSearchingTextAnimation()
+{
+	static const TCHAR* SearchingFrames[] =
+	{
+		TEXT("SEARCHING"),
+		TEXT("SEARCHING."),
+		TEXT("SEARCHING.."),
+		TEXT("SEARCHING...")
+	};
+	
+	if (!StatusText)
+	{
+		return;
+	}
+	
+	StatusText->SetText(FText::FromString(SearchingFrames[SearchingTextFrame]));
+	SearchingTextFrame = (SearchingTextFrame + 1) % UE_ARRAY_COUNT(SearchingFrames);
+}
+
+void UTBSessionListWidget::StopSearchingTextAnimation()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(SearchingTextTimerHandle);
+	}
 }

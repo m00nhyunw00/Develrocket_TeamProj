@@ -41,6 +41,7 @@ public:
 	// 풀링 계약 ----------------------
 	virtual void OnPoolActivated_Implementation() override;       // [서버] 풀에서 꺼낼 때 살아있는 상태로 복구
 	virtual void OnPoolDeactivated_Implementation() override;     // [서버] 풀로 넣기 직전 정리
+	virtual void OnPoolReady() override;
 	
 protected:
 	virtual bool CanReceiveAttack(float Damage) const override;

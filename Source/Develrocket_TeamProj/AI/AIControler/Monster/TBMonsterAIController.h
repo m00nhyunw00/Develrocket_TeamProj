@@ -24,6 +24,7 @@ public:
 	void TryStartPendingInvestigation();
 	void PreserveTargetDuringStagger();
 	void RefreshTargetAfterStagger();
+	void DeactivateForPool();
 	void ReactivateFromPool();
 	
 protected:
@@ -81,5 +82,6 @@ private:
 	bool bPausedBrainForInvestigation = false;
 	bool bPreserveTargetDuringStagger = false;
 	bool bDamagePriorityTarget = false;
+	bool bPoolSuspended = false;
 	FTimerHandle SightDebugTimer;
 };
