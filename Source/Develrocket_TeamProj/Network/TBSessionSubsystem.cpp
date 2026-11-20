@@ -40,6 +40,7 @@ void UTBSessionSubsystem::HostSession(int32 NumPublicConnections)
 	if (!SessionInterface.IsValid())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[TBSession] HostSession Failed: SessionInterface invalid"));
+		OnTBHostSessionFailed.Broadcast();
 		return;
 	}
 	
@@ -64,6 +65,7 @@ void UTBSessionSubsystem::HostSession(int32 NumPublicConnections)
 	{
 		SessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegateHandle);
 		UE_LOG(LogTemp, Warning, TEXT("[TBSession] CreateSession request failed"));
+		OnTBHostSessionFailed.Broadcast();
 	}
 }
 
@@ -119,6 +121,7 @@ void UTBSessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSu
 	
 	if (!bWasSuccessful)
 	{
+		OnTBHostSessionFailed.Broadcast();
 		return;
 	}
 	

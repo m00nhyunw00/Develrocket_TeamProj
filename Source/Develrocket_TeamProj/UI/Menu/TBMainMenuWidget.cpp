@@ -41,6 +41,34 @@ void UTBMainMenuWidget::NativeConstruct()
 		PlayAnimation(PressBlinkAnim, 0.f, 0);
 	}
 	SetKeyboardFocus();
+	
+	// 시작 상태는 무조건 Pop up이 보이지 않아야함
+	SetHostingPopupVisible(false);
+	
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UTBSessionSubsystem* Session = GI->GetSubsystem<UTBSessionSubsystem>())
+		{
+			Session->OnTBHostSessionFailed.AddUObject(this, &*UTBMainMenuWidget::HandleHostSessionFailed());
+		}
+	}
+}
+
+void UTBMainMenuWidget::NativeDestruct()
+{
+	if (UGameInstance* GI = GetGameInstance())
+	{	
+		if (UTBSessionSubsystem* Session = GI->GetSubsystem<UTBSessionSubsystem>())
+		{
+			Session->OnTBHostSessionFailed.RemoveAll(this);
+		}
+	}	
+	Super::NativeDestruct();
+}
+
+void UTBMainMenuWidget::HandleHostSessionFailed()
+{
+	SetHostingPopupVisible(false);
 }
 
 FReply UTBMainMenuWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
@@ -78,13 +106,15 @@ void UTBMainMenuWidget::ShowMenuButtons()
 
 void UTBMainMenuWidget::OnHostButtonClicked()
 {
-	if (UGameInstance* GI = GetGameInstance())
+	UGameInstance* GI = GetGameInstance();
+	UTBSessionSubsystem* Session = GI ? GI->GetSubsystem<UTBSessionSubsystem>() : nullptr;
+	if (!Session)
 	{
-		if (UTBSessionSubsystem* Session = GI->GetSubsystem<UTBSessionSubsystem>())
-		{
-			Session->HostSession(MaxPlayers);
-		}
+		return;
 	}
+	
+	SetHostingPopupVisible(true);
+	Session->HostSession(MaxPlayers);
 }
 
 void UTBMainMenuWidget::OnJoinButtonClicked()
@@ -107,4 +137,15 @@ void UTBMainMenuWidget::HandleSessionListBack()
 	{
 		MenuSwitcher->SetActiveWidgetIndex(1);   // 버튼 화면
 	}
+}
+
+void UTBMainMenuWidget::SetHostingPopupVisible(bool bVisible)
+{
+	if (HostingPopup)
+	{
+		HostingPopup->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	// 팝업이 떠있는 동안 중복 클릭 방지
+	if (HostButton) HostButton->SetIsEnabled(!bVisible);
+	if (JoinButton) JoinButton->SetIsEnabled(!bVisible);
 }
