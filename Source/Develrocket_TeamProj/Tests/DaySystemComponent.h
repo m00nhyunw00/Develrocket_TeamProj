@@ -3,9 +3,13 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameFramework/Actor.h"
+#include "Templates/SubclassOf.h"
 #include "DaySystemComponent.generated.h"
 
 class ADirectionalLight;
+class ATBLevelManager;
+class UDirectionalLightComponent;
+class UGameplayEffect;
 
 USTRUCT()
 struct FDayCycleState
@@ -51,6 +55,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Day System")
 	void SetDirectionalLight(ADirectionalLight* InLight);
 
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Day System")
+    void SetSunLightComponent(UDirectionalLightComponent* InLight);
+
 	UFUNCTION(BlueprintPure, Category="Day System")
 	bool IsSunTraceClear() const { return bSunTraceClear; }
 
@@ -79,7 +86,19 @@ protected:
 	FVector TraceStartOffset = FVector(0.0, 0.0, 50.0);
 
 	UPROPERTY(EditAnywhere, Category="Day System|Debug")
-	bool bDrawDebugTrace = true;
+    bool bDrawDebugTrace = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Day System|Sunlight Damage")
+    bool bEnableSunlightDamage = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Day System|Sunlight Damage")
+    TSubclassOf<UGameplayEffect> SunlightDamageEffect;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Day System|Sunlight Damage", meta=(ClampMin="0.0"))
+    float SunlightDamagePerSecond = 5.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Day System|Sunlight Damage", meta=(ClampMin="0.0", Units="s"))
+    float SunlightExposureGracePeriod = 0.5f;
 
 	// 현실 시간 기준 태양 한 바퀴에 걸리는 시간
 	UPROPERTY(EditDefaultsOnly, Category="Day System|Sun", meta=(ClampMin="1.0", Units="s"))
@@ -88,6 +107,8 @@ protected:
 private:
 	void TraceSunlight();
 	void EnsureDayCycleController();
+    UDirectionalLightComponent* ResolveSunLight(double Now);
+    void UpdateSunlightDamage(double Now);
 
 	UFUNCTION(NetMulticast, Unreliable)
 	void MulticastDrawTrace(FVector Start, FVector End, bool bClear);
@@ -98,5 +119,10 @@ private:
 	UPROPERTY(Replicated)
 	bool bHasValidSunTrace = false;
 
+    TWeakObjectPtr<UDirectionalLightComponent> ExplicitSunLight;
+    TWeakObjectPtr<UDirectionalLightComponent> CitySunLight;
+    TWeakObjectPtr<ATBLevelManager> LevelManager;
+    double NextSunSearchTime = 0.0;
+    TOptional<double> NextSunlightDamageTime;
 	FTimerHandle TraceTimer;
 };

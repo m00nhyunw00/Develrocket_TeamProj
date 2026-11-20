@@ -17,8 +17,22 @@ public:
 
 protected:
 	virtual void NativeOnInitialized() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 	// A Blueprint child may provide a ProgressBar with this name.
 	UPROPERTY(meta=(BindWidgetOptional), BlueprintReadOnly, Category="Blood Bar")
 	TObjectPtr<UProgressBar> BloodBar;
+
+	// Blueprint layouts can place this bar directly behind BloodBar.
+	UPROPERTY(meta=(BindWidgetOptional), BlueprintReadOnly, Category="Blood Bar")
+	TObjectPtr<UProgressBar> DamageBar;
+
+private:
+	void UpdateDamageBar(double Now);
+
+	float BloodPercent = 0.0f;
+	float LastMaxBlood = 0.0f;
+	float DamageStartPercent = 0.0f;
+	float DamagePercent = 0.0f;
+	double DamageStartTime = 0.0;
 };
