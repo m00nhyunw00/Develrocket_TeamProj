@@ -1,41 +1,21 @@
 ﻿#include "TBGameplayAbility_Hitscan.h"
 
-#include "AbilitySystemGlobals.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "Character/Player/TBPlayer.h"
 #include "Framework/TBPlayerState.h"
 #include "GameplayEffect.h"
 #include "TBGameplayTags.h"
-#include "Character/Human/TBCitizen.h"
-#include "Character/Monster/TBMonster.h"
 
 UTBGameplayAbility_Hitscan::UTBGameplayAbility_Hitscan()
 {
-    // SetAssetTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat_PrimaryAttack));
+    // 기존 기본 공격의 피해량 조회 기본값; 기능별 BP에서 변경 가능
+    AttackId = TBGameplayTags::Ability_Combat_PrimaryAttack;
 
-    // 소유 클라이언트 예측 실행 및 서버 검증
-    NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-
-    // 발사 시작 시 비용 및 쿨다운 적용
-    bCommitOnActivate = true;
-
-    // 일반 공격의 상태 및 실행 제한
     ActivationOwnedTags.AddTag(TBGameplayTags::State_Combat);
-
-    ActivationBlockedTags.AddTag(TBGameplayTags::State_Combat);
-    ActivationBlockedTags.AddTag(TBGameplayTags::State_Dead);
-    ActivationBlockedTags.AddTag(TBGameplayTags::State_Stunned);
-    ActivationBlockedTags.AddTag(TBGameplayTags::State_Draining);
     
     BulletTrailCueTag = TBGameplayTags::GameplayCue_Weapon_BloodTrail;
     DefaultImpactCueTag = TBGameplayTags::GameplayCue_Impact_Blood_World;
 
-    DamageTypeTag = TBGameplayTags::Damage_Type_Bullet;
-    AllowedTargetClasses = {
-        ATBPlayer::StaticClass(),
-        ATBMonster::StaticClass(),
-        ATBCitizen::StaticClass()
-    };
 }
 
 void UTBGameplayAbility_Hitscan::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -139,35 +119,11 @@ void UTBGameplayAbility_Hitscan::ApplyCooldown(const FGameplayAbilitySpecHandle 
 
 void UTBGameplayAbility_Hitscan::HandleHitscanHit(const FHitResult& HitResult)
 {
+    if (!IsAllowedAttackHit(HitResult))
+    {
+        return;
+    }
+
     ATBCharacterBase* Attacker = Cast<ATBCharacterBase>(GetAvatarActorFromActorInfo());
-    AActor* Target = HitResult.GetActor();
-
-    if (!IsActive() || !IsValid(Attacker) || !Attacker->HasAuthority()
-        || Attacker->IsActionBlocked() || !IsValid(Target) || Target == Attacker
-        || !Target->Implements<UTBHitInterface>())
-    {
-        return;
-    }
-
-    const bool bAllowedTarget = AllowedTargetClasses.ContainsByPredicate(
-        [Target](const TSubclassOf<AActor>& TargetClass)
-        {
-            return TargetClass.Get() && Target->IsA(TargetClass.Get());
-        });
-
-    if (!bAllowedTarget)
-    {
-        return;
-    }
-
-    UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
-
-    if (!IsValid(TargetASC) || TargetASC->GetAvatarActor() != Target
-        || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-        || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable))
-    {
-        return;
-    }
-
-    Attacker->ApplyHitscanDamage(HitResult, DamageTypeTag);
+    Attacker->ApplyHitscanDamage(HitResult, CurrentAttackData);
 }

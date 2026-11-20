@@ -148,7 +148,7 @@ void UTBGameplayAbility_Monster_Charge::UpdateCharge()
 			&& !OtherASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable)
 			&& Other->GetClass()->ImplementsInterface(UTBHitInterface::StaticClass()))
 		{
-			ITBHitInterface::Execute_ReceiveAttackHit(Other, FGameplayTag(), AttackDamage, Monster, Hit);
+			ITBHitInterface::Execute_ReceiveAttackHit(Other, AttackDamage, Monster, Hit);
 		}
 		FinishCharge(false);
 		return;

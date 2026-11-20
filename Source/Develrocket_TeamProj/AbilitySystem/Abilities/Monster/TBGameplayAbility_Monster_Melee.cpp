@@ -97,7 +97,7 @@ void UTBGameplayAbility_Monster_Melee::CheckHitWindow()
 				FHitResult HitResult;
 				HitResult.Location = Capsule->GetComponentLocation();
 				HitResult.ImpactPoint = HitResult.Location;
-				if (ITBHitInterface::Execute_ReceiveAttackHit(Target, FGameplayTag(), AttackDamage, Monster, HitResult))
+				if (ITBHitInterface::Execute_ReceiveAttackHit(Target, AttackDamage, Monster, HitResult))
 				{
 					bTargetHit = true;
 					EndHitWindow();

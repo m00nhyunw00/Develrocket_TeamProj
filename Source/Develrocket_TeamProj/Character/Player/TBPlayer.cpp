@@ -8,6 +8,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
+#include "TBAttackData.h"
 #include "TBGameplayTags.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
@@ -241,8 +242,7 @@ void ATBPlayer::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 
 bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
 {
-    // 기존 Blueprint 호출도 공통 피격 경로로 전달한다.
-    return ReceiveAttackHit_Implementation(FGameplayTag(), Damage, DamageSource, FHitResult());
+    return ReceiveAttackHit_Implementation(Damage, DamageSource, FHitResult());
 }
 
 void ATBPlayer::ResetInputForDraining()
@@ -387,73 +387,66 @@ FHitResult ATBPlayer::TraceHitscanShot(const FGameplayTag& TrailCueTag, const FG
     return HitResult;
 }
 
-bool ATBPlayer::ApplyHitscanDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag)
+bool ATBPlayer::GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) const
 {
-	if (!HasAuthority() || IsDead() || IsActionBlocked())
+	OutDamage = 0.0f;
+
+	const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+
+	if (!HasAuthority() || !IsValid(PS)
+		|| !PS->IsGameplayDataInitialized() || !IsValid(ASC)
+		|| ASC != PS->GetAbilitySystemComponent()
+		|| ASC->GetAvatarActor() != this)
+	{
+		return false;
+	}
+
+	return PS->GetAttackDamage(AttackId, OutDamage);
+}
+
+bool ATBPlayer::ApplyHitscanDamage(const FHitResult& HitResult, float Damage)
+{
+	return !IsActionBlocked() && ApplyAttackDamage(HitResult, Damage);
+}
+
+bool ATBPlayer::ApplyMeleeDamage(const FHitResult& HitResult, float Damage)
+{
+	return !IsActionBlocked() && ApplyAttackDamage(HitResult, Damage);
+}
+
+bool ATBPlayer::ApplyProjectileDamage(const FHitResult& HitResult, float Damage)
+{
+	return ApplyAttackDamage(HitResult, Damage);
+}
+
+bool ATBPlayer::ApplyAttackDamage(const FHitResult& HitResult, float Damage)
+{
+	if (!HasAuthority() || IsDead() || !FMath::IsFinite(Damage) || Damage <= 0.0f)
 	{
 		return false;
 	}
 
 	const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
-	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponent();
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 
-	if (!IsValid(PS) || !PS->IsGameplayDataInitialized() || !IsValid(PlayerASC)
-		|| !GetController() || PlayerASC != PS->GetAbilitySystemComponent()
-		|| PlayerASC->GetAvatarActor() != this)
+	if (!IsValid(PS) || !PS->IsGameplayDataInitialized()
+		|| !IsValid(ASC) || !GetController()
+		|| ASC != PS->GetAbilitySystemComponent()
+		|| ASC->GetAvatarActor() != this)
 	{
 		return false;
 	}
 
 	AActor* Target = HitResult.GetActor();
-	const float Damage = PS->GetPrimaryAttackDamage();
 
-	if (!IsValid(Target) || Target == this || !Target->Implements<UTBHitInterface>() || !FMath::IsFinite(Damage) || Damage <= 0.0f)
+	if (!IsValid(Target) || Target == this || !Target->Implements<UTBHitInterface>())
 	{
 		return false;
 	}
 
-	return ITBHitInterface::Execute_ReceiveAttackHit(Target, DamageTypeTag, Damage, this, HitResult);
-}
-
-bool ATBPlayer::ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag)
-{
-	// 서버 판정 및 공격자 상태 검증
-	if (!HasAuthority() || IsDead() || IsActionBlocked())
-	{
-		return false;
-	}
-
-	const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
-	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponent();
-
-	// PlayerState 초기화 및 ASC 유효성 검증
-	if (!IsValid(PS) || !PS->IsGameplayDataInitialized() || !IsValid(PlayerASC) || !GetController())
-	{
-		return false;
-	}
-
-	// 현재 캐릭터의 ASC 연결 검증
-	if (PlayerASC != PS->GetAbilitySystemComponent() || PlayerASC->GetAvatarActor() != this)
-	{
-		return false;
-	}
-
-	// 기본 공격처럼 공격 처리 함수 안에서 PlayerState 조회
-	const float Damage = PS->GetMeleeAttackDamage();
-
-	if (!FMath::IsFinite(Damage) || Damage <= 0.0f)
-	{
-		return false;
-	}
-
-	AActor* HitActor = HitResult.GetActor();
-
-	if (!IsValid(HitActor) || HitActor == this || !HitActor->Implements<UTBHitInterface>())
-	{
-		return false;
-	}
-
-	return ITBHitInterface::Execute_ReceiveAttackHit(HitActor, DamageTypeTag, Damage, this, HitResult);
+	// 명중 시 PS에서 다시 조회하지 않고 전달받은 피해량 사용
+	return ITBHitInterface::Execute_ReceiveAttackHit(Target, Damage, this, HitResult);
 }
 
 // 빙의 및 네트워크 초기화 ----------------------

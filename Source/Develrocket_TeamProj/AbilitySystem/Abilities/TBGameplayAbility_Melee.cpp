@@ -1,36 +1,19 @@
 ﻿#include "AbilitySystem/Abilities/TBGameplayAbility_Melee.h"
 
-#include "AbilitySystemComponent.h"
-#include "AbilitySystemGlobals.h"
 #include "Character/TBCharacterBase.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/TBMeleeTraceComponent.h"
-#include "Interface/TBHitInterface.h"
 #include "TBGameplayTags.h"
-#include "Character/Human/TBCitizen.h"
-#include "Character/Monster/TBMonster.h"
-#include "Character/Player/TBPlayer.h"
 
 UTBGameplayAbility_Melee::UTBGameplayAbility_Melee()
 {
     // 근접 공격 입력에서 찾을 어빌리티 태그
     SetAssetTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat_Melee));
 
-    // 플레이어의 애니메이션 예측 실행 지원
-    NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
+    // 기존 F키 공격의 피해량 조회 기본값; 기능별 BP에서 변경 가능
+    AttackId = TBGameplayTags::Ability_Combat_Melee;
 
     ActivationOwnedTags.AddTag(TBGameplayTags::State_Combat);
-
-    ActivationBlockedTags.AddTag(TBGameplayTags::State_Combat);
-    ActivationBlockedTags.AddTag(TBGameplayTags::State_Dead);
-    ActivationBlockedTags.AddTag(TBGameplayTags::State_Stunned);
-    ActivationBlockedTags.AddTag(TBGameplayTags::State_Draining);
-    
-    AllowedTargetClasses = {
-        ATBPlayer::StaticClass(),
-        ATBMonster::StaticClass(),
-        ATBCitizen::StaticClass()
-    };
 }
 
 void UTBGameplayAbility_Melee::ActivateAbility(
@@ -71,47 +54,19 @@ void UTBGameplayAbility_Melee::ActivateAbility(
         HitDelegateHandle = Trace->OnHit.AddUObject(this, &ThisClass::HandleMeleeHit);
     }
 
-    // 구독을 마친 뒤 Action에서 몽타주 재생
+    // 구독을 마친 뒤 Attack에서 피해량 확정 및 Action 몽타주 재생
     Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 }
 
 void UTBGameplayAbility_Melee::HandleMeleeHit(const FHitResult& HitResult)
 {
+    if (!IsAllowedAttackHit(HitResult))
+    {
+        return;
+    }
+
     ATBCharacterBase* Attacker = Cast<ATBCharacterBase>(GetAvatarActorFromActorInfo());
-    AActor* Target = HitResult.GetActor();
-
-    if (!IsActive() || !IsValid(Attacker)
-        || !Attacker->HasAuthority() || Attacker->IsActionBlocked()
-        || !IsValid(Target) || Target == Attacker
-        || !Target->Implements<UTBHitInterface>())
-    {
-        return;
-    }
-
-    // 공격별로 허용한 대상 클래스 확인
-    const bool bAllowedTarget = AllowedTargetClasses.ContainsByPredicate(
-        [Target](const TSubclassOf<AActor>& TargetClass)
-        {
-            return TargetClass.Get() && Target->IsA(TargetClass.Get());
-        });
-
-    if (!bAllowedTarget)
-    {
-        return;
-    }
-
-    UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
-
-    // 대상 ASC 연결 및 피격 가능 상태 확인
-    if (!IsValid(TargetASC) || TargetASC->GetAvatarActor() != Target
-        || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-        || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable))
-    {
-        return;
-    }
-
-    // 공격 캐릭터에서 피해량 조회 및 대상 피격 요청
-    Attacker->ApplyMeleeDamage(HitResult, DamageTypeTag);
+    Attacker->ApplyMeleeDamage(HitResult, CurrentAttackData);
 }
 
 void UTBGameplayAbility_Melee::EndAbility(

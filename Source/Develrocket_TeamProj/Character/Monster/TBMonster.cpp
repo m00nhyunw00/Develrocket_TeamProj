@@ -123,7 +123,7 @@ bool ATBMonster::IsDead() const
 bool ATBMonster::ApplyDamage(float Damage, AActor* DamageSource)
 {
     // 기존 Blueprint 호출도 공통 피격 경로로 전달한다.
-    return ReceiveAttackHit_Implementation(FGameplayTag(), Damage, DamageSource, FHitResult());
+    return ReceiveAttackHit_Implementation(Damage, DamageSource, FHitResult());
 }
 
 // 게임플레이 초기화가 끝난 살아 있는 몬스터만 피해를 받는다.
