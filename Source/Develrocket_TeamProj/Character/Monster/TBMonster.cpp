@@ -161,7 +161,7 @@ bool ATBMonster::ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTa
 		return false;
 	}
 	
-	return ITBHitInterface::Execute_ReceiveAttackHit(HitActor, DamageTypeTag, Damage, this, HitResult);
+	return ITBHitInterface::Execute_ReceiveAttackHit(HitActor, Damage, this, HitResult);
 }
 
 // 게임플레이 초기화가 끝난 살아 있는 몬스터만 피해를 받는다.
