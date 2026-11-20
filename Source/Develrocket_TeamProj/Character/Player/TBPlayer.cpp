@@ -8,7 +8,6 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
-#include "TBAttackData.h"
 #include "TBGameplayTags.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
@@ -277,7 +276,11 @@ TSubclassOf<UGameplayEffect> ATBPlayer::GetAttackDamageEffect() const
     return IsValid(PS) ? PS->GetDamageEffectClass() : nullptr;
 }
 
-FHitResult ATBPlayer::TraceHitscanShot(const FGameplayTag& TrailCueTag, const FGameplayTag& DefaultImpactCueTag)
+FHitResult ATBPlayer::TraceHitscanShot(
+    const FGameplayTag& TrailCueTag,
+    const FGameplayTag& DefaultImpactCueTag,
+    float TraceRange,
+    bool bDrawTrace)
 {
     FHitResult HitResult;
 
@@ -292,40 +295,44 @@ FHitResult ATBPlayer::TraceHitscanShot(const FGameplayTag& TrailCueTag, const FG
     UWorld* World = GetWorld();
 
     // PlayerState 초기화 및 공격에 필요한 객체 검증
-    if (!IsValid(PS) || !PS->IsGameplayDataInitialized() || !IsValid(PlayerASC) || !World || !GetController())
+    if (!IsValid(PS) || !PS->IsGameplayDataInitialized()
+        || !IsValid(PlayerASC) || !World || !GetController())
     {
         return HitResult;
     }
 
     // 현재 캐릭터와 PlayerState의 ASC 연결 검증
-    if (PlayerASC != PS->GetAbilitySystemComponent() || PlayerASC->GetAvatarActor() != this)
+    if (PlayerASC != PS->GetAbilitySystemComponent()
+        || PlayerASC->GetAvatarActor() != this)
     {
         return HitResult;
     }
 
-    // 발사에 사용할 공격 설정 검증
-    const float Damage = PS->GetPrimaryAttackDamage();
-    const float TraceRange = PS->GetPrimaryAttackRange();
-
-    if (!FMath::IsFinite(Damage) || Damage <= 0.0f || !FMath::IsFinite(TraceRange) || TraceRange <= 0.0f)
+    // 호출부에서 전달한 사거리 검증
+    if (!FMath::IsFinite(TraceRange) || TraceRange <= 0.0f)
     {
         return HitResult;
     }
 
-    // 서버의 눈 위치와 조준 방향으로 트레이스 구간 계산
+    // 서버의 눈 위치와 조준 방향
     FVector TraceStart;
     FRotator TraceRotation;
     GetActorEyesViewPoint(TraceStart, TraceRotation);
 
-    const FVector TraceEnd = TraceStart + TraceRotation.Vector() * TraceRange;
+    const FVector TraceEnd =
+        TraceStart + TraceRotation.Vector() * TraceRange;
 
     // 프로젝트의 HitscanTrace 채널로 첫 차단 지점 검사
     constexpr ECollisionChannel HitscanTraceChannel = ECC_GameTraceChannel2;
-    const bool bBlockingHit = LineTraceByChannel(HitResult, TraceStart, TraceEnd, HitscanTraceChannel);
 
-    // 명중 시 충돌 지점, 빗나가면 최대 사거리까지 궤적 표시
-    const FVector TrailEnd = bBlockingHit ? FVector(HitResult.ImpactPoint) : TraceEnd;
+    const bool bBlockingHit =
+        LineTraceByChannel(HitResult, TraceStart, TraceEnd, HitscanTraceChannel);
 
+    // 명중 시 충돌 지점, 빗나가면 최대 사거리 끝점
+    const FVector TrailEnd =
+        bBlockingHit ? FVector(HitResult.ImpactPoint) : TraceEnd;
+
+    // 명중 여부와 관계없이 발사 궤적 연출
     if (TrailCueTag.IsValid())
     {
         FGameplayCueParameters TrailParameters;
@@ -333,35 +340,47 @@ FHitResult ATBPlayer::TraceHitscanShot(const FGameplayTag& TrailCueTag, const FG
         TrailParameters.Instigator = this;
         TrailParameters.EffectCauser = this;
 
-        // 서버에서 실행한 궤적 Cue가 발사자에게도 전달되도록 예측 키 분리
-        FScopedPredictionWindow CuePredictionWindow(PlayerASC, FPredictionKey(), false);
+        // 서버에서 실행한 궤적 Cue의 발사자 전달을 위한 예측 키 분리
+        FScopedPredictionWindow CuePredictionWindow(
+            PlayerASC, FPredictionKey(), false);
+
         PlayerASC->ExecuteGameplayCue(TrailCueTag, TrailParameters);
     }
 
     // 서버 트레이스 결과 디버그 표시
-    if (PS->ShouldDrawPrimaryAttackTrace())
+    if (bDrawTrace)
     {
-        const FColor TraceColor = bBlockingHit ? FColor::Red : FColor::Green;
-        DrawDebugLine(World, TraceStart, TrailEnd, TraceColor, false, 2.0f, 0, 1.5f);
+        const FColor TraceColor =
+            bBlockingHit ? FColor::Red : FColor::Green;
+
+        DrawDebugLine(
+            World, TraceStart, TrailEnd,
+            TraceColor, false, 2.0f, 0, 1.5f);
 
         if (bBlockingHit)
         {
-            DrawDebugPoint(World, HitResult.ImpactPoint, 12.0f, FColor::Yellow, false, 2.0f);
+            DrawDebugPoint(
+                World, HitResult.ImpactPoint,
+                12.0f, FColor::Yellow, false, 2.0f);
         }
     }
 
+    // 미명중 시 탄착 연출 없이 결과 반환
     if (!bBlockingHit)
     {
         return HitResult;
     }
 
-    // 월드 충돌에는 기본 탄착 Cue, 캐릭터 충돌에는 대상의 혈액 Cue 선택
+    // 비생명체에 사용할 기본 탄착 Cue
     FGameplayTag ImpactCueTag = DefaultImpactCueTag;
 
-    if (const ATBCharacterBase* HitCharacter = Cast<ATBCharacterBase>(HitResult.GetActor()))
+    // 캐릭터에 설정된 혈액 Cue 선택
+    if (const ATBCharacterBase* HitCharacter =
+        Cast<ATBCharacterBase>(HitResult.GetActor()))
     {
         ImpactCueTag = HitCharacter->GetBloodImpactCueTag();
 
+        // 혈액 Cue 미설정 시 기본 붉은 혈액 연출
         if (!ImpactCueTag.IsValid())
         {
             ImpactCueTag = TBGameplayTags::GameplayCue_Impact_Blood_Flesh_Red;
@@ -370,17 +389,23 @@ FHitResult ATBPlayer::TraceHitscanShot(const FGameplayTag& TrailCueTag, const FG
 
     if (ImpactCueTag.IsValid())
     {
-        // 충돌 컴포넌트와 본 정보를 탄착 Cue에 전달
-        FGameplayEffectContextHandle ImpactContext = PlayerASC->MakeEffectContext();
+        // 충돌 컴포넌트와 본 정보를 포함한 피격 정보
+        FGameplayEffectContextHandle ImpactContext =
+            PlayerASC->MakeEffectContext();
+
         ImpactContext.AddHitResult(HitResult, true);
 
+        // 피격 위치 및 표면 방향 전달
         FGameplayCueParameters ImpactParameters(ImpactContext);
         ImpactParameters.Location = HitResult.ImpactPoint;
         ImpactParameters.Normal = HitResult.ImpactNormal;
         ImpactParameters.Instigator = this;
         ImpactParameters.EffectCauser = this;
 
-        FScopedPredictionWindow ImpactPredictionWindow(PlayerASC, FPredictionKey(), false);
+        // 서버에서 실행한 탄착 Cue의 예측 키 분리
+        FScopedPredictionWindow ImpactPredictionWindow(
+            PlayerASC, FPredictionKey(), false);
+
         PlayerASC->ExecuteGameplayCue(ImpactCueTag, ImpactParameters);
     }
 

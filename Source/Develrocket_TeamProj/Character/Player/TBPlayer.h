@@ -48,7 +48,11 @@ public:
 	// 공격 및 피해 처리 ----------------------
 	
 	// 서버에서 한 발을 검사하고 궤적·탄착 연출 후 충돌 결과 반환
-	FHitResult TraceHitscanShot(const FGameplayTag& TrailCueTag, const FGameplayTag& DefaultImpactCueTag);
+	FHitResult TraceHitscanShot(
+	const FGameplayTag& TrailCueTag,
+	const FGameplayTag& DefaultImpactCueTag,
+	float TraceRange,
+	bool bDrawTrace);
 
 	// PlayerState의 공격별 피해량으로 대상 피격 요청
 	virtual bool GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) const override;

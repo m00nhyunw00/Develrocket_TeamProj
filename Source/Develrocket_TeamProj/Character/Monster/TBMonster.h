@@ -44,8 +44,11 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastPlayBoomEffect(UNiagaraSystem* Effect, FVector_NetQuantize Location);
 
+	// 근접 공격의 임시 고정 피해량 조회
+	virtual bool GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) const override;
+
 	// 서버에서 피해 GE를 적용하는 공통 진입점; 클라이언트 RPC가 아닌 권한 검사 함수
-	virtual bool ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag) override;
+	virtual bool ApplyMeleeDamage(const FHitResult& HitResult, float Damage) override;
 
 	UPROPERTY(BlueprintAssignable, Category = "Monster|State")
 	FTBMonsterDied OnMonsterDied;
