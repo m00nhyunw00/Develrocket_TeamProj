@@ -13,8 +13,15 @@ public:
 	virtual void Deinitialize() override;
 	
 private:
-	void OnPreLoadMap(const FString& Mapname);
+	void OnPreLoadMap(const FString & Mapname);
 	
 	UPROPERTY()
 	TSubclassOf<UUserWidget> LoadingWidgetClass;
+	
+	UPROPERTY()
+	TSubclassOf<UUserWidget> SpinnerWidgetClass;
+	
+	// 로딩 화면을 띄울 맵
+	FString LoadingScreenMapName = TEXT("L_Battlefield");
+	FString SpinnerMapName = TEXT("L_MatchWait");
 };

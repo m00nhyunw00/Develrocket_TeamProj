@@ -22,8 +22,7 @@ public class Develrocket_TeamProj : ModuleRules
 			"GameplayTags",
 			"GameplayTasks",
 			"AIModule",
-			"MoviePlayer",
-			"UMG"
+			"MoviePlayer"
 		});
 
 		PublicDependencyModuleNames.Add("PCG");
