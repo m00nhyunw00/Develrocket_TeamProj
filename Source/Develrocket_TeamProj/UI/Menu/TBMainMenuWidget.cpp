@@ -49,7 +49,7 @@ void UTBMainMenuWidget::NativeConstruct()
 	{
 		if (UTBSessionSubsystem* Session = GI->GetSubsystem<UTBSessionSubsystem>())
 		{
-			Session->OnTBHostSessionFailed.AddUObject(this, &*UTBMainMenuWidget::HandleHostSessionFailed());
+			Session->OnTBHostSessionFailed.AddUObject(this, &UTBMainMenuWidget::HandleHostSessionFailed);
 		}
 	}
 }
