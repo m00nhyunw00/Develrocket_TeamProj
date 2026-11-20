@@ -45,12 +45,8 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Leap", meta = (ClampMin = "0.0"))
 	float AttackDamage = 30.0f;
 
-	// Maximum horizontal steering speed; zero disables homing.
-	UPROPERTY(EditDefaultsOnly, Category = "Leap|Homing", meta = (ClampMin = "0.0", Units = "deg/s"))
-	float HomingTurnRate = 90.0f;
-
-	// Slow lateral movement near the target while continuing to steer.
-	UPROPERTY(EditDefaultsOnly, Category = "Leap|Homing", meta = (ClampMin = "0.0", Units = "cm", DisplayName = "Homing Slowdown Distance"))
+	// Slow horizontal movement near the leap target.
+	UPROPERTY(EditDefaultsOnly, Category = "Leap|Movement", meta = (ClampMin = "0.0", Units = "cm", DisplayName = "Slowdown Distance"))
 	float HomingStopDistance = 150.0f;
 
 private:
@@ -61,7 +57,7 @@ private:
 	void ApplyLeapContactDamage(AActor* OtherActor, const FHitResult& Hit);
 
 	UFUNCTION()
-	void UpdateLeapHoming(float DeltaSeconds, FVector OldLocation, FVector OldVelocity);
+	void UpdateLeapMovement(float DeltaSeconds, FVector OldLocation, FVector OldVelocity);
 
 	UFUNCTION()
 	void HandleLeapHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
@@ -72,11 +68,10 @@ private:
 	UFUNCTION()
 	void HandleLanded(const FHitResult& Hit);
 
-	// 한 번의 도약 동안 추적하는 시전자와 발동 시점의 목표 위치
+	// 도약 중 시전자와 접촉 판정 대상
 	TWeakObjectPtr<ATBMonster> LeapingMonster;
 	TWeakObjectPtr<const AActor> LeapTarget;
 	float LeapHorizontalSpeed = 0.f;
-	FVector LeapDestination = FVector::ZeroVector;
 	TWeakObjectPtr<USkeletalMeshComponent> AttackMesh;
 	EVisibilityBasedAnimTickOption PreviousTickOption{};
 	FTimerHandle AbilityTimeout;
@@ -85,4 +80,8 @@ private:
 	bool bLaunched = false;
 	bool bLanded = false;
 	bool bMontageCompleted = false;
+	bool bUsingAttackRotation = false;
+	bool bPreviousOrientRotationToMovement = false;
+	bool bPreviousUseControllerDesiredRotation = false;
+	bool bPreviousUseControllerRotationYaw = false;
 };

@@ -8,7 +8,10 @@ class UGameplayAbility;
 class UTBMonsterSkillSet;
 class UGameplayEffect;
 class UTBMonsterAttributeSet;
+class UTBMonsterMovementComponent;
 class ATBMonster;
+class UTBRotationComponent;
+class UNiagaraSystem;
 struct FAbilityEndedData;
 struct FGameplayTag;
 
@@ -35,6 +38,11 @@ public:
 	TSubclassOf<UGameplayAbility> GetMeleeAbilityClass() const { return MeleeAbilityClass; }
 	float GetMeleeAttackRange() const { return MeleeAttackRange; }
 	const UTBMonsterSkillSet* GetSkillSet() const { return SkillSet; }
+	UTBMonsterMovementComponent* GetMonsterMovement() const;
+	UTBRotationComponent* GetAttackRotationComponent() const { return AttackRotationComponent.Get(); }
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPlayBoomEffect(UNiagaraSystem* Effect, FVector_NetQuantize Location);
 
 	// 서버에서 피해 GE를 적용하는 공통 진입점; 클라이언트 RPC가 아닌 권한 검사 함수
 	virtual bool ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag) override;
@@ -55,9 +63,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Combat")
 	TSubclassOf<UGameplayAbility> MeleeAbilityClass;
 
-	// Distance between actor origins. Zero uses the behavior tree's attack range.
+	// Distance between actor origins. Zero disables melee attacks.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS|Combat", meta = (ClampMin = "0.0", Units = "cm"))
-	float MeleeAttackRange = 0.0f;
+	float MeleeAttackRange = 150.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|Rotation")
+	TObjectPtr<UTBRotationComponent> AttackRotationComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
 	TObjectPtr<UTBMonsterAttributeSet> MonsterAttributes;

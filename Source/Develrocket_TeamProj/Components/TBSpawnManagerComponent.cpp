@@ -97,11 +97,22 @@ void UTBSpawnManagerComponent::UpdatePools()
 	}
 }
 
+UTBSpawnManagerComponent* UTBSpawnManagerComponent::FindForActor(AActor* Actor)
+{
+	if (!IsValid(Actor) || !Actor->HasAuthority() || !Actor->GetWorld()) return nullptr;
+	ATBLevelManager* Manager = Cast<ATBLevelManager>(UGameplayStatics::GetActorOfClass(Actor, ATBLevelManager::StaticClass()));
+	return Manager ? Manager->FindComponentByClass<UTBSpawnManagerComponent>() : nullptr;
+}
+
+bool UTBSpawnManagerComponent::ReturnActorToPool(AActor* Actor)
+{
+	UTBSpawnManagerComponent* SpawnManager = FindForActor(Actor);
+	return IsValid(SpawnManager) && SpawnManager->ReturnToPool(Actor);
+}
+
 bool UTBSpawnManagerComponent::NotifyActorDied(AActor* Actor)
 {
-	if (!IsValid(Actor) || !Actor->HasAuthority() || !Actor->GetWorld()) return false;
-	ATBLevelManager* Manager = Cast<ATBLevelManager>(UGameplayStatics::GetActorOfClass(Actor, ATBLevelManager::StaticClass()));
-	UTBSpawnManagerComponent* SpawnManager = Manager ? Manager->FindComponentByClass<UTBSpawnManagerComponent>() : nullptr;
+	UTBSpawnManagerComponent* SpawnManager = FindForActor(Actor);
 	if (!IsValid(SpawnManager) || !IsValid(SpawnManager->PoolOwner)) return false;
 	for (const FTBSpawnPoolRuntime& Pool : SpawnManager->PoolOwner->RuntimeSpawnPools)
 	{

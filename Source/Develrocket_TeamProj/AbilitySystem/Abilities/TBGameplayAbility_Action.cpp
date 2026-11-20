@@ -142,7 +142,8 @@ void UTBGameplayAbility_Action::ActivateAbility(const FGameplayAbilitySpecHandle
     }
 
     // ASC를 통한 공통 전신 몽타주 재생
-    MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, ThirdPersonMontage, 1.0f, NAME_None, true);
+    MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, ThirdPersonMontage,
+        1.0f, NAME_None, true, 1.0f, 0.0f, ShouldAllowMontageInterruptAfterBlendOut());
 
     if (!MontageTask)
     {

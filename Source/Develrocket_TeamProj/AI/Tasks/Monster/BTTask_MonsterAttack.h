@@ -6,6 +6,8 @@
 #include "BTTask_MonsterAttack.generated.h"
 
 struct FAbilityEndedData;
+class ATBMonster;
+class UBlackboardComponent;
 
 // 블랙보드 타깃에 대한 공격 어빌리티 실행 및 종료 대기
 UCLASS()
@@ -15,16 +17,14 @@ class DEVELROCKET_TEAMPROJ_API UBTTask_MonsterAttack : public UBTTask_Blackboard
 
 public:
 	UBTTask_MonsterAttack();
+	bool HasUsableAttack(UBehaviorTreeComponent& OwnerComp) const;
 
 protected:
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	virtual EBTNodeResult::Type AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 
-	// Fallback distance when the monster does not override its melee attack range.
-	UPROPERTY(EditAnywhere, Category = "Attack", meta = (ClampMin = "0.0", Units = "cm"))
-	float AttackRange = 150.0f;
-
 private:
+	FGameplayAbilitySpecHandle FindUsableAttack(const ATBMonster* Monster, const UBlackboardComponent* Blackboard) const;
 	void HandleAbilityEnded(const FAbilityEndedData& EndedData);
 	void ClearAbilityBinding();
 	TWeakObjectPtr<class UAbilitySystemComponent> ActiveASC;

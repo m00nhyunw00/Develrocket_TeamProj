@@ -9,15 +9,27 @@
 #include "BrainComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/TBMonsterMovementComponent.h"
 #include "Components/TBSpawnManagerComponent.h"
+#include "Components/TBRotationComponent.h"
 #include "Components/TBBloodBarComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Abilities/GameplayAbility.h"
 #include "TBGameplayTags.h"
 #include "Interface/TBPoolInterface.h"
+#include "NiagaraFunctionLibrary.h"
 
-ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+void ATBMonster::MulticastPlayBoomEffect_Implementation(UNiagaraSystem* Effect, FVector_NetQuantize Location)
+{
+	if (Effect && GetNetMode() != NM_DedicatedServer)
+	{
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Effect, Location);
+	}
+}
+
+ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UTBMonsterMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
 	
 	// 몬스터가 직접 소유하는 ASC 생성
@@ -27,6 +39,7 @@ ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer) : Super(Obje
 
 	MonsterAttributes = CreateDefaultSubobject<UTBMonsterAttributeSet>(TEXT("MonsterAttributes"));
 	AbilitySystemComponent->AddAttributeSetSubobject(MonsterAttributes.Get());
+	AttackRotationComponent = CreateDefaultSubobject<UTBRotationComponent>(TEXT("MonsterAttackRotation"));
 
 	// 기본 AIController 사용 및 서버의 자동 빙의 설정
 	AIControllerClass = ATBMonsterAIController::StaticClass();
@@ -50,6 +63,11 @@ void ATBMonster::BeginPlay()
 
 	// 서버와 클라이언트에서 몬스터 자신을 ASC의 OwnerActor·AvatarActor로 연결
 	InitializeMonsterAbilitySystem();
+}
+
+UTBMonsterMovementComponent* ATBMonster::GetMonsterMovement() const
+{
+	return Cast<UTBMonsterMovementComponent>(GetCharacterMovement());
 }
 
 void ATBMonster::PossessedBy(AController* NewController)

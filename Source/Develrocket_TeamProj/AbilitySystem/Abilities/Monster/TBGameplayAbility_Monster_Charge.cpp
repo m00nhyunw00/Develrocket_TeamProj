@@ -10,7 +10,7 @@
 #include "Character/Player/TBPlayer.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Components/TBCharacterMovementComponent.h"
+#include "Components/TBMonsterMovementComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameplayEffectComponents/TargetTagsGameplayEffectComponent.h"
@@ -98,7 +98,7 @@ void UTBGameplayAbility_Monster_Charge::UpdateCharge()
 	ATBMonster* Monster = ChargingMonster.Get();
 	AActor* Target = ChargeTarget.Get();
 	UAbilitySystemComponent* ASC = Monster ? Monster->GetAbilitySystemComponent() : nullptr;
-	auto* Movement = Monster ? Cast<UTBCharacterMovementComponent>(Monster->GetCharacterMovement()) : nullptr;
+	auto* Movement = Monster ? Monster->GetMonsterMovement() : nullptr;
 	UAnimInstance* Anim = Monster && Monster->GetMesh() ? Monster->GetMesh()->GetAnimInstance() : nullptr;
 	if (!IsActive() || !IsValid(Monster) || Monster->IsDead() || !IsValid(Target) || !ASC || !Movement || !Anim
 		|| ASC->HasMatchingGameplayTag(TBGameplayTags::State_Stunned) || !Anim->Montage_IsPlaying(ThirdPersonMontage))
@@ -111,14 +111,11 @@ void UTBGameplayAbility_Monster_Charge::UpdateCharge()
 		if (Anim->Montage_GetCurrentSection(ThirdPersonMontage) != ChargeSection) return;
 		RemoveWindupEffect();
 		if (!IsActive()) return;
-		ChargeDirection = (Target->GetActorLocation() - Monster->GetActorLocation()).GetSafeNormal2D();
-		if (ChargeDirection.IsNearlyZero()) { FinishCharge(true); return; }
 		bCharging = true;
 		StartLocation = Monster->GetActorLocation();
 		ChargeStartTime = Monster->GetWorld()->GetTimeSeconds();
 		OriginalMaxWalkSpeed = Movement->MaxWalkSpeed;
 		Movement->MaxWalkSpeed = ChargeSpeed;
-		Monster->SetActorRotation(ChargeDirection.Rotation());
 	}
 	if (Monster->IsMovementBlocked())
 	{
@@ -136,7 +133,8 @@ void UTBGameplayAbility_Monster_Charge::UpdateCharge()
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(MonsterCharge), false, Monster);
 	FHitResult Hit;
 	const FVector Start = Capsule->GetComponentLocation();
-	const FVector End = Start + ChargeDirection * FMath::Max(25.f, ChargeSpeed * 0.06f);
+	const FVector Forward = Monster->GetActorForwardVector().GetSafeNormal2D();
+	const FVector End = Start + Forward * FMath::Max(25.f, ChargeSpeed * 0.06f);
 	const FCollisionShape Shape = FCollisionShape::MakeCapsule(FMath::Max(1.f, Capsule->GetScaledCapsuleRadius() - 2.f),
 		FMath::Max(1.f, Capsule->GetScaledCapsuleHalfHeight() - 2.f));
 	if (Monster->GetWorld()->SweepSingleByChannel(Hit, Start, End, FQuat::Identity, Capsule->GetCollisionObjectType(), Shape, Params))
@@ -155,7 +153,7 @@ void UTBGameplayAbility_Monster_Charge::UpdateCharge()
 	}
 	if (!Movement->HasChargeInput())
 	{
-		Movement->SetChargeInputDirection(ChargeDirection);
+		Movement->SetChargeMovementActive(true);
 		if (auto* Visibility = Monster->GetWorld()->GetSubsystem<UTBAIMovementVisibilitySubsystem>())
 		{
 			Visibility->RestoreMovementTick(*Monster);
@@ -190,9 +188,9 @@ void UTBGameplayAbility_Monster_Charge::EndAbility(FGameplayAbilitySpecHandle Ha
 		if (bSavedAnimTickOption && Monster->GetMesh()) Monster->GetMesh()->VisibilityBasedAnimTickOption = OriginalAnimTickOption;
 		if (bCharging)
 		{
-			if (auto* Movement = Cast<UTBCharacterMovementComponent>(Monster->GetCharacterMovement()))
+			if (auto* Movement = Monster->GetMonsterMovement())
 			{
-				Movement->SetChargeInputDirection(FVector::ZeroVector);
+				Movement->SetChargeMovementActive(false);
 				Movement->StopMovementImmediately();
 				Monster->ConsumeMovementInputVector();
 				Movement->MaxWalkSpeed = OriginalMaxWalkSpeed;

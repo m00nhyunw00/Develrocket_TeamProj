@@ -51,7 +51,6 @@ private:
 	TWeakObjectPtr<ATBMonster> ChargingMonster;
 	TWeakObjectPtr<AActor> ChargeTarget;
 	FTimerHandle ChargeTimer;
-	FVector ChargeDirection = FVector::ZeroVector;
 	FVector StartLocation = FVector::ZeroVector;
 	double ChargeStartTime = 0.0;
 	float OriginalMaxWalkSpeed = 0.f;

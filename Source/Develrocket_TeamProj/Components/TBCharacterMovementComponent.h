@@ -16,15 +16,7 @@ public:
 
 	virtual bool CanAttemptJump() const override;
 
-	virtual FVector ConsumeInputVector() override;
 
-	void SetChargeInputDirection(const FVector& Direction) { ChargeInputDirection = Direction; }
-	bool HasChargeInput() const { return !ChargeInputDirection.IsNearlyZero(); }
-	void SetLeapMovementActive(bool bActive) { bLeapMovementActive = bActive; }
-	bool HasActiveSkillMovement() const { return HasChargeInput() || bLeapMovementActive; }
-
-private:
+protected:
 	bool IsMovementBlockedByState() const;
-	FVector ChargeInputDirection = FVector::ZeroVector;
-	bool bLeapMovementActive = false;
 };
