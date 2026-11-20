@@ -25,11 +25,13 @@ public:
 	// Notify the owning pool that an actor died. Returns false for non-pooled actors.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Spawn|Pool")
 	static bool NotifyActorDied(AActor* Actor);
+	static bool ReturnActorToPool(AActor* Actor);
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	static UTBSpawnManagerComponent* FindForActor(AActor* Actor);
 
 	// 풀별 수량과 다음 시도 시각을 확인하고 재사용하거나 새로 생성합니다.
 	void UpdatePools();

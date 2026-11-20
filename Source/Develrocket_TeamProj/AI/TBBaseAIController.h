@@ -22,6 +22,7 @@ public:
 	virtual void OnUnPossess() override;
 
 protected:
+	void ResetPatrolState();
 	TWeakObjectPtr<ATBPatrolPoint> CurrentPatrolPoint;
 	TWeakObjectPtr<ATBPatrolPoint> PreviousPatrolPoint;
 	TWeakObjectPtr<ATBPatrolPoint> PendingPatrolPoint;

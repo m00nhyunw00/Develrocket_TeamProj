@@ -16,54 +16,66 @@ UBTTask_MonsterAttack::UBTTask_MonsterAttack()
 	BlackboardKey.SelectedKeyName = TEXT("TargetActor");
 }
 
-EBTNodeResult::Type UBTTask_MonsterAttack::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
+bool UBTTask_MonsterAttack::HasUsableAttack(UBehaviorTreeComponent& OwnerComp) const
 {
-	AAIController* Controller = OwnerComp.GetAIOwner();
-	ATBMonster* Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
-	const UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
-	AActor* Target = Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(BlackboardKey.SelectedKeyName)) : nullptr;
+	const AAIController* Controller = OwnerComp.GetAIOwner();
+	const ATBMonster* Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
+	return FindUsableAttack(Monster, OwnerComp.GetBlackboardComponent()).IsValid();
+}
+
+FGameplayAbilitySpecHandle UBTTask_MonsterAttack::FindUsableAttack(const ATBMonster* Monster, const UBlackboardComponent* Blackboard) const
+{
+	const AActor* Target = Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(BlackboardKey.SelectedKeyName)) : nullptr;
 	UAbilitySystemComponent* TargetASC = IsValid(Target) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target) : nullptr;
 
 	if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead()
 		|| !IsValid(TargetASC) || TargetASC->GetAvatarActor() != Target
 		|| TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
 	{
-		return EBTNodeResult::Failed;
+		return {};
 	}
 
-	const float MonsterRange = Monster->GetMeleeAttackRange();
-	const float EffectiveRange = MonsterRange == 0.0f ? AttackRange : MonsterRange;
-	if (!FMath::IsFinite(EffectiveRange) || EffectiveRange <= 0.0f
-		|| FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(EffectiveRange))
+	const float MeleeRange = Monster->GetMeleeAttackRange();
+	if (!FMath::IsFinite(MeleeRange) || MeleeRange <= 0.0f
+		|| FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(MeleeRange))
 	{
-		return EBTNodeResult::Failed;
+		return {};
 	}
 
 	UAbilitySystemComponent* ASC = Monster->GetAbilitySystemComponent();
-	// 근접 사거리를 기준으로 근접·도약 어빌리티 선택
 	const TSubclassOf<UGameplayAbility> AbilityClass = Monster->GetMeleeAbilityClass();
-	if (!IsValid(ASC) || ASC->GetAvatarActor() != Monster || !AbilityClass)
+	if (!IsValid(ASC) || ASC->GetAvatarActor() != Monster || !ASC->AbilityActorInfo.IsValid() || !AbilityClass)
 	{
-		return EBTNodeResult::Failed;
+		return {};
 	}
 
-	FGameplayAbilitySpec* Spec = ASC->FindAbilitySpecFromClass(AbilityClass);
-	if (!Spec || Spec->IsActive())
+	const FGameplayAbilitySpec* Spec = ASC->FindAbilitySpecFromClass(AbilityClass);
+	if (!Spec || !Spec->Ability || Spec->IsActive()
+		|| !Spec->Ability->CanActivateAbility(Spec->Handle, ASC->AbilityActorInfo.Get()))
 	{
-		return EBTNodeResult::Failed;
+		return {};
 	}
-	// 도약은 발동 조건 검증 후 어빌리티에서 이동 중단
+	return Spec->Handle;
+}
+
+EBTNodeResult::Type UBTTask_MonsterAttack::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
+{
+	AAIController* Controller = OwnerComp.GetAIOwner();
+	ATBMonster* Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
+	const FGameplayAbilitySpecHandle Handle = FindUsableAttack(Monster, OwnerComp.GetBlackboardComponent());
+	if (!Handle.IsValid()) return EBTNodeResult::Failed;
+
+	UAbilitySystemComponent* ASC = Monster->GetAbilitySystemComponent();
 	Controller->StopMovement();
 	Monster->GetCharacterMovement()->StopMovementImmediately();
 
 	ActiveASC = ASC;
 	ActiveTree = &OwnerComp;
-	ActiveHandle = Spec->Handle;
+	ActiveHandle = Handle;
 	bEndedDuringActivation = false;
 	bCancelledDuringActivation = false;
 	AbilityEndedHandle = ASC->OnAbilityEnded.AddUObject(this, &ThisClass::HandleAbilityEnded);
 	bActivating = true;
-	// 블랙보드 타깃을 GAS 이벤트로 도약 어빌리티에 전달
 	const bool bActivated = ASC->TryActivateAbility(ActiveHandle);
 	bActivating = false;
 	if (!bActivated || bEndedDuringActivation)

@@ -304,13 +304,15 @@ void ATBCitizen::OnPoolActivated_Implementation()
 	ResetVitals();                                   // 혈액 가득 + 출혈 제거
 	
 	SetCitizenState(ETBCitizenState::Idle);          // 태그 해제 + 모든 머신에서 충돌·이동 복구
+}
 
+void ATBCitizen::OnPoolReady()
+{
+	if (!HasAuthority()) return;
 	if (ATBCitizenAIController* CitizenAI = Cast<ATBCitizenAIController>(GetController()))
 	{
 		CitizenAI->ReactivateFromPool();
 	}
-
-	ForceNetUpdate();
 }
 
 void ATBCitizen::OnPoolDeactivated_Implementation()
@@ -322,6 +324,7 @@ void ATBCitizen::OnPoolDeactivated_Implementation()
 	if (BloodBarComponent) BloodBarComponent->ClearSelectionsForPooledActor();
 
 	GetWorldTimerManager().ClearTimer(CorpseTimer);
+	if (ATBCitizenAIController* CitizenAI = Cast<ATBCitizenAIController>(GetController())) CitizenAI->StopFleeing();
 	GetCharacterMovement()->StopMovementImmediately();
 	AbilitySystemComponent->CancelAllAbilities();
 	StopBleeding();

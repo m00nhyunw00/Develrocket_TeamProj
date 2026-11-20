@@ -40,6 +40,9 @@ protected:
 	virtual void HandleActionMontageCompleted();
 	virtual void HandleActionMontageInterrupted();
 	
+	// 몽타주 재생중 끊길 시 재생할 가상함수 ----------------------
+	virtual bool ShouldAllowMontageInterruptAfterBlendOut() const { return false; }
+	
 	// 3인칭 우선, 1인칭만 있으면 해당 몽타주의 완료 대기 ----------------------
 	// 몽타주가 없거나 false인 경우 자식에서 EndAbility 호출
 	virtual bool ShouldWaitForMontageEnd() const

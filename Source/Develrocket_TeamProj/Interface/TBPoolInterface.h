@@ -18,6 +18,9 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool")
 	void OnPoolActivated();
 
+	// Called on the server after collision and visibility have been restored.
+	virtual void OnPoolReady() {}
+
 	// 풀에 반환되기 전에 호출됩니다. 액터별 동작을 중지하고 필요한 상태를 정리합니다.
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool")
 	void OnPoolDeactivated();
