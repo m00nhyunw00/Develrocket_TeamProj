@@ -36,14 +36,29 @@ public:
 
 	void ApplyBloodRecovery();
 	
+	// 기능 태그에 해당하는 플레이어 공격력 조회 ----------------------
+	
+public:
+	// 기능 태그에 해당하는 플레이어 공격력 조회
+	bool GetAttackDamage(
+		const FGameplayTag& AttackId, float& OutDamage) const;
 
 protected:
 	// 기본 공격 피해량
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|PrimaryAttack", meta = (ClampMin = "0.0"))
 	float PrimaryAttackDamage = 10.0f;
-	
+
+	// F키 근접 공격 피해량
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|MeleeAttack", meta = (ClampMin = "0.0"))
 	float MeleeAttackDamage = 20.0f;
+
+	// 스킬1 피해량
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|Skill1", meta = (ClampMin = "0.0"))
+	float Skill1Damage = 0.0f;
+
+	// 스킬2 피해량
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|Skill2", meta = (ClampMin = "0.0"))
+	float Skill2Damage = 0.0f;
 
 	// 기본 공격 사거리(cm)
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|PrimaryAttack", meta = (ClampMin = "1.0"))

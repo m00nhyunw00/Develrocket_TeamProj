@@ -17,6 +17,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Abilities/GameplayAbility.h"
 #include "TBGameplayTags.h"
+#include "Interface/TBHitInterface.h"
 #include "Interface/TBPoolInterface.h"
 #include "NiagaraFunctionLibrary.h"
 
@@ -68,6 +69,42 @@ void ATBMonster::BeginPlay()
 UTBMonsterMovementComponent* ATBMonster::GetMonsterMovement() const
 {
 	return Cast<UTBMonsterMovementComponent>(GetCharacterMovement());
+}
+
+bool ATBMonster::GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) const
+{
+	if (AttackId == TBGameplayTags::Ability_Combat_Melee)
+	{
+		// 현재 근접 공격의 임시 고정 피해량
+		OutDamage = 20.0f;
+		return true;
+	}
+
+	return Super::GetAttackDamage(AttackId, OutDamage);
+}
+
+bool ATBMonster::ApplyMeleeDamage(const FHitResult& HitResult, float Damage)
+{
+	// 서버 판정 및 공격자 상태 검증
+	if (!HasAuthority() || IsDead() || IsActionBlocked())
+	{
+		return false;
+	}
+
+	// 어빌리티에서 전달한 피해량 검증
+	if (!FMath::IsFinite(Damage) || Damage <= 0.0f)
+	{
+		return false;
+	}
+
+	AActor* HitActor = HitResult.GetActor();
+
+	if (!IsValid(HitActor) || HitActor == this || !HitActor->Implements<UTBHitInterface>())
+	{
+		return false;
+	}
+
+	return ITBHitInterface::Execute_ReceiveAttackHit(HitActor, Damage, this, HitResult);
 }
 
 void ATBMonster::PossessedBy(AController* NewController)
@@ -136,32 +173,6 @@ void ATBMonster::InitializeGameplayData()
 bool ATBMonster::IsDead() const
 {
 	return AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
-}
-
-bool ATBMonster::ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag)
-{
-	// 서버 판정 및 공격자 상태 검증
-	if (!HasAuthority() || IsDead() || IsActionBlocked())
-	{
-		return false;
-	}
-
-	// 이거 반드시 수정해야해
-	float Damage = 20.f;
-
-	if (!FMath::IsFinite(Damage) || Damage <= 0.0f)
-	{
-		return false;
-	}
-
-	AActor* HitActor = HitResult.GetActor();
-
-	if (!IsValid(HitActor) || HitActor == this || !HitActor->Implements<UTBHitInterface>())
-	{
-		return false;
-	}
-	
-	return ITBHitInterface::Execute_ReceiveAttackHit(HitActor, DamageTypeTag, Damage, this, HitResult);
 }
 
 // 게임플레이 초기화가 끝난 살아 있는 몬스터만 피해를 받는다.
