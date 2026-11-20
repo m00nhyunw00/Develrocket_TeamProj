@@ -8,6 +8,7 @@ void UTBLoadingScreenSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	LoadingWidgetClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/_Game/Blueprints/UI/Loading/WBP_HostSpinner.WBP_HostSpinner_C"));
+	SpinnerWidgetClass = LoadingWidgetClass;
 	FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &UTBLoadingScreenSubsystem::OnPreLoadMap);
 }
 
