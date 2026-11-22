@@ -12,6 +12,7 @@
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "Components/DecalComponent.h"
 #include "Components/TBMeleeTraceComponent.h"
+#include "Projectiles/TBProjectile.h"
 
 // 기본 이동 컴포넌트를 프로젝트의 커스텀 클래스로 교체
 ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
@@ -63,14 +64,42 @@ UTBMeleeTraceComponent* ATBCharacterBase::GetMeleeTraceComponent() const
     return MeleeTraceComponent.Get();
 }
 
-bool ATBCharacterBase::ApplyHitscanDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag)
+bool ATBCharacterBase::GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) const
+{
+    OutDamage = 0.0f;
+    return false;
+}
+
+bool ATBCharacterBase::ApplyHitscanDamage(const FHitResult& HitResult, float Damage)
 {
     return false;
 }
 
-bool ATBCharacterBase::ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag)
+bool ATBCharacterBase::ApplyMeleeDamage(const FHitResult& HitResult, float Damage)
 {
     return false;
+}
+
+bool ATBCharacterBase::ApplyProjectileDamage(const FHitResult& HitResult, float Damage)
+{
+    return false;
+}
+
+ATBProjectile* ATBCharacterBase::SpawnAttackProjectile(TSubclassOf<ATBProjectile> ProjectileClass, const FTransform& SpawnTransform)
+{
+    UWorld* World = GetWorld();
+
+    if (!HasAuthority() || IsActionBlocked() || !World || !ProjectileClass || !SpawnTransform.IsValid())
+    {
+        return nullptr;
+    }
+
+    FActorSpawnParameters SpawnParameters;
+    SpawnParameters.Owner = this;
+    SpawnParameters.Instigator = this;
+    SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    return World->SpawnActor<ATBProjectile>(ProjectileClass, SpawnTransform, SpawnParameters);
 }
 
 UPrimitiveComponent* ATBCharacterBase::GetMeleeTraceMesh() const
@@ -147,7 +176,7 @@ void ATBCharacterBase::UninitializeAbilitySystem()
     }
 }
 
-bool ATBCharacterBase::ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage,
+bool ATBCharacterBase::ReceiveAttackHit_Implementation(float Damage,
     AActor* DamageSource, const FHitResult& HitResult)
 {
     // 피격 대상의 ASC와 자식 클래스가 지정한 피해 GE를 가져온다.

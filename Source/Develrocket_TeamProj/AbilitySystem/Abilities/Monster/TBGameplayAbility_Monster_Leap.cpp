@@ -231,7 +231,7 @@ void UTBGameplayAbility_Monster_Leap::ApplyLeapContactDamage(AActor* OtherActor,
 		ContactHit.Location = OtherActor->GetActorLocation();
 		ContactHit.ImpactPoint = ContactHit.Location;
 	}
-	ITBHitInterface::Execute_ReceiveAttackHit(OtherActor, FGameplayTag(), AttackDamage, Monster, ContactHit);
+	ITBHitInterface::Execute_ReceiveAttackHit(OtherActor, AttackDamage, Monster, ContactHit);
 }
 
 void UTBGameplayAbility_Monster_Leap::HandleLanded(const FHitResult& Hit)

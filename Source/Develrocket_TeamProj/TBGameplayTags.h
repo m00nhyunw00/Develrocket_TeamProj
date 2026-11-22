@@ -37,9 +37,6 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Interaction_Drain);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Interaction_Instant);
 	
-	// 데미지 타입 ----------------------
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Type_Bullet);
-	
 	// 데이터 타입 (SetByCaller용) ----------------------
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Reload_BloodCost);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Reload_LoadedGain);
