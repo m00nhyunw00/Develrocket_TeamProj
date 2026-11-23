@@ -19,6 +19,7 @@ void ACityLayoutCoordinator::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(ACityLayoutCoordinator, Layout);
+    DOREPLIFETIME(ACityLayoutCoordinator, DestroyedProps);
 }
 
 void ACityLayoutCoordinator::BeginPlay()
@@ -59,6 +60,8 @@ void ACityLayoutCoordinator::GenerateNewCity()
     if (!HasAuthority() || !bInitialized) return;
     Layout.Seed = static_cast<int32>(GetTypeHash(FGuid::NewGuid()) & 0x7fffffff);
     ++Layout.Revision;
+    DestroyedProps.Revision = Layout.Revision;
+    DestroyedProps.Props.Reset();
     ForceNetUpdate();
     ApplyLatestLayout();
 }
@@ -94,8 +97,10 @@ void ACityLayoutCoordinator::OnGenerated(UPCGComponent* Component)
         return;
     }
     CompletedRevision = GeneratingRevision;
-    BuildRoadFog();
+    AppliedDestroyedPropCount = 0;
+    CacheChargePropComponents();
     bLocalCityReady = true;
+    OnRep_DestroyedProps();
     UE_LOG(LogCityLayout, Display, TEXT("Ready world=%s role=%d seed=%d revision=%d"),
         *GetWorld()->GetName(), static_cast<int32>(GetLocalRole()), Layout.Seed, Layout.Revision);
     // 서버에서 도시 생성 완료 후 NavMesh 갱신 요청
