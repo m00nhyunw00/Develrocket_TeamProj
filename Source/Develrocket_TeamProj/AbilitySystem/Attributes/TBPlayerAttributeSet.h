@@ -35,6 +35,11 @@ public:
 	FGameplayAttributeData AmmoAtLastReload;
 	TB_ATTRIBUTE_ACCESSORS(ThisClass, AmmoAtLastReload)
 	
+	// 달리기와 강화가 합산하는 이동 속도 증가 비율
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_MoveSpeedBonus, Category = "Movement")
+	FGameplayAttributeData MoveSpeedBonus;
+	TB_ATTRIBUTE_ACCESSORS(ThisClass, MoveSpeedBonus)
+	
 protected:
 	virtual void ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const override;
 	
@@ -46,4 +51,7 @@ protected:
 	
 	UFUNCTION()
 	void OnRep_AmmoAtLastReload(const FGameplayAttributeData& OldValue);
+	
+	UFUNCTION()
+	void OnRep_MoveSpeedBonus(const FGameplayAttributeData& OldValue);
 };

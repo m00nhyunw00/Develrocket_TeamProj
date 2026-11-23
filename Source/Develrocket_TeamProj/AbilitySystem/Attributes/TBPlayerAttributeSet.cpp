@@ -8,6 +8,7 @@ UTBPlayerAttributeSet::UTBPlayerAttributeSet()
 	InitMaxLoadedBlood(20.0f);
 	InitLoadedBlood(20.0f);
 	InitAmmoAtLastReload(20.0f);
+	InitMoveSpeedBonus(0.0f);
 }
 
 void UTBPlayerAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -23,6 +24,8 @@ void UTBPlayerAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	DOREPLIFETIME_CONDITION_NOTIFY(UTBPlayerAttributeSet, MaxLoadedBlood, COND_OwnerOnly, REPNOTIFY_Always);
 
 	DOREPLIFETIME_CONDITION_NOTIFY(UTBPlayerAttributeSet, AmmoAtLastReload, COND_OwnerOnly, REPNOTIFY_Always);
+
+	DOREPLIFETIME_CONDITION_NOTIFY(UTBPlayerAttributeSet, MoveSpeedBonus, COND_None, REPNOTIFY_Always);
 }
 
 void UTBPlayerAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
@@ -68,4 +71,9 @@ void UTBPlayerAttributeSet::OnRep_MaxLoadedBlood(const FGameplayAttributeData& O
 void UTBPlayerAttributeSet::OnRep_AmmoAtLastReload(const FGameplayAttributeData& OldValue)
 {
 	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBPlayerAttributeSet, AmmoAtLastReload, OldValue);
+}
+
+void UTBPlayerAttributeSet::OnRep_MoveSpeedBonus(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UTBPlayerAttributeSet, MoveSpeedBonus, OldValue);
 }

@@ -199,27 +199,34 @@ void ATBPlayer::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 	}
 }
 
-void ATBPlayer::StartCameraRecoil(float InPitch, float InRiseTime, float InReturnTime)
+void ATBPlayer::StartCameraRecoil(
+	float InPitch, float InRiseTime, float InReturnTime)
 {
 	if (!IsLocallyControlled() || IsDead() || !GetWorld())
 	{
 		return;
 	}
 
-	// 어빌리티 기본 반동에 캐릭터 배율 적용
-	const float ShotPitch = FMath::Max(0.0f, InPitch) * FMath::Max(0.0f, RecoilMultiplier);
+	// 이번 발사의 조준 반동 배율
+	const float AimScale = IsAiming() ? FMath::Clamp(AimRecoilMultiplier, 0.0f, 1.0f) : 1.0f;
+
+	// 어빌리티 기본 반동에 캐릭터·조준 배율 적용
+	const float ShotPitch = FMath::Max(0.0f, InPitch) * FMath::Max(0.0f, RecoilMultiplier) * AimScale;
 
 	if (ShotPitch <= KINDA_SMALL_NUMBER)
 	{
 		return;
 	}
 
-	// 이전 반동의 현재 위치를 먼저 계산하여 연속 발사 시 튐 방지
+	// 현재 반동 위치에서 다음 반동으로 연결
 	RecoilStartPitch = GetCameraRecoilPitch();
 
-	RecoilPeakPitch = FMath::Clamp(RecoilStartPitch + ShotPitch,0.0f,FMath::Max(0.0f, MaxRecoilPitch));
+	// 조준 중 최대 누적 반동 제한
+	const float ShotMaxRecoilPitch = FMath::Max(0.0f, MaxRecoilPitch) * AimScale;
 
-	// 이번 어빌리티의 반동 시간 저장
+	RecoilPeakPitch = FMath::Clamp(RecoilStartPitch + ShotPitch, 0.0f, ShotMaxRecoilPitch);
+
+	// 이번 발사의 반동 상승·복귀 시간
 	ActiveRecoilRiseTime = FMath::Max(InRiseTime, 0.01f);
 	ActiveRecoilReturnTime = FMath::Max(InReturnTime, 0.01f);
 
@@ -230,12 +237,28 @@ void ATBPlayer::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 {
 	Super::CalcCamera(DeltaTime, OutResult);
 
-	if (!IsLocallyControlled() || IsDead())
+	if (!IsLocallyControlled())
 	{
 		return;
 	}
 
-	// 기존 카메라 시점에 반동 각도 추가
+	if (CurrentViewFOV <= 0.0f)
+	{
+		CurrentViewFOV = OutResult.FOV;
+	}
+
+	const float TargetFOV = IsAiming() ? AimFieldOfView : OutResult.FOV;
+
+	CurrentViewFOV = FMath::FInterpTo(CurrentViewFOV, TargetFOV, DeltaTime, AimInterpSpeed);
+
+	OutResult.FOV = CurrentViewFOV;
+
+	if (IsDead())
+	{
+		return;
+	}
+
+	// 발사 시 확정한 반동을 최종 카메라 회전에 반영
 	OutResult.Rotation.Pitch += GetCameraRecoilPitch();
 }
 
@@ -624,6 +647,24 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	{
 		EnhancedInput->BindAction(PauseAction, ETriggerEvent::Started, this, &ATBPlayer::InputPauseStarted);
 	}
+
+	if (SecondaryAction)
+	{
+		EnhancedInput->BindAction(SecondaryAction, ETriggerEvent::Started, this, &ATBPlayer::StartSecondaryAction);
+
+		EnhancedInput->BindAction(SecondaryAction, ETriggerEvent::Completed, this, &ATBPlayer::StopSecondaryAction);
+
+		EnhancedInput->BindAction(SecondaryAction, ETriggerEvent::Canceled, this, &ATBPlayer::StopSecondaryAction);
+	}
+
+	if (MobilityAction)
+	{
+		EnhancedInput->BindAction(MobilityAction, ETriggerEvent::Started, this, &ATBPlayer::StartMobility);
+
+		EnhancedInput->BindAction(MobilityAction, ETriggerEvent::Completed, this, &ATBPlayer::StopMobility);
+
+		EnhancedInput->BindAction(MobilityAction, ETriggerEvent::Canceled, this, &ATBPlayer::StopMobility);
+	}
 }
 
 // 점프·앉기 상태 전환 ----------------------
@@ -805,9 +846,13 @@ void ATBPlayer::InputLook(const FInputActionValue& Value)
 	}
 
 	const FVector2D Input = Value.Get<FVector2D>();
-	// 입력 X축을 좌우 시점, Y축을 상하 시점 회전에 적용
-	AddControllerYawInput(Input.X);
-	AddControllerPitchInput(Input.Y);
+
+	// 조준 상태에 따른 시점 입력 배율
+	const float SensitivityMultiplier = IsAiming() ? FMath::Clamp(AimLookSensitivityMultiplier, 0.01f, 1.0f) : 1.0f;
+
+	// 좌우·상하 시점 회전에 조준 감도 적용
+	AddControllerYawInput(Input.X * SensitivityMultiplier);
+	AddControllerPitchInput(Input.Y * SensitivityMultiplier);
 }
 
 // 점프 입력 처리 ----------------------
@@ -860,6 +905,130 @@ void ATBPlayer::InputCrouchStopped()
 	bCrouchInputHeld = false;
 
 	UnCrouch();
+}
+
+// 플레이어 공통 어빌리티 입력 전달 ----------------------
+
+void ATBPlayer::PressAbilityInput(const FGameplayTag& InputTag)
+{
+    if (!IsLocallyControlled() || IsActionBlocked())
+    {
+        return;
+    }
+
+    if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+    {
+        ASC->AbilityInputTagPressed(InputTag);
+    }
+}
+
+void ATBPlayer::ReleaseAbilityInput(const FGameplayTag& InputTag)
+{
+    // 행동 제한 상태에서도 입력 해제는 전달
+    if (!IsLocallyControlled())
+    {
+        return;
+    }
+
+    if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+    {
+        ASC->AbilityInputTagReleased(InputTag);
+    }
+}
+
+// 기본 공격 입력 요청 ----------------------
+
+void ATBPlayer::StartPrimaryAttack()
+{
+    if (!IsLocallyControlled())
+    {
+        return;
+    }
+
+    if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+    {
+        ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Combat_PrimaryAttack);
+    }
+}
+
+void ATBPlayer::StopPrimaryAttack()
+{
+    // 단발 공격은 입력 해제에 따른 추가 처리 없음
+    // 연사·차지 공격 구현 시 입력 해제 전달 추가
+}
+
+// 보조 행동 및 이동기 입력 요청 ----------------------
+
+void ATBPlayer::StartSecondaryAction()
+{
+    bSecondaryInputHeld = true;
+    PressAbilityInput(TBGameplayTags::Ability_Combat_SecondaryAction);
+}
+
+void ATBPlayer::StopSecondaryAction()
+{
+    bSecondaryInputHeld = false;
+    ReleaseAbilityInput(TBGameplayTags::Ability_Combat_SecondaryAction);
+}
+
+bool ATBPlayer::IsAiming() const
+{
+	const UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+
+	return IsValid(ASC)
+		&& !IsActionBlocked()
+		&& ASC->HasMatchingGameplayTag(TBGameplayTags::State_Aiming)
+		&& (!IsLocallyControlled() || IsSecondaryInputHeld());
+}
+
+void ATBPlayer::StartMobility()
+{
+    PressAbilityInput(TBGameplayTags::Ability_Combat_Mobility);
+}
+
+void ATBPlayer::StopMobility()
+{
+    ReleaseAbilityInput(TBGameplayTags::Ability_Combat_Mobility);
+}
+
+// 근접 공격 및 스킬 입력 요청 ----------------------
+
+void ATBPlayer::StartMeleeAttack()
+{
+    if (!IsLocallyControlled())
+    {
+        return;
+    }
+
+    if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+    {
+        ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Combat_Melee);
+    }
+}
+
+void ATBPlayer::StartSkill1()
+{
+    // 스킬 버튼을 눌렀을 때 호출
+    // 추후 스킬 Ability에 입력 시작 전달 또는 활성화 요청
+    // 예: 대시 즉시 실행, 차지 스킬 충전 시작, 유지형 스킬 사용 시작
+}
+
+void ATBPlayer::StopSkill1()
+{
+    // 스킬 버튼을 놓거나 입력이 취소됐을 때 호출
+    // 추후 스킬 Ability에 입력 해제 전달
+    // 예: 차지 스킬 충전 종료, 유지형 스킬 사용 중단
+    // 입력 해제 이후의 발동 또는 취소는 Ability에서 판단
+}
+
+void ATBPlayer::StartSkill2()
+{
+    PressAbilityInput(TBGameplayTags::Ability_Combat_Skill2);
+}
+
+void ATBPlayer::StopSkill2()
+{
+    ReleaseAbilityInput(TBGameplayTags::Ability_Combat_Skill2);
 }
 
 // 기본 공격 입력 전달 ----------------------

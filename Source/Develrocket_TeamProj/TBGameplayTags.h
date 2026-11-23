@@ -13,6 +13,8 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Bleeding);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combat);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Draining);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Aiming);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Sprinting);
 	
 	// 쿨다운 ----------------------
 	
@@ -24,10 +26,12 @@ namespace TBGameplayTags
 
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_PrimaryAttack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_SecondaryAction);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_Skill1);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_Skill2);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_Melee);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_Reload);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_Mobility);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Death);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_MonsterLeap);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_MonsterBoom);

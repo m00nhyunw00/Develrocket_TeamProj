@@ -26,6 +26,10 @@ public:
 	// Ability 활성화 ----------------------
 
 	bool TryActivateAbilityByTag(const FGameplayTag& AbilityTag);
+	
+	// 기능 태그에 해당하는 어빌리티의 입력 시작·해제 전달
+	void AbilityInputTagPressed(const FGameplayTag& InputTag);
+	void AbilityInputTagReleased(const FGameplayTag& InputTag);
 
 private:
 	// 서버에서 직접 부여한 기본 Ability의 핸들 기록

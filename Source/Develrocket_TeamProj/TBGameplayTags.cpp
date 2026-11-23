@@ -9,6 +9,8 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(State_Bleeding, "State.Bleeding");
 	UE_DEFINE_GAMEPLAY_TAG(State_Combat, "State.Combat");
 	UE_DEFINE_GAMEPLAY_TAG(State_Draining, "State.Draining");
+	UE_DEFINE_GAMEPLAY_TAG(State_Aiming, "State.Aiming");
+	UE_DEFINE_GAMEPLAY_TAG(State_Sprinting, "State.Sprinting");
 	
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_PrimaryAttack, "Cooldown.PrimaryAttack");
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_MonsterSkill, "Cooldown.MonsterSkill");
@@ -17,10 +19,13 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_MonsterLeap, "Ability.Combat.MonsterLeap");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_MonsterBoom, "Ability.Combat.MonsterBoom");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_PrimaryAttack, "Ability.Combat.PrimaryAttack");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_SecondaryAction, "Ability.Combat.SecondaryAction");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_Skill1, "Ability.Combat.Skill1");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_Skill2, "Ability.Combat.Skill2");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_Melee, "Ability.Combat.Melee");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_Reload, "Ability.Combat.Reload");
+
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat_Mobility, "Ability.Combat.Mobility");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Death, "Ability.Death");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Interaction, "Ability.Interaction");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Interaction_Drain, "Ability.Interaction.Drain");
