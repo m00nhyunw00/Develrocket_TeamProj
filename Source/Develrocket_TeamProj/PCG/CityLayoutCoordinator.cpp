@@ -33,6 +33,7 @@ void ACityLayoutCoordinator::BeginPlay()
     }
     CityPCG->OnPCGGraphGeneratedExternal.AddDynamic(this, &ACityLayoutCoordinator::OnGenerated);
     CityPCG->OnPCGGraphCancelledExternal.AddDynamic(this, &ACityLayoutCoordinator::OnCancelled);
+    CityPCG->OnPCGGraphCleanedExternal.AddDynamic(this, &ACityLayoutCoordinator::OnCleaned);
     // 복제된 배치 상태가 도착한 뒤 명시적으로 PCG 생성
     CityPCG->GenerationTrigger = EPCGComponentGenerationTrigger::GenerateOnDemand;
     CityPCG->CleanupLocalImmediate(true);
@@ -44,10 +45,12 @@ void ACityLayoutCoordinator::BeginPlay()
 void ACityLayoutCoordinator::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     bInitialized = false;
+    ClearRoadFog();
     if (CityPCG)
     {
         CityPCG->OnPCGGraphGeneratedExternal.RemoveDynamic(this, &ACityLayoutCoordinator::OnGenerated);
         CityPCG->OnPCGGraphCancelledExternal.RemoveDynamic(this, &ACityLayoutCoordinator::OnCancelled);
+        CityPCG->OnPCGGraphCleanedExternal.RemoveDynamic(this, &ACityLayoutCoordinator::OnCleaned);
     }
     Super::EndPlay(EndPlayReason);
 }
@@ -75,6 +78,7 @@ void ACityLayoutCoordinator::ApplyLatestLayout()
     if (HasAuthority() && CityNavMesh) CityNavMesh->InvalidateCityNavigation();
     // 진행 중인 이전 생성이 끝나면 완료 콜백에서 최신 세대 재적용
     if (CityPCG->IsGenerating() || CityPCG->IsCleaningUp()) return;
+    ClearRoadFog();
     CityPCG->CleanupLocalImmediate(true);
     CityPCG->Seed = Layout.Seed;
     GeneratingRevision = Layout.Revision;
@@ -102,6 +106,11 @@ void ACityLayoutCoordinator::OnGenerated(UPCGComponent* Component)
     // 서버에서 도시 생성 완료 후 NavMesh 갱신 요청
     if (HasAuthority() && CityNavMesh) CityNavMesh->RequestCityNavigationUpdate(CityVolume, Layout.Revision);
     OnLocalCityReady.Broadcast(Layout.Seed, Layout.Revision);
+}
+
+void ACityLayoutCoordinator::OnCleaned(UPCGComponent* Component)
+{
+    if (Component == CityPCG) ClearRoadFog();
 }
 
 void ACityLayoutCoordinator::OnCancelled(UPCGComponent* Component)

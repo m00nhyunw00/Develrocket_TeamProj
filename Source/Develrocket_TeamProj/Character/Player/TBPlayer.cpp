@@ -241,8 +241,7 @@ void ATBPlayer::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 
 bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
 {
-    // 기존 Blueprint 호출도 공통 피격 경로로 전달한다.
-    return ReceiveAttackHit_Implementation(FGameplayTag(), Damage, DamageSource, FHitResult());
+    return ReceiveAttackHit_Implementation(Damage, DamageSource, FHitResult());
 }
 
 void ATBPlayer::ResetInputForDraining()
@@ -277,7 +276,11 @@ TSubclassOf<UGameplayEffect> ATBPlayer::GetAttackDamageEffect() const
     return IsValid(PS) ? PS->GetDamageEffectClass() : nullptr;
 }
 
-FHitResult ATBPlayer::TraceHitscanShot(const FGameplayTag& TrailCueTag, const FGameplayTag& DefaultImpactCueTag)
+FHitResult ATBPlayer::TraceHitscanShot(
+    const FGameplayTag& TrailCueTag,
+    const FGameplayTag& DefaultImpactCueTag,
+    float TraceRange,
+    bool bDrawTrace)
 {
     FHitResult HitResult;
 
@@ -292,40 +295,44 @@ FHitResult ATBPlayer::TraceHitscanShot(const FGameplayTag& TrailCueTag, const FG
     UWorld* World = GetWorld();
 
     // PlayerState 초기화 및 공격에 필요한 객체 검증
-    if (!IsValid(PS) || !PS->IsGameplayDataInitialized() || !IsValid(PlayerASC) || !World || !GetController())
+    if (!IsValid(PS) || !PS->IsGameplayDataInitialized()
+        || !IsValid(PlayerASC) || !World || !GetController())
     {
         return HitResult;
     }
 
     // 현재 캐릭터와 PlayerState의 ASC 연결 검증
-    if (PlayerASC != PS->GetAbilitySystemComponent() || PlayerASC->GetAvatarActor() != this)
+    if (PlayerASC != PS->GetAbilitySystemComponent()
+        || PlayerASC->GetAvatarActor() != this)
     {
         return HitResult;
     }
 
-    // 발사에 사용할 공격 설정 검증
-    const float Damage = PS->GetPrimaryAttackDamage();
-    const float TraceRange = PS->GetPrimaryAttackRange();
-
-    if (!FMath::IsFinite(Damage) || Damage <= 0.0f || !FMath::IsFinite(TraceRange) || TraceRange <= 0.0f)
+    // 호출부에서 전달한 사거리 검증
+    if (!FMath::IsFinite(TraceRange) || TraceRange <= 0.0f)
     {
         return HitResult;
     }
 
-    // 서버의 눈 위치와 조준 방향으로 트레이스 구간 계산
+    // 서버의 눈 위치와 조준 방향
     FVector TraceStart;
     FRotator TraceRotation;
     GetActorEyesViewPoint(TraceStart, TraceRotation);
 
-    const FVector TraceEnd = TraceStart + TraceRotation.Vector() * TraceRange;
+    const FVector TraceEnd =
+        TraceStart + TraceRotation.Vector() * TraceRange;
 
     // 프로젝트의 HitscanTrace 채널로 첫 차단 지점 검사
     constexpr ECollisionChannel HitscanTraceChannel = ECC_GameTraceChannel2;
-    const bool bBlockingHit = LineTraceByChannel(HitResult, TraceStart, TraceEnd, HitscanTraceChannel);
 
-    // 명중 시 충돌 지점, 빗나가면 최대 사거리까지 궤적 표시
-    const FVector TrailEnd = bBlockingHit ? FVector(HitResult.ImpactPoint) : TraceEnd;
+    const bool bBlockingHit =
+        LineTraceByChannel(HitResult, TraceStart, TraceEnd, HitscanTraceChannel);
 
+    // 명중 시 충돌 지점, 빗나가면 최대 사거리 끝점
+    const FVector TrailEnd =
+        bBlockingHit ? FVector(HitResult.ImpactPoint) : TraceEnd;
+
+    // 명중 여부와 관계없이 발사 궤적 연출
     if (TrailCueTag.IsValid())
     {
         FGameplayCueParameters TrailParameters;
@@ -333,35 +340,47 @@ FHitResult ATBPlayer::TraceHitscanShot(const FGameplayTag& TrailCueTag, const FG
         TrailParameters.Instigator = this;
         TrailParameters.EffectCauser = this;
 
-        // 서버에서 실행한 궤적 Cue가 발사자에게도 전달되도록 예측 키 분리
-        FScopedPredictionWindow CuePredictionWindow(PlayerASC, FPredictionKey(), false);
+        // 서버에서 실행한 궤적 Cue의 발사자 전달을 위한 예측 키 분리
+        FScopedPredictionWindow CuePredictionWindow(
+            PlayerASC, FPredictionKey(), false);
+
         PlayerASC->ExecuteGameplayCue(TrailCueTag, TrailParameters);
     }
 
     // 서버 트레이스 결과 디버그 표시
-    if (PS->ShouldDrawPrimaryAttackTrace())
+    if (bDrawTrace)
     {
-        const FColor TraceColor = bBlockingHit ? FColor::Red : FColor::Green;
-        DrawDebugLine(World, TraceStart, TrailEnd, TraceColor, false, 2.0f, 0, 1.5f);
+        const FColor TraceColor =
+            bBlockingHit ? FColor::Red : FColor::Green;
+
+        DrawDebugLine(
+            World, TraceStart, TrailEnd,
+            TraceColor, false, 2.0f, 0, 1.5f);
 
         if (bBlockingHit)
         {
-            DrawDebugPoint(World, HitResult.ImpactPoint, 12.0f, FColor::Yellow, false, 2.0f);
+            DrawDebugPoint(
+                World, HitResult.ImpactPoint,
+                12.0f, FColor::Yellow, false, 2.0f);
         }
     }
 
+    // 미명중 시 탄착 연출 없이 결과 반환
     if (!bBlockingHit)
     {
         return HitResult;
     }
 
-    // 월드 충돌에는 기본 탄착 Cue, 캐릭터 충돌에는 대상의 혈액 Cue 선택
+    // 비생명체에 사용할 기본 탄착 Cue
     FGameplayTag ImpactCueTag = DefaultImpactCueTag;
 
-    if (const ATBCharacterBase* HitCharacter = Cast<ATBCharacterBase>(HitResult.GetActor()))
+    // 캐릭터에 설정된 혈액 Cue 선택
+    if (const ATBCharacterBase* HitCharacter =
+        Cast<ATBCharacterBase>(HitResult.GetActor()))
     {
         ImpactCueTag = HitCharacter->GetBloodImpactCueTag();
 
+        // 혈액 Cue 미설정 시 기본 붉은 혈액 연출
         if (!ImpactCueTag.IsValid())
         {
             ImpactCueTag = TBGameplayTags::GameplayCue_Impact_Blood_Flesh_Red;
@@ -370,90 +389,89 @@ FHitResult ATBPlayer::TraceHitscanShot(const FGameplayTag& TrailCueTag, const FG
 
     if (ImpactCueTag.IsValid())
     {
-        // 충돌 컴포넌트와 본 정보를 탄착 Cue에 전달
-        FGameplayEffectContextHandle ImpactContext = PlayerASC->MakeEffectContext();
+        // 충돌 컴포넌트와 본 정보를 포함한 피격 정보
+        FGameplayEffectContextHandle ImpactContext =
+            PlayerASC->MakeEffectContext();
+
         ImpactContext.AddHitResult(HitResult, true);
 
+        // 피격 위치 및 표면 방향 전달
         FGameplayCueParameters ImpactParameters(ImpactContext);
         ImpactParameters.Location = HitResult.ImpactPoint;
         ImpactParameters.Normal = HitResult.ImpactNormal;
         ImpactParameters.Instigator = this;
         ImpactParameters.EffectCauser = this;
 
-        FScopedPredictionWindow ImpactPredictionWindow(PlayerASC, FPredictionKey(), false);
+        // 서버에서 실행한 탄착 Cue의 예측 키 분리
+        FScopedPredictionWindow ImpactPredictionWindow(
+            PlayerASC, FPredictionKey(), false);
+
         PlayerASC->ExecuteGameplayCue(ImpactCueTag, ImpactParameters);
     }
 
     return HitResult;
 }
 
-bool ATBPlayer::ApplyHitscanDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag)
+bool ATBPlayer::GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) const
 {
-	if (!HasAuthority() || IsDead() || IsActionBlocked())
+	OutDamage = 0.0f;
+
+	const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+
+	if (!HasAuthority() || !IsValid(PS)
+		|| !PS->IsGameplayDataInitialized() || !IsValid(ASC)
+		|| ASC != PS->GetAbilitySystemComponent()
+		|| ASC->GetAvatarActor() != this)
+	{
+		return false;
+	}
+
+	return PS->GetAttackDamage(AttackId, OutDamage);
+}
+
+bool ATBPlayer::ApplyHitscanDamage(const FHitResult& HitResult, float Damage)
+{
+	return !IsActionBlocked() && ApplyAttackDamage(HitResult, Damage);
+}
+
+bool ATBPlayer::ApplyMeleeDamage(const FHitResult& HitResult, float Damage)
+{
+	return !IsActionBlocked() && ApplyAttackDamage(HitResult, Damage);
+}
+
+bool ATBPlayer::ApplyProjectileDamage(const FHitResult& HitResult, float Damage)
+{
+	return ApplyAttackDamage(HitResult, Damage);
+}
+
+bool ATBPlayer::ApplyAttackDamage(const FHitResult& HitResult, float Damage)
+{
+	if (!HasAuthority() || IsDead() || !FMath::IsFinite(Damage) || Damage <= 0.0f)
 	{
 		return false;
 	}
 
 	const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
-	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponent();
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 
-	if (!IsValid(PS) || !PS->IsGameplayDataInitialized() || !IsValid(PlayerASC)
-		|| !GetController() || PlayerASC != PS->GetAbilitySystemComponent()
-		|| PlayerASC->GetAvatarActor() != this)
+	if (!IsValid(PS) || !PS->IsGameplayDataInitialized()
+		|| !IsValid(ASC) || !GetController()
+		|| ASC != PS->GetAbilitySystemComponent()
+		|| ASC->GetAvatarActor() != this)
 	{
 		return false;
 	}
 
 	AActor* Target = HitResult.GetActor();
-	const float Damage = PS->GetPrimaryAttackDamage();
 
-	if (!IsValid(Target) || Target == this || !Target->Implements<UTBHitInterface>() || !FMath::IsFinite(Damage) || Damage <= 0.0f)
+	if (!IsValid(Target) || Target == this || !Target->Implements<UTBHitInterface>())
 	{
 		return false;
 	}
 
-	return ITBHitInterface::Execute_ReceiveAttackHit(Target, DamageTypeTag, Damage, this, HitResult);
-}
-
-bool ATBPlayer::ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag)
-{
-	// 서버 판정 및 공격자 상태 검증
-	if (!HasAuthority() || IsDead() || IsActionBlocked())
-	{
-		return false;
-	}
-
-	const ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
-	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponent();
-
-	// PlayerState 초기화 및 ASC 유효성 검증
-	if (!IsValid(PS) || !PS->IsGameplayDataInitialized() || !IsValid(PlayerASC) || !GetController())
-	{
-		return false;
-	}
-
-	// 현재 캐릭터의 ASC 연결 검증
-	if (PlayerASC != PS->GetAbilitySystemComponent() || PlayerASC->GetAvatarActor() != this)
-	{
-		return false;
-	}
-
-	// 기본 공격처럼 공격 처리 함수 안에서 PlayerState 조회
-	const float Damage = PS->GetMeleeAttackDamage();
-
-	if (!FMath::IsFinite(Damage) || Damage <= 0.0f)
-	{
-		return false;
-	}
-
-	AActor* HitActor = HitResult.GetActor();
-
-	if (!IsValid(HitActor) || HitActor == this || !HitActor->Implements<UTBHitInterface>())
-	{
-		return false;
-	}
-
-	return ITBHitInterface::Execute_ReceiveAttackHit(HitActor, DamageTypeTag, Damage, this, HitResult);
+	// 명중 시 PS에서 다시 조회하지 않고 전달받은 피해량 사용
+	return ITBHitInterface::Execute_ReceiveAttackHit(Target, Damage, this, HitResult);
 }
 
 // 빙의 및 네트워크 초기화 ----------------------

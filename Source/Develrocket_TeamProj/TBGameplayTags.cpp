@@ -26,8 +26,6 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Interaction_Drain, "Ability.Interaction.Drain");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Interaction_Instant, "Ability.Interaction.Instant");
 	
-	UE_DEFINE_GAMEPLAY_TAG(Damage_Type_Bullet, "Ability.Type.Bullet");
-	
 	UE_DEFINE_GAMEPLAY_TAG(Data_Reload_BloodCost, "Data.Reload.BloodCost");
 	UE_DEFINE_GAMEPLAY_TAG(Data_Reload_LoadedGain, "Data.Reload.LoadedGain");
 	UE_DEFINE_GAMEPLAY_TAG(Data_Damage, "Data.Damage");

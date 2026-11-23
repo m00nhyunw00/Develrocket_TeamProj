@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Network/TBSessionSubsystem.h"
+#include "TimerManager.h"
 #include "TBSessionListWidget.generated.h"
 
 class UButton;
@@ -60,4 +61,11 @@ private:
 	void HandleSessionsFound(const TArray<FTBSessionInfo>& Sessions, bool bWasSuccessful);
 	
 	UTBSessionSubsystem* GetSessionSubsystem() const;
+	
+	FTimerHandle SearchingTextTimerHandle;
+	int32 SearchingTextFrame = 0;
+	
+	void StartSearchingTextAnimation();
+	void UpdateSearchingTextAnimation();
+	void StopSearchingTextAnimation();
 };

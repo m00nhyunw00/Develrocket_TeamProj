@@ -28,6 +28,7 @@ struct FTBSessionInfo
 };
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnTBSessionsFound, const TArray<FTBSessionInfo>& /*Sessions*/, bool /*bWasSuccessful*/);
+DECLARE_MULTICAST_DELEGATE(FOnTBHostSessionFailed);
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API UTBSessionSubsystem : public UGameInstanceSubsystem
@@ -46,7 +47,7 @@ public:
 	void JoinSessionByIndex(int32 SearchIndex);
 	
 	FOnTBSessionsFound OnSessionsFound;
-	
+	FOnTBHostSessionFailed OnTBHostSessionFailed;
 	
 private: 
 	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);

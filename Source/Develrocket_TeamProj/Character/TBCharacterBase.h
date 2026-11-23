@@ -8,6 +8,8 @@
 #include "Interface/TBCombatInterface.h"
 #include "TBCharacterBase.generated.h"
 
+class ATBProjectile;
+struct FTBAttackData;
 class UTBMeleeTraceComponent;
 class UTBAbilitySystemComponent;
 class UAbilitySystemComponent;
@@ -29,13 +31,20 @@ public:
 	UTBAbilitySystemComponent* GetTBAbilitySystemComponent() const;
 	
 	UTBMeleeTraceComponent* GetMeleeTraceComponent() const;
-	
-	// 히트스캔 명중 대상에게 피해 적용
-	virtual bool ApplyHitscanDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag);
 
-	// 근접 타격 대상에게 피해 적용
-	virtual bool ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag);
-	
+	// 기능별 공격력 제공
+	virtual bool GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) const;
+
+	// 확정된 피해량으로 공격 방식별 명중 처리
+	virtual bool ApplyHitscanDamage(const FHitResult& HitResult, float Damage);
+
+	virtual bool ApplyMeleeDamage(const FHitResult& HitResult, float Damage);
+
+	virtual bool ApplyProjectileDamage(const FHitResult& HitResult, float Damage);
+
+	// 서버 투사체 생성; 실제 발사는 구독 완료 후 수행
+	ATBProjectile* SpawnAttackProjectile(TSubclassOf<ATBProjectile> ProjectileClass, const FTransform& SpawnTransform);
+
 	// 소켓 검사에 사용할 메시 반환
 	virtual UPrimitiveComponent* GetMeleeTraceMesh() const;
 
@@ -98,8 +107,8 @@ protected:
 	// Avatar 연결 해제 및 외부 소유 ASC 참조 정리
 	void UninitializeAbilitySystem();
 
-	// 서버에서 공통 피해 GE 적용과 공격자별 HP 바 대상 선택을 처리한다.
-	virtual bool ReceiveAttackHit_Implementation(const FGameplayTag& DamageType, float Damage, AActor* DamageSource, const FHitResult& HitResult) override;
+	// 공통 피해 GameplayEffect 적용
+	virtual bool ReceiveAttackHit_Implementation(float Damage, AActor* DamageSource, const FHitResult& HitResult) override;
 	// 자식 클래스에서 피격 가능 상태와 사용할 GE, 피격 후 반응을 지정한다.
 	virtual bool CanReceiveAttack(float Damage) const;
 	virtual TSubclassOf<UGameplayEffect> GetAttackDamageEffect() const;

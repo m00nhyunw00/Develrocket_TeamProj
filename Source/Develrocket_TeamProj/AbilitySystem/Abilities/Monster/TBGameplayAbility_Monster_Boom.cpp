@@ -182,7 +182,7 @@ void UTBGameplayAbility_Monster_Boom::Detonate(ATBMonster& SourceMonster, const 
 		}
 
 		HitActors.Add(Victim);
-		ITBHitInterface::Execute_ReceiveAttackHit(Victim, FGameplayTag(), ExplosionDamage, Monster, FHitResult());
+		ITBHitInterface::Execute_ReceiveAttackHit(Victim, ExplosionDamage, Monster, FHitResult());
 	}
 
 	if (IsValid(Monster))

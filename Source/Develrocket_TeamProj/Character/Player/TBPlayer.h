@@ -48,11 +48,20 @@ public:
 	// 공격 및 피해 처리 ----------------------
 	
 	// 서버에서 한 발을 검사하고 궤적·탄착 연출 후 충돌 결과 반환
-	FHitResult TraceHitscanShot(const FGameplayTag& TrailCueTag, const FGameplayTag& DefaultImpactCueTag);
+	FHitResult TraceHitscanShot(
+	const FGameplayTag& TrailCueTag,
+	const FGameplayTag& DefaultImpactCueTag,
+	float TraceRange,
+	bool bDrawTrace);
 
 	// PlayerState의 공격별 피해량으로 대상 피격 요청
-	virtual bool ApplyHitscanDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag) override;
-	virtual bool ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag) override;
+	virtual bool GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) const override;
+
+	virtual bool ApplyHitscanDamage(const FHitResult& HitResult, float Damage) override;
+
+	virtual bool ApplyMeleeDamage(const FHitResult& HitResult, float Damage) override;
+
+	virtual bool ApplyProjectileDamage(const FHitResult& HitResult, float Damage) override;
 	
 	// 서버 피해 적용
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Player|Damage")
@@ -95,6 +104,9 @@ public:
 	bool TryGetWeaponSocketLocation(FName SocketName, FVector& OutLocation) const;
 
 protected:
+	// 세 공격 방식에서 공유하는 플레이어 피해 전달
+	bool ApplyAttackDamage(const FHitResult& HitResult, float Damage);
+	
 	virtual bool CanReceiveAttack(float Damage) const override;
 	virtual TSubclassOf<UGameplayEffect> GetAttackDamageEffect() const override;
 	virtual void BeginPlay() override;

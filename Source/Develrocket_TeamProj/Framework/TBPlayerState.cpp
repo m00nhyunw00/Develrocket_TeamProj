@@ -105,6 +105,34 @@ void ATBPlayerState::ApplyBloodRecovery()
 	}
 }
 
+bool ATBPlayerState::GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) const
+{
+	OutDamage = 0.0f;
+
+	if (AttackId == TBGameplayTags::Ability_Combat_PrimaryAttack)
+	{
+		OutDamage = PrimaryAttackDamage;
+	}
+	else if (AttackId == TBGameplayTags::Ability_Combat_Melee)
+	{
+		OutDamage = MeleeAttackDamage;
+	}
+	else if (AttackId == TBGameplayTags::Ability_Combat_Skill1)
+	{
+		OutDamage = Skill1Damage;
+	}
+	else if (AttackId == TBGameplayTags::Ability_Combat_Skill2)
+	{
+		OutDamage = Skill2Damage;
+	}
+	else
+	{
+		return false;
+	}
+
+	return FMath::IsFinite(OutDamage) && OutDamage > 0.0f;
+}
+
 void ATBPlayerState::HandleBloodChanged(const FOnAttributeChangeData& Data)
 {
 	if (!HasAuthority() || !bGameplayDataInitialized || Data.NewValue > 0.0f)
