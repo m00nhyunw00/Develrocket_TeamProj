@@ -33,6 +33,10 @@ struct DEVELROCKET_TEAMPROJ_API FTBLeaderboardRowData
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Leaderboard")
 	int32 Score = 0;
 	
+	// 도움 수 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Leaderboard")
+	int32 Assists = 0;
+	
 	// 핑이 아직 없을 때는 INDEX_NONE을 사용
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Leaderboard")
 	int32 PingMs = INDEX_NONE;
