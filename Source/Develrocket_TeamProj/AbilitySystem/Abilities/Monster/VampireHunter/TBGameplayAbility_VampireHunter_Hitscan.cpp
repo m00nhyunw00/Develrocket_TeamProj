@@ -11,7 +11,7 @@
 namespace
 {
 const FName TargetActorKey(TEXT("TargetActor"));
-constexpr ECollisionChannel HitscanTraceChannel = ECC_GameTraceChannel2;
+constexpr ECollisionChannel HunterHitscanTraceChannel = ECC_GameTraceChannel2;
 }
 
 UTBGameplayAbility_VampireHunter_Hitscan::UTBGameplayAbility_VampireHunter_Hitscan()
@@ -77,7 +77,7 @@ void UTBGameplayAbility_VampireHunter_Hitscan::ActivateAbility(FGameplayAbilityS
 
 	FHitResult Hit;
 	if (IsValid(Monster) && IsValid(Target)
-		&& Monster->LineTraceByChannel(Hit, TraceStart, TraceStart + AimDirection * TraceRange, HitscanTraceChannel)
+		&& Monster->LineTraceByChannel(Hit, TraceStart, TraceStart + AimDirection * TraceRange, HunterHitscanTraceChannel)
 		&& Hit.GetActor() == Target)
 	{
 		ITBHitInterface::Execute_ReceiveAttackHit(Target, ShotDamage, Monster, Hit);
