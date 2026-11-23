@@ -12,6 +12,7 @@ class UTBMeleeTraceComponent;
 class UTBAbilitySystemComponent;
 class UAbilitySystemComponent;
 class UTBBloodBarComponent;
+class UTBOutlineComponent;
 class UGameplayEffect;
 
 UCLASS(Abstract)
