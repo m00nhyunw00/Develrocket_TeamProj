@@ -2,6 +2,7 @@
 
 #include "AI/Tasks/Monster/BTTask_MonsterSkill.h"
 #include "AI/Tasks/Monster/BTTask_MonsterAttack.h"
+#include "AI/Tasks/Monster/BTTask_VampireHunterCombatMove.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "BehaviorTree/Composites/BTComposite_Selector.h"
 #include "BehaviorTree/Tasks/BTTask_MoveTo.h"
@@ -26,7 +27,8 @@ void UBTService_MonsterSkillCooltime::UpdateCombatDuringPursuit(UBehaviorTreeCom
 {
 	const UBTNode* ActiveNode = OwnerComp.GetActiveNode();
 	const UBTComposite_Selector* Selector = Cast<UBTComposite_Selector>(GetParentNode());
-	if (!Selector || !Cast<UBTTask_MoveTo>(ActiveNode) || ActiveNode->GetParentNode() != Selector)
+	const bool bIsPursuing = Cast<UBTTask_MoveTo>(ActiveNode) || Cast<UBTTask_VampireHunterCombatMove>(ActiveNode);
+	if (!Selector || !bIsPursuing || ActiveNode->GetParentNode() != Selector)
 	{
 		RequestedChildIndex = INDEX_NONE;
 		return;

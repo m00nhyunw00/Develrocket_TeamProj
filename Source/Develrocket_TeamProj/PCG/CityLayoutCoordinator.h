@@ -7,6 +7,7 @@
 
 class UPCGComponent;
 class UCityNavMeshComponent;
+class ULocalFogVolumeComponent;
 class UStaticMeshComponent;
 
 USTRUCT(BlueprintType)
@@ -80,6 +81,7 @@ protected:
 
 private:
     UPROPERTY(Transient) TObjectPtr<UPCGComponent> CityPCG;
+    UPROPERTY(Transient) TArray<TObjectPtr<ULocalFogVolumeComponent>> RoadFogVolumes;
     UPROPERTY(ReplicatedUsing=OnRep_DestroyedProps) FDestroyedCityProps DestroyedProps;
     TArray<TWeakObjectPtr<UStaticMeshComponent>> ChargePropComponents;
     int32 AppliedDestroyedPropCount = 0;
@@ -93,6 +95,8 @@ private:
     UFUNCTION() void OnCancelled(UPCGComponent* Component);
     UFUNCTION() void OnCleaned(UPCGComponent* Component);
     void ApplyLatestLayout();
+    void BuildRoadFog();
+    void ClearRoadFog();
     void CacheChargePropComponents();
     bool BreakChargeProp(UStaticMeshComponent& Component, int32 InstanceIndex, const FVector& Location);
 };

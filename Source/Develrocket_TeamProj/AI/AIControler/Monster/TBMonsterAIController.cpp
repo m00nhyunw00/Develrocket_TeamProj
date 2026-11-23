@@ -7,6 +7,7 @@
 #include "Perception/AISenseConfig_Sight.h"
 #include "Perception/AISense_Sight.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "BehaviorTree/BehaviorTreeComponent.h"
 #include "BrainComponent.h"
 #include "Character/Player/TBPlayer.h"
 #include "Character/Monster/TBMonster.h"
@@ -30,6 +31,20 @@ ETeamAttitude::Type ATBMonsterAIController::GetTeamAttitudeTowards(const AActor&
 	if (Other.IsA<ATBPlayer>() || Other.IsA<ATBCitizen>()) return ETeamAttitude::Hostile;
 	if (Other.IsA<ATBMonster>()) return ETeamAttitude::Friendly;
 	return ETeamAttitude::Neutral;
+}
+
+bool ATBMonsterAIController::RunBehaviorTree(UBehaviorTree* BTAsset)
+{
+	if (const ATBMonster* Monster = Cast<ATBMonster>(GetPawn()))
+	{
+		if (UBehaviorTree* Override = Monster->GetBehaviorTreeOverride())
+		{
+			const UBehaviorTreeComponent* Tree = Cast<UBehaviorTreeComponent>(GetBrainComponent());
+			return (Tree && Tree->IsRunning() && Tree->GetRootTree() == Override)
+				|| Super::RunBehaviorTree(Override);
+		}
+	}
+	return Super::RunBehaviorTree(BTAsset);
 }
 
 void ATBMonsterAIController::BeginPlay()
@@ -83,6 +98,10 @@ void ATBMonsterAIController::OnPossess(APawn* InPawn)
 		{
 			HandleMonsterDied(Monster);
 			return;
+		}
+		if (UBehaviorTree* Override = Monster->GetBehaviorTreeOverride())
+		{
+			RunBehaviorTree(Override);
 		}
 	}
 	if (UAIPerceptionComponent* Perception = GetPerceptionComponent())

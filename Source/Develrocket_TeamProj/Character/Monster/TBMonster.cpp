@@ -76,8 +76,7 @@ bool ATBMonster::GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage)
 {
 	if (AttackId == TBGameplayTags::Ability_Combat_Melee)
 	{
-		// 현재 근접 공격의 임시 고정 피해량
-		OutDamage = 20.0f;
+		OutDamage = MeleeDamage;
 		return true;
 	}
 
@@ -207,32 +206,6 @@ void ATBMonster::ApplyMonsterStats(const FTBMonsterStatsRow& Stats)
 bool ATBMonster::IsDead() const
 {
 	return AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
-}
-
-bool ATBMonster::ApplyMeleeDamage(const FHitResult& HitResult, const FGameplayTag& DamageTypeTag)
-{
-	// 서버 판정 및 공격자 상태 검증
-	if (!HasAuthority() || IsDead() || IsActionBlocked())
-	{
-		return false;
-	}
-
-	// 이거 반드시 수정해야해
-	const float Damage = MeleeDamage;
-
-	if (!FMath::IsFinite(Damage) || Damage <= 0.0f)
-	{
-		return false;
-	}
-
-	AActor* HitActor = HitResult.GetActor();
-
-	if (!IsValid(HitActor) || HitActor == this || !HitActor->Implements<UTBHitInterface>())
-	{
-		return false;
-	}
-	
-	return ITBHitInterface::Execute_ReceiveAttackHit(HitActor, DamageTypeTag, Damage, this, HitResult);
 }
 
 // 게임플레이 초기화가 끝난 살아 있는 몬스터만 피해를 받는다.
