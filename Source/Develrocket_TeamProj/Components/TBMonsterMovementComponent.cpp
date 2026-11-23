@@ -28,3 +28,12 @@ void UTBMonsterMovementComponent::UpdateCharacterStateBeforeMovement(float Delta
 		Velocity.Y = HorizontalVelocity.Y;
 	}
 }
+
+void UTBMonsterMovementComponent::HandleImpact(const FHitResult& Impact, float TimeSlice, const FVector& MoveDelta)
+{
+	if (bBoomJumpActive && IsFalling() && Impact.bBlockingHit)
+	{
+		OnBoomJumpImpact.Broadcast(Impact);
+	}
+	Super::HandleImpact(Impact, TimeSlice, MoveDelta);
+}

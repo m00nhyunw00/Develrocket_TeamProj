@@ -57,7 +57,7 @@ void UTBGameplayAbility_Monster_Boom::ActivateAbility(FGameplayAbilitySpecHandle
 
 	bDetonated = false;
 	bJumped = false;
-	bLanded = false;
+	BlockingImpact.Reset();
 	USkeletalMeshComponent* Mesh = Monster->GetMesh();
 	OriginalAnimTickOption = Mesh->VisibilityBasedAnimTickOption;
 	bSavedAnimTickOption = true;
@@ -92,7 +92,8 @@ void UTBGameplayAbility_Monster_Boom::JumpForward(const UAnimSequenceBase* Anima
 
 	bJumped = true;
 	Monster->OnCharacterMovementUpdated.AddUniqueDynamic(this, &ThisClass::HandleMovementUpdated);
-	Monster->LandedDelegate.AddUniqueDynamic(this, &ThisClass::HandleLanded);
+	Monster->LandedDelegate.AddUniqueDynamic(this, &ThisClass::RecordImpact);
+	Movement->OnBoomJumpImpact.AddUObject(this, &ThisClass::RecordImpact);
 	Movement->SetBoomJumpActive(true);
 	if (auto* Visibility = Monster->GetWorld()->GetSubsystem<UTBAIMovementVisibilitySubsystem>())
 	{
@@ -107,9 +108,12 @@ void UTBGameplayAbility_Monster_Boom::HandleActionMontageCompleted()
 	if (!bJumped) Super::HandleActionMontageCompleted();
 }
 
-void UTBGameplayAbility_Monster_Boom::HandleLanded(const FHitResult& Hit)
+void UTBGameplayAbility_Monster_Boom::RecordImpact(const FHitResult& Hit)
 {
-	bLanded = true;
+	if (bJumped && !bDetonated && !BlockingImpact.IsSet())
+	{
+		BlockingImpact = Hit;
+	}
 }
 
 void UTBGameplayAbility_Monster_Boom::HandleMovementUpdated(float DeltaSeconds, FVector OldLocation, FVector OldVelocity)
@@ -124,8 +128,10 @@ void UTBGameplayAbility_Monster_Boom::HandleMovementUpdated(float DeltaSeconds, 
 	const UCapsuleComponent* Capsule = Monster->GetCapsuleComponent();
 	const FCollisionShape Shape = FCollisionShape::MakeCapsule(
 		Capsule->GetScaledCapsuleRadius() + 1.f, Capsule->GetScaledCapsuleHalfHeight() + 1.f);
+	// Check pawn contacts along the jump before resolving the first blocking impact.
+	const FVector SweepEnd = BlockingImpact.IsSet() ? FVector(BlockingImpact->Location) : Capsule->GetComponentLocation();
 	TArray<FHitResult> Contacts;
-	Monster->GetWorld()->SweepMultiByObjectType(Contacts, OldLocation, Capsule->GetComponentLocation(),
+	Monster->GetWorld()->SweepMultiByObjectType(Contacts, OldLocation, SweepEnd,
 		Capsule->GetComponentQuat(), FCollisionObjectQueryParams(ECC_Pawn), Shape,
 		FCollisionQueryParams(SCENE_QUERY_STAT(MonsterBoomContact), false, Monster));
 	for (const FHitResult& Contact : Contacts)
@@ -134,25 +140,33 @@ void UTBGameplayAbility_Monster_Boom::HandleMovementUpdated(float DeltaSeconds, 
 		const UAbilitySystemComponent* ASC = IsBoomVictim(Other) ? Other->GetAbilitySystemComponent() : nullptr;
 		if (IsValid(ASC) && ASC->GetAvatarActor() == Other && !ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
 		{
-			Detonate(*Monster);
+			Detonate(*Monster, Contact);
 			return;
 		}
 	}
 
-	if (bLanded)
+	if (BlockingImpact.IsSet())
 	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		Detonate(*Monster, BlockingImpact.GetValue());
 	}
 }
 
-void UTBGameplayAbility_Monster_Boom::Detonate(ATBMonster& SourceMonster)
+void UTBGameplayAbility_Monster_Boom::Detonate(ATBMonster& SourceMonster, const FHitResult& Impact)
 {
 	ATBMonster* Monster = &SourceMonster;
 	bDetonated = true;
 	UWorld* World = Monster->GetWorld();
-	const FVector Origin = Monster->GetActorLocation();
+	const FVector Origin = Impact.bStartPenetrating ? Impact.Location : Impact.ImpactPoint;
+	const FVector SurfaceNormal = Impact.ImpactNormal.GetSafeNormal();
 	const FTransform SpawnTransform(Monster->GetActorRotation(), Origin);
-	const auto ClassesToSpawn = SpawnActorClasses;
+	TArray<FTBMonsterBoomSpawnEntry> Entries = SpawnEntries;
+	if (Entries.IsEmpty())
+	{
+		for (const TSubclassOf<AActor>& ActorClass : SpawnActorClasses)
+		{
+			Entries.Add({ActorClass, 1});
+		}
+	}
 
 	TArray<FOverlapResult> Overlaps;
 	World->OverlapMultiByObjectType(Overlaps, Origin, FQuat::Identity, FCollisionObjectQueryParams::AllDynamicObjects,
@@ -185,11 +199,54 @@ void UTBGameplayAbility_Monster_Boom::Detonate(ATBMonster& SourceMonster)
 		}
 	}
 
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	for (const TSubclassOf<AActor>& ActorClass : ClassesToSpawn)
+	SpawnExplosionActors(*World, SpawnTransform, SurfaceNormal, Entries);
+}
+
+void UTBGameplayAbility_Monster_Boom::SpawnExplosionActors(UWorld& World, const FTransform& ImpactTransform,
+	const FVector& SurfaceNormal, const TArray<FTBMonsterBoomSpawnEntry>& Entries)
+{
+	int64 SpawnCount = 0;
+	double Spacing = 100.0;
+	for (const FTBMonsterBoomSpawnEntry& Entry : Entries)
 	{
-		if (ActorClass) World->SpawnActor<AActor>(ActorClass, SpawnTransform, Params);
+		if (!Entry.ActorClass || Entry.Count <= 0) continue;
+		SpawnCount += Entry.Count;
+		if (const ACharacter* Character = Cast<ACharacter>(Entry.ActorClass.GetDefaultObject()))
+		{
+			Spacing = FMath::Max(Spacing, 2.0 * Character->GetCapsuleComponent()->GetScaledCapsuleRadius() + 10.0);
+		}
+	}
+
+	const FVector AwayFromWall = SurfaceNormal.GetSafeNormal2D();
+	const bool bWall = FMath::Abs(SurfaceNormal.Z) < 0.5 && !AwayFromWall.IsNearlyZero();
+	const double SweepAngle = bWall ? PI : 2.0 * PI;
+	const double AngleStep = SpawnCount > 1 ? SweepAngle / (bWall ? SpawnCount - 1 : SpawnCount) : 0.0;
+	const double SpawnRadius = SpawnCount > 1 ? Spacing / (2.0 * FMath::Sin(AngleStep * 0.5)) : 0.0;
+	const double StartAngle = bWall ? FMath::Atan2(AwayFromWall.Y, AwayFromWall.X) - PI * 0.5 : 0.0;
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	int64 SpawnIndex = 0;
+	for (const FTBMonsterBoomSpawnEntry& Entry : Entries)
+	{
+		if (!Entry.ActorClass || Entry.Count <= 0) continue;
+		const ACharacter* Character = Cast<ACharacter>(Entry.ActorClass.GetDefaultObject());
+		const UCapsuleComponent* Capsule = Character ? Character->GetCapsuleComponent() : nullptr;
+		double SurfaceClearance = 2.0;
+		if (Capsule)
+		{
+			const double Radius = Capsule->GetScaledCapsuleRadius();
+			SurfaceClearance += Radius + (Capsule->GetScaledCapsuleHalfHeight() - Radius) * FMath::Abs(SurfaceNormal.Z);
+		}
+		for (int32 Index = 0; Index < Entry.Count; ++Index, ++SpawnIndex)
+		{
+			const double Angle = StartAngle + SpawnIndex * AngleStep;
+			FVector Offset(FMath::Cos(Angle) * SpawnRadius, FMath::Sin(Angle) * SpawnRadius, 0.0);
+			Offset += SurfaceNormal * FMath::Max(0.0, SurfaceClearance - FVector::DotProduct(Offset, SurfaceNormal));
+			FTransform SpawnTransform = ImpactTransform;
+			SpawnTransform.AddToTranslation(Offset);
+			World.SpawnActor<AActor>(Entry.ActorClass, SpawnTransform, Params);
+		}
 	}
 }
 
@@ -206,15 +263,16 @@ void UTBGameplayAbility_Monster_Boom::EndAbility(FGameplayAbilitySpecHandle Hand
 		if (bJumped)
 		{
 			Monster->OnCharacterMovementUpdated.RemoveDynamic(this, &ThisClass::HandleMovementUpdated);
-			Monster->LandedDelegate.RemoveDynamic(this, &ThisClass::HandleLanded);
+			Monster->LandedDelegate.RemoveDynamic(this, &ThisClass::RecordImpact);
 			if (auto* Movement = Monster->GetMonsterMovement())
 			{
+				Movement->OnBoomJumpImpact.RemoveAll(this);
 				Movement->SetBoomJumpActive(false);
 			}
 		}
 	}
 	bSavedAnimTickOption = false;
 	bJumped = false;
-	bLanded = false;
+	BlockingImpact.Reset();
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
