@@ -97,6 +97,7 @@ void ACityLayoutCoordinator::OnGenerated(UPCGComponent* Component)
         return;
     }
     CompletedRevision = GeneratingRevision;
+    BuildRoadFog();
     AppliedDestroyedPropCount = 0;
     CacheChargePropComponents();
     bLocalCityReady = true;

@@ -6,6 +6,7 @@
 #include "TBMonster.generated.h"
 
 class UGameplayAbility;
+class UBehaviorTree;
 class UTBMonsterSkillSet;
 class UGameplayEffect;
 class UTBMonsterAttributeSet;
@@ -58,6 +59,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Monster|State")
 	bool IsDead() const;
 
+	UBehaviorTree* GetBehaviorTreeOverride() const { return BehaviorTreeOverride; }
+
 	TSubclassOf<UGameplayAbility> GetMeleeAbilityClass() const { return MeleeAbilityClass; }
 	float GetMeleeAttackRange() const { return MeleeAttackRange; }
 	const UTBMonsterSkillSet* GetSkillSet() const { return SkillSet; }
@@ -77,6 +80,9 @@ public:
 	FTBMonsterDied OnMonsterDied;
 
 protected:
+	UPROPERTY(EditDefaultsOnly, Category = "AI")
+	TObjectPtr<UBehaviorTree> BehaviorTreeOverride;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Combat")
 	TObjectPtr<UTBMonsterSkillSet> SkillSet;
 
