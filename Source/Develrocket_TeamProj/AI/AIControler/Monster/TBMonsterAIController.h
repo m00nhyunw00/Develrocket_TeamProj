@@ -29,6 +29,7 @@ public:
 	void ReactivateFromPool();
 	
 protected:
+	virtual bool CanTargetActor(const AActor& Actor) const;
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void OnPossess(APawn* InPawn) override;
