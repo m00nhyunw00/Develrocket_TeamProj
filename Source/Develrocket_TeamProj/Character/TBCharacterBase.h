@@ -83,6 +83,14 @@ public:
 	{
 		return BloodImpactCueTag;
 	}
+	
+	// 공격 확정 시 강화 소비 ----------------------
+	
+	virtual bool ConsumeAttackEnhancement(
+		const FGameplayTag& AttackId, float& InOutDamage)
+	{
+		return false;
+	}
 
 protected:
 	// 빙의 해제 및 종료 처리 ----------------------
@@ -114,6 +122,13 @@ protected:
 
 	// false일 때 피격 대상의 ASC로 GE 컨텍스트 생성
 	virtual bool UseSourceASCForAttackEffect() const { return true; }
+	
+	// 피해량 보정 ----------------------
+	
+	virtual float ModifyIncomingAttackDamage(float Damage) const
+	{
+		return Damage;
+	}
 
 	// 공통 피격 연출 ----------------------
 

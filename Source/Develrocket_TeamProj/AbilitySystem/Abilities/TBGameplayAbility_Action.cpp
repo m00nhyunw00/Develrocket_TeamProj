@@ -48,6 +48,16 @@ void UTBGameplayAbility_Action::ActivateAbility(const FGameplayAbilitySpecHandle
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
+    
+    if (bCommitOnActivate)
+    {
+        OnActionCommitted();
+
+        if (!IsActive())
+        {
+            return;
+        }
+    }
 
     const bool bWaitForMontageEnd = ShouldWaitForMontageEnd();
     const bool bWaitForFirstPersonMontage = !ThirdPersonMontage && FirstPersonMontage && bWaitForMontageEnd;

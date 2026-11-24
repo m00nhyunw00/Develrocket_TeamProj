@@ -15,10 +15,13 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Draining);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Aiming);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Sprinting);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Empowered);
 	
 	// 쿨다운 ----------------------
 	
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_PrimaryAttack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Skill1);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Skill2);
 	// 도약 쿨다운 Gameplay Effect가 부여하는 재사용 제한 태그
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_MonsterSkill);
 
@@ -46,10 +49,15 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Reload_LoadedGain);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Damage);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Heal);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_MoveSpeedBonus);
+
 	
 	// 총격 연출 ----------------------
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_BloodTrail);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Impact_Blood_World);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Impact_Blood_Flesh_Red);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Impact_Blood_Flesh_Green);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Fire);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Melee);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Empowered);
 }

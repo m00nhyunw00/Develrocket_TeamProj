@@ -184,40 +184,68 @@ void ATBCharacterBase::UninitializeAbilitySystem()
     }
 }
 
-bool ATBCharacterBase::ReceiveAttackHit_Implementation(float Damage,
-    AActor* DamageSource, const FHitResult& HitResult)
+bool ATBCharacterBase::ReceiveAttackHit_Implementation(float Damage, AActor* DamageSource, const FHitResult& HitResult)
 {
     // 피격 대상의 ASC와 자식 클래스가 지정한 피해 GE를 가져온다.
     UAbilitySystemComponent* TargetASC = GetAbilitySystemComponent();
     const TSubclassOf<UGameplayEffect> EffectClass = GetAttackDamageEffect();
-    if (!HasAuthority() || !IsValid(TargetASC) || !EffectClass || !FMath::IsFinite(Damage)
-        || Damage <= 0.0f || !CanReceiveAttack(Damage)) return false;
+    
+    if (!HasAuthority() || !IsValid(TargetASC) || !EffectClass || !FMath::IsFinite(Damage) || Damage <= 0.0f || !CanReceiveAttack(Damage))
+    {
+        return false;
+    }
+    
+    // 피격 캐릭터의 피해 감소를 반영하고 최종 피해량 검증
+    Damage = ModifyIncomingAttackDamage(Damage);
 
+    if (!FMath::IsFinite(Damage) || Damage <= 0.0f)
+    {
+        return false;
+    }
+    
     // 공격자 ASC가 있으면 공격자 컨텍스트를 사용한다. Citizen은 기존처럼 자신의 ASC를 사용한다.
-    UAbilitySystemComponent* SourceASC = IsValid(DamageSource)
-        ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DamageSource) : nullptr;
+    UAbilitySystemComponent* SourceASC = IsValid(DamageSource) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DamageSource) : nullptr;
     UAbilitySystemComponent* SpecASC = UseSourceASCForAttackEffect() && IsValid(SourceASC) ? SourceASC : TargetASC;
     FGameplayEffectContextHandle Context = SpecASC->MakeEffectContext();
+    
     if (IsValid(DamageSource))
     {
         Context.AddSourceObject(DamageSource);
-        if (UseSourceASCForAttackEffect() && !IsValid(SourceASC)) Context.AddInstigator(DamageSource, DamageSource);
+        
+        if (UseSourceASCForAttackEffect() && !IsValid(SourceASC))
+        {
+            Context.AddInstigator(DamageSource, DamageSource);
+        }
     }
+    
     // 기존 피해 GE의 부호 규칙에 맞춰 Data.Damage에 음수 피해량을 전달한다.
     const FGameplayEffectSpecHandle Spec = SpecASC->MakeOutgoingSpec(EffectClass, 1.0f, Context);
-    if (!Spec.IsValid()) return false;
+    
+    if (!Spec.IsValid()) 
+    {
+        return false;
+    }
+    
     Spec.Data->SetSetByCallerMagnitude(TBGameplayTags::Data_Damage, -Damage);
-    if (!TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied()) return false;
-
-    // GE 적용에 성공하면 공격자의 화면에서 이 대상을 마지막 공격 대상으로 선택한다.
-    // 적용 성공이 실제 Blood 감소를 항상 보장하는 것은 아니다.
+    
+    if (!TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).WasSuccessfullyApplied())
+    {
+        return false;
+    }
+    
+    // GE 적용에 성공하면 공격자의 화면에서 이 대상을 마지막 공격 대상으로 선택
+    // 적용 성공이 실제 Blood 감소를 항상 보장 X
     const APawn* AttackerPawn = Cast<APawn>(DamageSource);
     if (IsValid(AttackerPawn) && Cast<APlayerController>(AttackerPawn->GetController()))
     {
         if (UTBBloodBarComponent* AttackerBar = AttackerPawn->FindComponentByClass<UTBBloodBarComponent>())
+        {
             AttackerBar->RecordAttackedTarget(this);
+
+        }
     }
-    // 공통 처리 이후 몬스터의 Stagger, Citizen의 출혈 등 개별 반응을 실행한다.
+    
+    // 공통 처리 이후 몬스터의 Stagger, Citizen의 출혈 등 개별 반응을 실행
     OnAttackApplied(Damage, DamageSource);
     return true;
 }

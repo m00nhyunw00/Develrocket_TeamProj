@@ -11,8 +11,11 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(State_Draining, "State.Draining");
 	UE_DEFINE_GAMEPLAY_TAG(State_Aiming, "State.Aiming");
 	UE_DEFINE_GAMEPLAY_TAG(State_Sprinting, "State.Sprinting");
+	UE_DEFINE_GAMEPLAY_TAG(State_Empowered, "State.Empowered");
 	
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_PrimaryAttack, "Cooldown.PrimaryAttack");
+	UE_DEFINE_GAMEPLAY_TAG(Cooldown_Skill1, "Cooldown.Skill1");
+	UE_DEFINE_GAMEPLAY_TAG(Cooldown_Skill2, "Cooldown.Skill2");
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_MonsterSkill, "Cooldown.MonsterSkill");
 
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Combat, "Ability.Combat");
@@ -35,9 +38,13 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Data_Reload_LoadedGain, "Data.Reload.LoadedGain");
 	UE_DEFINE_GAMEPLAY_TAG(Data_Damage, "Data.Damage");
 	UE_DEFINE_GAMEPLAY_TAG(Data_Heal, "Data.Heal");
+	UE_DEFINE_GAMEPLAY_TAG(Data_MoveSpeedBonus, "Data.MoveSpeedBonus");
 	
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_BloodTrail, "GameplayCue.Weapon.BloodTrail");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Impact_Blood_World, "GameplayCue.Impact.Blood.World");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Impact_Blood_Flesh_Red, "GameplayCue.Impact.Blood.Flesh.Red");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Impact_Blood_Flesh_Green, "GameplayCue.Impact.Blood.Flesh.Green");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Fire, "GameplayCue.Blackwood.Fire");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Melee, "GameplayCue.Blackwood.Melee");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Empowered, "GameplayCue.Blackwood.Empowered");
 }

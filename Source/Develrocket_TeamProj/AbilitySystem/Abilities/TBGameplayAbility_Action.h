@@ -34,6 +34,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Animation")
 	TObjectPtr<UAnimMontage> FirstPersonMontage;
+	
+	// 비용·쿨다운 적용 성공 후, 몽타주 재생 전 확장 지점 ----------------------
+	virtual void OnActionCommitted(){}
 
 	// 자식 클래스의 완료·중단 처리 ----------------------
 

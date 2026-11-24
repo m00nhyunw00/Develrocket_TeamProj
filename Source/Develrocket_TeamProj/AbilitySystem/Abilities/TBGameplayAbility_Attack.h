@@ -36,8 +36,7 @@ public:
 
 protected:
     // 기본 공격·F키 공격·스킬1·스킬2 등의 기능 선택
-    UPROPERTY(EditDefaultsOnly, Category = "Combat|Attack",
-        meta = (Categories = "Ability.Combat"))
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Attack", meta = (Categories = "Ability.Combat"))
     FGameplayTag AttackId;
 
     // 이번 실행에서 서버가 확정한 피해량
@@ -52,6 +51,12 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Cooldown")
     bool bUsePlayerPrimaryAttackCooldown = false;
 
+    // 공격 시작 시 재생할 연출
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Effects", meta = (Categories = "GameplayCue"))
+    FGameplayTag AttackVisualCueTag;
+
+    virtual void OnActionCommitted() override;
+    
     // 명중 시에도 공격자의 행동 가능 상태가 필요한지 조회
     virtual bool RequiresUnblockedAttackerOnHit() const
     {
