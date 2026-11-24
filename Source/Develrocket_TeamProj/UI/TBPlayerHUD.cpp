@@ -90,7 +90,7 @@ void ATBPlayerHUD::BeginPlay()
         BindAbilitySystem(PS->GetAbilitySystemComponent());
     }
     
-    if (LeaderboardWidgetClass)
+    if (LeaderboardWidgetClass && UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass()))
     {
         LeaderboardWidget = CreateWidget<UTBLeaderboardWidget>(PC, LeaderboardWidgetClass);
         if (LeaderboardWidget)
@@ -99,6 +99,41 @@ void ATBPlayerHUD::BeginPlay()
             LeaderboardWidget->SetVisibility(ESlateVisibility::Collapsed);
         }
     }
+}
+
+TArray<FTBLeaderboardRowData> ATBPlayerHUD::BuildLeaderboardRows() const
+{
+    TArray<FTBLeaderboardRowData> Rows;
+    const AGameStateBase* GS = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+    if (!GS) return Rows;
+
+    // HUD를 소유한 로컬 PC의 PlayerState = "나"
+    const APlayerController* OwningPC = GetOwningPlayerController();
+    const APlayerState* LocalPS = OwningPC ? OwningPC->PlayerState.Get() : nullptr;
+
+    for (const APlayerState* PS : GS->PlayerArray)
+    {
+        if (!IsValid(PS) || PS->IsInactive()) continue; // 접속이 끊긴 플레이어 제외
+
+        FTBLeaderboardRowData& Row = Rows.AddDefaulted_GetRef();
+        Row.PlayerName = FText::FromString(PS->GetPlayerName());
+        Row.PingMs = FMath::RoundToInt(PS->GetPingInMilliseconds());
+        Row.bIsLocalPlayer = (PS == LocalPS);
+        // K/D/A·Score·bIsDead: 데이터 단계에서 채움
+    }
+
+    // 점수 → 킬 순으로 정렬 후 순위 부여
+    Rows.StableSort([](const FTBLeaderboardRowData& A, const FTBLeaderboardRowData& B)
+    {
+        return A.Score != B.Score ? A.Score > B.Score : A.Kills > B.Kills;
+    });
+
+    for (int32 Index = 0; Index < Rows.Num(); ++Index)
+    {
+        Rows[Index].Rank = Index + 1;
+    }
+
+    return Rows;
 }
 
 void ATBPlayerHUD::BindAbilitySystem(UAbilitySystemComponent* InASC)
@@ -214,27 +249,6 @@ void ATBPlayerHUD::HandleFocusedActorChanged(AActor* NewFocus)
     }
 }
 
-TArray<FTBLeaderboardRowData> ATBPlayerHUD::BuildLeaderboardRows() const
-{
-    TArray<FTBLeaderboardRowData> Rows;
-    const AGameStateBase* GS = GetWorld() ? GetWorld()->GetGameState() : nullptr;
-    if (!GS) return Rows;
-    
-    for (const APlayerState* PS : GS->PlayerArray)
-    {
-        if (!IsValid(PS) || PS->IsInactive()) continue; // Exclude Unconnected Player
-        
-        FTBLeaderboardRowData& Row = Rows.AddDefaulted_GetRef();
-        Row.PlayerName = FText::FromString(PS->GetPlayerName());
-        Row.PingMs = FMath::RoundToInt(PS->GetPingInMilliseconds());
-    }
-    
-    // 점수 -> 킬 순으로 우선순위 부여
-    Rows.StableSort([](const FTBLeaderboardRowData& A, const FTBLeaderboardRowData& B){return A.Score != B.Score ? A.Score > B.Score : A.Kills > B.Kills;});
-    for (int32 Index = 0; Index < Rows.Num(); ++Index) Rows[Index].Rank = Index +1;
-    return Rows;
-}
-
 void ATBPlayerHUD::RefreshLeaderboard()
 {
     if (LeaderboardWidget) LeaderboardWidget->SetLeaderboardRows(BuildLeaderboardRows());
@@ -273,6 +287,7 @@ void ATBPlayerHUD::TogglePauseMenu()
     }
     else
     {
+        HideLeaderboard();
         PauseWidget->OpenPauseMenu();
     }
 }
