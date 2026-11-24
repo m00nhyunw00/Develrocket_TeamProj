@@ -31,6 +31,7 @@ void ATBMonster::MulticastPlayBoomEffect_Implementation(UNiagaraSystem* Effect, 
 
 ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UTBMonsterMovementComponent>(ACharacter::CharacterMovementComponentName))
+	, MonsterStatsTable(FSoftObjectPath(TEXT("/Game/_Game/Data/DT_MonsterStats.DT_MonsterStats")))
 {
 	
 	// 몬스터가 직접 소유하는 ASC 생성
@@ -75,8 +76,7 @@ bool ATBMonster::GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage)
 {
 	if (AttackId == TBGameplayTags::Ability_Combat_Melee)
 	{
-		// 현재 근접 공격의 임시 고정 피해량
-		OutDamage = 20.0f;
+		OutDamage = MeleeDamage;
 		return true;
 	}
 
@@ -149,7 +149,11 @@ void ATBMonster::InitializeGameplayData()
 	}
 
 	bGameplayDataInitialized = true;
-	if (InitialAttributesEffect)
+	if (const FTBMonsterStatsRow* Stats = FindMonsterStats())
+	{
+		ApplyMonsterStats(*Stats);
+	}
+	else if (InitialAttributesEffect)
 	{
 		FGameplayEffectContextHandle Context = AbilitySystemComponent->MakeEffectContext();
 		Context.AddSourceObject(this);
@@ -168,6 +172,35 @@ void ATBMonster::InitializeGameplayData()
 	}
 
 	AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
+}
+
+const FTBMonsterStatsRow* ATBMonster::FindMonsterStats() const
+{
+	const UDataTable* Table = MonsterStatsTable.LoadSynchronous();
+	if (!Table) return nullptr;
+
+	FName RowName = MonsterStatsRow;
+	if (RowName.IsNone())
+	{
+		FString ClassName = GetClass()->GetName();
+		ClassName.RemoveFromStart(TEXT("BP_"));
+		ClassName.RemoveFromEnd(TEXT("_C"));
+		RowName = FName(*ClassName);
+	}
+	return Table->FindRow<FTBMonsterStatsRow>(RowName, GetName(), !MonsterStatsRow.IsNone());
+}
+
+void ATBMonster::ApplyMonsterStats(const FTBMonsterStatsRow& Stats)
+{
+	const float MaxBlood = FMath::Max(1.0f, Stats.MaxBlood);
+	AbilitySystemComponent->SetNumericAttributeBase(UTBMonsterAttributeSet::GetMaxBloodAttribute(), MaxBlood);
+	AbilitySystemComponent->SetNumericAttributeBase(UTBMonsterAttributeSet::GetMaxStaggerAttribute(), FMath::Max(0.0f, Stats.MaxStagger));
+	AbilitySystemComponent->SetNumericAttributeBase(UTBMonsterAttributeSet::GetBloodAttribute(), MaxBlood);
+	AbilitySystemComponent->SetNumericAttributeBase(UTBMonsterAttributeSet::GetStaggerAttribute(), 0.0f);
+	AbilitySystemComponent->SetNumericAttributeBase(UTBMonsterAttributeSet::GetIncomingDamageAttribute(), 0.0f);
+	GetCharacterMovement()->MaxWalkSpeed = FMath::Max(0.0f, Stats.WalkSpeed);
+	MeleeDamage = FMath::Max(0.0f, Stats.MeleeDamage);
+	MeleeAttackRange = FMath::Max(0.0f, Stats.MeleeRange);
 }
 
 bool ATBMonster::IsDead() const
@@ -391,12 +424,21 @@ void ATBMonster::OnPoolActivated_Implementation()
 	if (!HasAuthority() || !bReturnedToPool || !AbilitySystemComponent || !MonsterAttributes) return;
 	SetLifeSpan(0.0f);
 	AbilitySystemComponent->CancelAllAbilities();
-	if (bDeathHandled)
+	const FTBMonsterStatsRow* Stats = FindMonsterStats();
+	if (bDeathHandled || Stats)
 	{
 		AbilitySystemComponent->RemoveActiveEffects(FGameplayEffectQuery());
+	}
+	if (bDeathHandled)
+	{
 		AbilitySystemComponent->UnBlockAbilitiesWithTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat));
 	}
 	RestorePoolVisualState();
+	if (Stats)
+	{
+		ApplyMonsterStats(*Stats);
+		return;
+	}
 	MonsterAttributes->SetStagger(0.0f);
 	MonsterAttributes->SetIncomingDamage(0.0f);
 	MonsterAttributes->SetBlood(MonsterAttributes->GetMaxBlood());

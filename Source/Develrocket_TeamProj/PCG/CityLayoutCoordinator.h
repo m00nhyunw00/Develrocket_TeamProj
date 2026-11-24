@@ -1,12 +1,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/NetSerialization.h"
 #include "GameFramework/Actor.h"
 #include "CityLayoutCoordinator.generated.h"
 
 class UPCGComponent;
 class UCityNavMeshComponent;
 class ULocalFogVolumeComponent;
+class UStaticMeshComponent;
 
 USTRUCT(BlueprintType)
 // 도시 배치 재현에 필요한 시드와 세대 번호
@@ -16,6 +18,24 @@ struct FReplicatedCityLayout
 
     UPROPERTY(BlueprintReadOnly, Category="City") int32 Seed = 0;
     UPROPERTY(BlueprintReadOnly, Category="City") int32 Revision = 0;
+};
+
+USTRUCT()
+struct FDestroyedCityProp
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FName MeshName;
+    UPROPERTY() FVector_NetQuantize10 Location;
+};
+
+USTRUCT()
+struct FDestroyedCityProps
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int32 Revision = 0;
+    UPROPERTY() TArray<FDestroyedCityProp> Props;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCityLayoutReady, int32, Seed, int32, Revision);
@@ -51,6 +71,8 @@ public:
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="City") bool bLocalCityReady = false;
 
     UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="City") void GenerateNewCity();
+    static bool IsChargeBreakableProp(const UPrimitiveComponent* Component);
+    bool BreakChargePropsAlongPath(const FVector& Start, const FVector& End, const FVector& CapsuleExtent);
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
@@ -60,15 +82,21 @@ protected:
 private:
     UPROPERTY(Transient) TObjectPtr<UPCGComponent> CityPCG;
     UPROPERTY(Transient) TArray<TObjectPtr<ULocalFogVolumeComponent>> RoadFogVolumes;
+    UPROPERTY(ReplicatedUsing=OnRep_DestroyedProps) FDestroyedCityProps DestroyedProps;
+    TArray<TWeakObjectPtr<UStaticMeshComponent>> ChargePropComponents;
+    int32 AppliedDestroyedPropCount = 0;
     int32 GeneratingRevision = 0;
     int32 CompletedRevision = 0;
     bool bInitialized = false;
 
     UFUNCTION() void OnRep_Layout();
+    UFUNCTION() void OnRep_DestroyedProps();
     UFUNCTION() void OnGenerated(UPCGComponent* Component);
     UFUNCTION() void OnCancelled(UPCGComponent* Component);
     UFUNCTION() void OnCleaned(UPCGComponent* Component);
     void ApplyLatestLayout();
     void BuildRoadFog();
     void ClearRoadFog();
+    void CacheChargePropComponents();
+    bool BreakChargeProp(UStaticMeshComponent& Component, int32 InstanceIndex, const FVector& Location);
 };

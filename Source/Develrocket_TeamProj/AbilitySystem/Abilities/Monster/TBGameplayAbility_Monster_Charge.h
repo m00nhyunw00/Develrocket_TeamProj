@@ -8,6 +8,7 @@
 
 class ATBMonster;
 class AActor;
+class ACityLayoutCoordinator;
 
 UCLASS(NotBlueprintable)
 class UTBGameplayEffect_ChargeWindup : public UGameplayEffect
@@ -44,15 +45,20 @@ protected:
 	float AttackDamage = 20.f;
 
 private:
+	UFUNCTION()
+	void HandleChargeMovementUpdated(float DeltaSeconds, FVector OldLocation, FVector OldVelocity);
 	void UpdateCharge();
 	void FinishCharge(bool bCancelled);
 	void RemoveWindupEffect();
 	FActiveGameplayEffectHandle WindupEffectHandle;
 	TWeakObjectPtr<ATBMonster> ChargingMonster;
 	TWeakObjectPtr<AActor> ChargeTarget;
+	TWeakObjectPtr<ACityLayoutCoordinator> CityLayout;
 	FTimerHandle ChargeTimer;
 	FVector StartLocation = FVector::ZeroVector;
+	FVector LastSampleLocation = FVector::ZeroVector;
 	double ChargeStartTime = 0.0;
+	double LastForwardProgressTime = 0.0;
 	float OriginalMaxWalkSpeed = 0.f;
 	EVisibilityBasedAnimTickOption OriginalAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	bool bSavedAnimTickOption = false;

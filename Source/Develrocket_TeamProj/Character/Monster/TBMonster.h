@@ -2,9 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "Character/TBCharacterBase.h"
+#include "Engine/DataTable.h"
 #include "TBMonster.generated.h"
 
 class UGameplayAbility;
+class UBehaviorTree;
 class UTBMonsterSkillSet;
 class UGameplayEffect;
 class UTBMonsterAttributeSet;
@@ -14,6 +16,28 @@ class UTBRotationComponent;
 class UNiagaraSystem;
 struct FAbilityEndedData;
 struct FGameplayTag;
+
+USTRUCT(BlueprintType)
+struct FTBMonsterStatsRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "1.0"))
+	float MaxBlood = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0.0"))
+	float MaxStagger = 50.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0.0", Units = "cm/s"))
+	float WalkSpeed = 750.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0.0"))
+	float MeleeDamage = 20.0f;
+
+	// Distance between actor origins. Zero disables melee attacks.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0.0", Units = "cm"))
+	float MeleeRange = 150.0f;
+};
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTBMonsterDied, ATBMonster*, Monster);
 
@@ -35,6 +59,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Monster|State")
 	bool IsDead() const;
 
+	UBehaviorTree* GetBehaviorTreeOverride() const { return BehaviorTreeOverride; }
+
 	TSubclassOf<UGameplayAbility> GetMeleeAbilityClass() const { return MeleeAbilityClass; }
 	float GetMeleeAttackRange() const { return MeleeAttackRange; }
 	const UTBMonsterSkillSet* GetSkillSet() const { return SkillSet; }
@@ -54,6 +80,9 @@ public:
 	FTBMonsterDied OnMonsterDied;
 
 protected:
+	UPROPERTY(EditDefaultsOnly, Category = "AI")
+	TObjectPtr<UBehaviorTree> BehaviorTreeOverride;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Combat")
 	TObjectPtr<UTBMonsterSkillSet> SkillSet;
 
@@ -79,6 +108,13 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Initialization")
 	TSubclassOf<UGameplayEffect> InitialAttributesEffect;
 
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|Initialization")
+	TSoftObjectPtr<UDataTable> MonsterStatsTable;
+
+	// When empty, use the Blueprint name without its BP_ prefix.
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|Initialization")
+	FName MonsterStatsRow;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Abilities")
 	TArray<TSubclassOf<UGameplayAbility>> StartupAbilities;
 
@@ -93,6 +129,8 @@ protected:
 private:
 	void InitializeMonsterAbilitySystem();
 	void InitializeGameplayData();
+	const FTBMonsterStatsRow* FindMonsterStats() const;
+	void ApplyMonsterStats(const FTBMonsterStatsRow& Stats);
 	void HandleStaggerFull();
 	void HandleAbilityEnded(const FAbilityEndedData& EndedData);
 	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
@@ -100,6 +138,7 @@ private:
 	void HandleDeath();
 	
 	bool bGameplayDataInitialized = false;
+	float MeleeDamage = 20.0f;
 	bool bDeathHandled = false;
 	bool bReturnedToPool = false;
 	bool bPausedBrainForStagger = false;
