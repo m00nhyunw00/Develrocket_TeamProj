@@ -13,8 +13,11 @@ class DEVELROCKET_TEAMPROJ_API UBTTask_MonsterSkill : public UBTTask_BlackboardB
 {
 	GENERATED_BODY()
 public:
+	enum class EMovingSkillResult : uint8 { Unavailable, Activated, RequiresTask };
+
 	UBTTask_MonsterSkill();
 	bool HasUsableSkill(UBehaviorTreeComponent& OwnerComp) const;
+	EMovingSkillResult TryUseSkillDuringHunterMovement(UBehaviorTreeComponent& OwnerComp) const;
 protected:
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	virtual EBTNodeResult::Type AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;

@@ -27,7 +27,8 @@ void UBTService_MonsterSkillCooltime::UpdateCombatDuringPursuit(UBehaviorTreeCom
 {
 	const UBTNode* ActiveNode = OwnerComp.GetActiveNode();
 	const UBTComposite_Selector* Selector = Cast<UBTComposite_Selector>(GetParentNode());
-	const bool bIsPursuing = Cast<UBTTask_MoveTo>(ActiveNode) || Cast<UBTTask_VampireHunterCombatMove>(ActiveNode);
+	const bool bIsHunterMoving = ActiveNode && ActiveNode->IsA<UBTTask_VampireHunterCombatMove>();
+	const bool bIsPursuing = bIsHunterMoving || Cast<UBTTask_MoveTo>(ActiveNode);
 	if (!Selector || !bIsPursuing || ActiveNode->GetParentNode() != Selector)
 	{
 		RequestedChildIndex = INDEX_NONE;
@@ -44,7 +45,24 @@ void UBTService_MonsterSkillCooltime::UpdateCombatDuringPursuit(UBehaviorTreeCom
 
 		const UBTTask_MonsterSkill* SkillTask = Cast<UBTTask_MonsterSkill>(Child);
 		const UBTTask_MonsterAttack* AttackTask = Cast<UBTTask_MonsterAttack>(Child);
-		if ((SkillTask && SkillTask->HasUsableSkill(OwnerComp)) || (AttackTask && AttackTask->HasUsableAttack(OwnerComp)))
+		bool bNeedsSkillTask = false;
+		if (SkillTask && bIsHunterMoving)
+		{
+			using EResult = UBTTask_MonsterSkill::EMovingSkillResult;
+			const EResult Result = SkillTask->TryUseSkillDuringHunterMovement(OwnerComp);
+			if (Result == EResult::Activated)
+			{
+				RequestedChildIndex = INDEX_NONE;
+				return;
+			}
+			bNeedsSkillTask = Result == EResult::RequiresTask;
+		}
+		else if (SkillTask)
+		{
+			bNeedsSkillTask = SkillTask->HasUsableSkill(OwnerComp);
+		}
+
+		if (bNeedsSkillTask || (AttackTask && AttackTask->HasUsableAttack(OwnerComp)))
 		{
 			if (RequestedChildIndex != Index)
 			{

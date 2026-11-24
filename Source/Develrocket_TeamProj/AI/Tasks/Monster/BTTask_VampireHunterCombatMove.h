@@ -40,7 +40,10 @@ private:
 	enum class EMovementMode : uint8 { Chase, Orbit, Retreat };
 
 	bool UpdateMovement(UBehaviorTreeComponent& OwnerComp);
-	bool TryLocalMove(AAIController& Controller, const FVector& Origin, const FVector& Goal, const FVector& TargetLocation, double MinimumRadius);
+	bool FindOrbitGoal(AAIController& Controller, const FVector& From, const FVector& TargetLocation, double MinimumRadius);
+	bool FindLocalGoal(AAIController& Controller, const FVector& From, const FVector& Goal, const FVector& TargetLocation,
+		double MinimumRadius, FVector& OutGoal) const;
+	bool StartLocalMove(AAIController& Controller, const FVector& Goal);
 	bool StartMove(AAIController& Controller, FAIMoveRequest& Request);
 	void StopOwnedMove(AAIController& Controller);
 
@@ -49,10 +52,16 @@ private:
 	TWeakObjectPtr<AActor> PreviousFocusActor;
 	FVector PreviousFocalPoint = FAISystem::InvalidLocation;
 	FVector LastTargetLocation = FVector::ZeroVector;
+	FVector ActiveOrbitGoal = FAISystem::InvalidLocation;
+	FVector NextOrbitGoal = FAISystem::InvalidLocation;
+	FVector OrbitPlanTargetLocation = FVector::ZeroVector;
 	FAIRequestID MoveId;
 	EMovementMode MovementMode = EMovementMode::Chase;
+	EMovementMode ActiveMoveMode = EMovementMode::Chase;
 	float TimeUntilUpdate = 0.0f;
 	float OrbitSide = 1.0f;
+	float NextOrbitSide = 1.0f;
+	int32 OrbitLegsUntilSideChoice = 0;
 	bool bPreviousOrientToMovement = false;
 	bool bPreviousUseControllerDesiredRotation = false;
 	bool bPreviousUseControllerYaw = false;
