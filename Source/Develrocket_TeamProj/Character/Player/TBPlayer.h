@@ -33,6 +33,55 @@ public:
 
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
+	// 기본 공격 입력 요청 ----------------------
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StartPrimaryAttack();
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StopPrimaryAttack();
+
+	// 보조 행동 입력 요청 및 유지 상태 ----------------------
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StartSecondaryAction();
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StopSecondaryAction();
+
+	bool IsSecondaryInputHeld() const
+	{
+		return bSecondaryInputHeld;
+	}
+	
+	UFUNCTION(BlueprintPure, Category = "Combat|Aim")
+	bool IsAiming() const;
+
+	// 이동기 입력 요청 ----------------------
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StartMobility();
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StopMobility();
+
+	// 근접 공격 및 스킬 입력 요청 ----------------------
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StartMeleeAttack();
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StartSkill1();
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StopSkill1();
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StartSkill2();
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Combat")
+	virtual void StopSkill2();
+
 	// 점프·앉기 상태 전환 ----------------------
 
 	// 기본 점프 검사 전에 실제 앉기 상태 해제
@@ -49,12 +98,12 @@ public:
 	
 	// 서버에서 한 발을 검사하고 궤적·탄착 연출 후 충돌 결과 반환
 	FHitResult TraceHitscanShot(
-	const FGameplayTag& TrailCueTag,
-	const FGameplayTag& DefaultImpactCueTag,
-	float TraceRange,
-	bool bDrawTrace);
+		const FGameplayTag& TrailCueTag,
+		const FGameplayTag& DefaultImpactCueTag,
+		float TraceRange,
+		bool bDrawTrace);
 
-	// PlayerState의 공격별 피해량으로 대상 피격 요청
+	// PlayerState에서 기능별 공격력 조회
 	virtual bool GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) const override;
 
 	virtual bool ApplyHitscanDamage(const FHitResult& HitResult, float Damage) override;
@@ -104,12 +153,19 @@ public:
 	bool TryGetWeaponSocketLocation(FName SocketName, FVector& OutLocation) const;
 
 protected:
-	// 세 공격 방식에서 공유하는 플레이어 피해 전달
-	bool ApplyAttackDamage(const FHitResult& HitResult, float Damage);
-	
+	// 초기화 및 공통 피격 처리 확장 ----------------------
+
+	virtual void BeginPlay() override;
 	virtual bool CanReceiveAttack(float Damage) const override;
 	virtual TSubclassOf<UGameplayEffect> GetAttackDamageEffect() const override;
-	virtual void BeginPlay() override;
+
+	// 세 공격 방식에서 공유하는 플레이어 피해 전달
+	bool ApplyAttackDamage(const FHitResult& HitResult, float Damage);
+
+	// 로컬 어빌리티 입력 전달 ----------------------
+
+	void PressAbilityInput(const FGameplayTag& InputTag);
+	void ReleaseAbilityInput(const FGameplayTag& InputTag);
 
 	// 카메라 및 높이 설정 ----------------------
 
@@ -126,9 +182,25 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Camera|Recoil", meta = (ClampMin = "0.0"))
 	float RecoilMultiplier = 1.0f;
 
+	// 조준 중 발사 반동 및 누적 상한 배율
+	UPROPERTY(EditDefaultsOnly, Category = "Camera|Recoil", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float AimRecoilMultiplier = 0.5f;
+
 	// 연속 발사 시 최대 누적 반동 각도
 	UPROPERTY(EditDefaultsOnly, Category = "Camera|Recoil", meta = (ClampMin = "0.0"))
 	float MaxRecoilPitch = 1.0f;
+
+	// 기본 시야각은 CameraComponent 설정 사용
+	UPROPERTY(EditDefaultsOnly, Category = "Camera|Aim", meta = (ClampMin = "5.0", ClampMax = "170.0"))
+	float AimFieldOfView = 55.0f;
+
+	// 조준 확대·복귀 보간 속도
+	UPROPERTY(EditDefaultsOnly, Category = "Camera|Aim", meta = (ClampMin = "0.1"))
+	float AimInterpSpeed = 12.0f;
+	
+	// 조준 중 시점 입력 감도 배율
+	UPROPERTY(EditDefaultsOnly, Category = "Camera|Aim", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+	float AimLookSensitivityMultiplier = 0.5f;
 
 	// 1인칭 팔 메시 ----------------------
 
@@ -174,14 +246,22 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> CrouchAction;
 
-	// 공격·스킬·재장전 입력 액션 ----------------------
+	// 공격·보조 행동·이동기 입력 액션 ----------------------
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> PrimaryAttackAction;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> SecondaryAction;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> MobilityAction;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> MeleeAction;
-	
+
+	// 스킬·재장전 입력 액션 ----------------------
+
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> Skill1Action;
 	
@@ -200,10 +280,13 @@ protected:
 	TObjectPtr<UInputAction> PauseAction;
 
 private:
-	// GAS 초기화 ----------------------
+	// GAS 및 HUD 연결 ----------------------
 
 	// PlayerState의 ASC를 현재 캐릭터에 연결
 	void InitializeFromPlayerState();
+
+	// 소유 플레이어 HUD와 PlayerState의 ASC 연결
+	void TryBindLocalHUD();
 
 	// 메시 및 카메라 초기 설정 ----------------------
 
@@ -215,32 +298,6 @@ private:
 
 	// 현재 눈높이에 맞춘 카메라 위치 설정
 	void UpdateCameraHeight();
-
-	// 로컬 HUD 연결 ----------------------
-
-	// 소유 플레이어 HUD와 PlayerState의 ASC 연결
-	void TryBindLocalHUD();
-
-	// 피격 및 사망 처리 상태 ----------------------
-
-	// 공격 인터페이스를 통한 피격 처리
-
-	// 사망 처리 중복 방지
-	bool bDeathHandled = false;
-
-	// 카메라 반동 계산 및 실행 상태 ----------------------
-
-	// 현재 시간의 반동 각도 계산
-	float GetCameraRecoilPitch() const;
-
-	// 현재 반동의 시작 시각과 각도
-	double RecoilStartTime = -1.0;
-	float RecoilStartPitch = 0.0f;
-	float RecoilPeakPitch = 0.0f;
-
-	// 이번 발사에서 전달받은 상승·복귀 시간
-	float ActiveRecoilRiseTime = 0.05f;
-	float ActiveRecoilReturnTime = 0.18f;
 
 	// 이동·시점 입력 처리 ----------------------
 
@@ -264,7 +321,12 @@ private:
 
 	void InputPrimaryAttackStarted();
 	void InputPrimaryAttackStopped();
-	
+
+	// 보조 행동 입력 상태 ----------------------
+
+	// 로컬 조준 화면의 즉시 복구에 사용하는 우클릭 입력 상태
+	bool bSecondaryInputHeld = false;
+
 	// 근접 공격 입력 시작 처리 ----------------------
 	
 	void InputMeleeStarted();
@@ -285,4 +347,26 @@ private:
 
 	void InputInteractStarted();
 	void InputPauseStarted();
+
+	// 카메라 반동 계산 및 실행 상태 ----------------------
+
+	// 현재 시간의 반동 각도 계산
+	float GetCameraRecoilPitch() const;
+
+	// 현재 반동의 시작 시각과 각도
+	double RecoilStartTime = -1.0;
+	float RecoilStartPitch = 0.0f;
+	float RecoilPeakPitch = 0.0f;
+
+	// 이번 발사에서 전달받은 상승·복귀 시간
+	float ActiveRecoilRiseTime = 0.05f;
+	float ActiveRecoilReturnTime = 0.18f;
+	
+	// 현재 카메라의 FOV(시야각) 저장 변수 ----------------------
+	float CurrentViewFOV = -1.0f;
+
+	// 사망 처리 상태 ----------------------
+
+	// 사망 처리 중복 방지
+	bool bDeathHandled = false;
 };

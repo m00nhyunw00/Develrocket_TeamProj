@@ -290,68 +290,6 @@ bool ATBCharacterBase::IsActionBlocked() const
         || AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Draining);
 }
 
-void ATBCharacterBase::StartPrimaryAttack()
-{
-    if (!IsLocallyControlled())
-    {
-        return;
-    }
-
-    if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
-    {
-        ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Combat_PrimaryAttack);
-    }
-}
-
-void ATBCharacterBase::StopPrimaryAttack()
-{
-    // 단발 공격은 입력 해제에 따른 추가 처리 없음
-    // 연사·차지 공격 구현 시 입력 해제 전달 추가
-}
-
-void ATBCharacterBase::StartMeleeAttack()
-{
-    if (!IsLocallyControlled())
-    {
-        return;
-    }
-
-    if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
-    {
-        ASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Combat_Melee);
-    }
-}
-
-void ATBCharacterBase::StartSkill1()
-{
-    // 스킬 버튼을 눌렀을 때 호출
-    // 추후 스킬 Ability에 입력 시작 전달 또는 활성화 요청
-    // 예: 대시 즉시 실행, 차지 스킬 충전 시작, 유지형 스킬 사용 시작
-}
-
-void ATBCharacterBase::StopSkill1()
-{
-    // 스킬 버튼을 놓거나 입력이 취소됐을 때 호출
-    // 추후 스킬 Ability에 입력 해제 전달
-    // 예: 차지 스킬 충전 종료, 유지형 스킬 사용 중단
-    // 입력 해제 이후의 발동 또는 취소는 Ability에서 판단
-}
-
-void ATBCharacterBase::StartSkill2()
-{
-    // 스킬 버튼을 눌렀을 때 호출
-    // 추후 스킬 Ability에 입력 시작 전달 또는 활성화 요청
-    // 예: 대시 즉시 실행, 차지 스킬 충전 시작, 유지형 스킬 사용 시작
-}
-
-void ATBCharacterBase::StopSkill2()
-{
-    // 스킬 버튼을 놓거나 입력이 취소됐을 때 호출
-    // 추후 스킬 Ability에 입력 해제 전달
-    // 예: 차지 스킬 충전 종료, 유지형 스킬 사용 중단
-    // 입력 해제 이후의 발동 또는 취소는 Ability에서 판단
-}
-
 bool ATBCharacterBase::LineTraceByChannel(FHitResult& OutHit, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel) const
 {
     // 이전 호출의 충돌 정보 초기화

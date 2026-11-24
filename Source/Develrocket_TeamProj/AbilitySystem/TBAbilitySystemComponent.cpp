@@ -66,3 +66,60 @@ bool UTBAbilitySystemComponent::TryActivateAbilityByTag(const FGameplayTag& Abil
 	// ASC가 관리하는 Ability Spec에서 태그 검색 및 활성화
 	return TryActivateAbilitiesByTag(AbilityTags);
 }
+
+void UTBAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& InputTag)
+{
+	ABILITYLIST_SCOPE_LOCK();
+
+	for (FGameplayAbilitySpec& Spec : GetActivatableAbilities())
+	{
+		if (!Spec.Ability || !Spec.Ability->GetAssetTags().HasTagExact(InputTag))
+		{
+			continue;
+		}
+
+		Spec.InputPressed = true;
+
+		if (!Spec.IsActive())
+		{
+			TryActivateAbility(Spec.Handle);
+		}
+
+		// 하나의 입력 기능에는 하나의 실행 어빌리티 부여
+		return;
+	}
+}
+
+void UTBAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& InputTag)
+{
+	ABILITYLIST_SCOPE_LOCK();
+
+	for (FGameplayAbilitySpec& Spec : GetActivatableAbilities())
+	{
+		if (!Spec.Ability || !Spec.Ability->GetAssetTags().HasTagExact(InputTag))
+		{
+			continue;
+		}
+
+		Spec.InputPressed = false;
+
+		if (!Spec.IsActive())
+		{
+			continue;
+		}
+
+		UGameplayAbility* Instance = Spec.GetPrimaryInstance();
+		if (!Instance)
+		{
+			continue;
+		}
+
+		const FPredictionKey PredictionKey = Instance->GetCurrentActivationInfo().GetActivationPredictionKey();
+
+		AbilitySpecInputReleased(Spec);
+
+		// WaitInputRelease에 알림
+		// 해당 태스크가 소유 클라이언트의 해제를 서버에도 전달
+		InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputReleased, Spec.Handle, PredictionKey);
+	}
+}

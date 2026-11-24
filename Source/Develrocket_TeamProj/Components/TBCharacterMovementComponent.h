@@ -19,4 +19,8 @@ public:
 
 protected:
 	bool IsMovementBlockedByState() const;
+	
+	// 조준 중 최대 이동 속도 배율
+	UPROPERTY(EditDefaultsOnly, Category = "Movement|Aim", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float AimMovementSpeedMultiplier = 0.3f;
 };
