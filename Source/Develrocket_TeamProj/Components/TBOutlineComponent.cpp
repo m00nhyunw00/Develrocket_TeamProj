@@ -18,6 +18,17 @@ void UTBOutlineComponent::SetOutlineStyle(const FTBOutlineStyle& NewStyle)
 	RefreshOutline();
 }
 
+void UTBOutlineComponent::SetOutlineColor(float Red, float Green, float Blue)
+{
+	if (!FMath::IsFinite(Red) || !FMath::IsFinite(Green) || !FMath::IsFinite(Blue))
+	{
+		return;
+	}
+
+	Style.Color = FLinearColor(FMath::Max(0.0f, Red), FMath::Max(0.0f, Green), FMath::Max(0.0f, Blue), Style.Color.A);
+	RefreshOutline();
+}
+
 void UTBOutlineComponent::OnRegister()
 {
 	Super::OnRegister();

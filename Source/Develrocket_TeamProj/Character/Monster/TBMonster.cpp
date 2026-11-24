@@ -1,6 +1,7 @@
 #include "TBMonster.h"
 
 #include "AIController.h"
+#include "AI/AIControler/Monster/TBHunterAIController.h"
 #include "AI/AIControler/Monster/TBMonsterAIController.h"
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
@@ -62,6 +63,16 @@ ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer)
 void ATBMonster::BeginPlay()
 {
 	Super::BeginPlay();
+
+	const bool bIsHunter = AIControllerClass && AIControllerClass->IsChildOf<ATBHunterAIController>();
+	if (bIsHunter)
+	{
+		SetCharacterOutlineColor(0.5f, 0.0f, 1.0f);
+	}
+	else
+	{
+		SetCharacterOutlineColor(1.0f, 1.0f, 0.0f);
+	}
 
 	// 서버와 클라이언트에서 몬스터 자신을 ASC의 OwnerActor·AvatarActor로 연결
 	InitializeMonsterAbilitySystem();
