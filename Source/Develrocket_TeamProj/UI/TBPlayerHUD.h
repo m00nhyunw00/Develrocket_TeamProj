@@ -83,7 +83,6 @@ private:
 	TWeakObjectPtr<UTBInteractionComponent> BoundInteraction; //캐릭터와 함께 사라질 수 있음
 	FDelegateHandle FocusChangedHandle;
 	
-	// Test Only : After Adding LevelManager, We will delete this one
 	TArray<FTBLeaderboardRowData> BuildLeaderboardRows() const;
 	void RefreshLeaderboard();
 	FTimerHandle LeaderboardRefreshTimer;

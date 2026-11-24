@@ -11,6 +11,7 @@ class UTBSpawnManagerComponent;
 class UTBSpawnPoolDataAsset;
 class AGameModeBase;
 class APlayerController;
+class ATBPlayerState;
 
 // 위젯이 구독할 로컬 알림 (일반 멀티캐스트)
 DECLARE_MULTICAST_DELEGATE(FOnTBLocalCityReady);
@@ -65,6 +66,8 @@ public:
 	// 호스트(서버)의 START버튼이 호출
 	bool StartMatch();
 
+	void RecordPlayerDeath(ATBPlayerState& Victim, ATBPlayerState* Killer);
+
 	// 서버에서 호출. 리스폰할 캐릭터 클래스의 캡슐을 기준으로 위치 탐색.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="City|Player Spawn")
 	bool FindSafePlayerSpawn(TSubclassOf<ACharacter> CharacterClass, AActor* IgnoredActor, FTransform& OutSpawnTransform) const;
@@ -110,6 +113,9 @@ protected:
 	
 	UPROPERTY(EditInstanceOnly, Category="Match|AutoStart", meta=(ClampMin="0.0", Units="s"))
 	float AutoStartTimeout = 30.0f;
+
+	UPROPERTY(EditInstanceOnly, Category = "Match|Scoring", meta = (ClampMin = "0"))
+	int32 PointsPerPlayerKill = 100;
 	
 private:
 	// Coordinator의 OnLocalCityReady는 Dynamic(Seed, Revision) -> 시그니처를 맞춰야 함

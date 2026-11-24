@@ -6,6 +6,7 @@
 #include "TBLeaderboardWidget.generated.h"
 
 class UScrollBox;
+class UHorizontalBox;
 class UTBLeaderboardRowWidget;
 
 UCLASS()
@@ -23,9 +24,14 @@ public:
 	void ClearLeaderboardRows();
 	
 protected:
+	virtual void NativeOnInitialized() override;
+
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UScrollBox> PlayerRowsScrollBox;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Leaderboard")
 	TSubclassOf<UTBLeaderboardRowWidget> RowWidgetClass;
+
+private:
+	UHorizontalBox* CreateDefaultRow(const TArray<FText>& Columns, bool bHighlight);
 };

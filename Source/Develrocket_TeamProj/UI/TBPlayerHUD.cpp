@@ -90,9 +90,10 @@ void ATBPlayerHUD::BeginPlay()
         BindAbilitySystem(PS->GetAbilitySystemComponent());
     }
     
-    if (LeaderboardWidgetClass && UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass()))
+    if (UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass()))
     {
-        LeaderboardWidget = CreateWidget<UTBLeaderboardWidget>(PC, LeaderboardWidgetClass);
+        LeaderboardWidget = CreateWidget<UTBLeaderboardWidget>(
+            PC, LeaderboardWidgetClass ? LeaderboardWidgetClass.Get() : UTBLeaderboardWidget::StaticClass());
         if (LeaderboardWidget)
         {
             LeaderboardWidget->AddToViewport(8);
@@ -119,13 +120,28 @@ TArray<FTBLeaderboardRowData> ATBPlayerHUD::BuildLeaderboardRows() const
         Row.PlayerName = FText::FromString(PS->GetPlayerName());
         Row.PingMs = FMath::RoundToInt(PS->GetPingInMilliseconds());
         Row.bIsLocalPlayer = (PS == LocalPS);
-        // K/D/A·Score·bIsDead: 데이터 단계에서 채움
+
+        if (const ATBPlayerState* TBPlayerState = Cast<ATBPlayerState>(PS))
+        {
+            const FTBMatchStats& Stats = TBPlayerState->GetMatchStats();
+            Row.Kills = Stats.Kills;
+            Row.Deaths = Stats.Deaths;
+            Row.Score = Stats.MatchScore;
+        }
     }
 
-    // 점수 → 킬 순으로 정렬 후 순위 부여
+    // 점수와 킬이 같으면 사망 수가 적은 플레이어를 먼저 표시
     Rows.StableSort([](const FTBLeaderboardRowData& A, const FTBLeaderboardRowData& B)
     {
-        return A.Score != B.Score ? A.Score > B.Score : A.Kills > B.Kills;
+        if (A.Score != B.Score)
+        {
+            return A.Score > B.Score;
+        }
+        if (A.Kills != B.Kills)
+        {
+            return A.Kills > B.Kills;
+        }
+        return A.Deaths < B.Deaths;
     });
 
     for (int32 Index = 0; Index < Rows.Num(); ++Index)

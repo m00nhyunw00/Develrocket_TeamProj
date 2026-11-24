@@ -8,6 +8,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
+#include "InputCoreTypes.h"
 #include "TBGameplayTags.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
@@ -17,11 +18,11 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Framework/TBPlayerState.h"
+#include "Framework/TBLevelManager.h"
+#include "Kismet/GameplayStatics.h"
 #include "UI/TBPlayerHUD.h"
 #include "Components/TBInteractionComponent.h"
 #include "Interface/TBInteractInterface.h"
-
-class ATBPlayerState;
 
 // 컴포넌트 및 회전 설정 ----------------------
 
@@ -99,7 +100,7 @@ bool ATBPlayer::IsDead() const
 	return IsValid(ASC) && ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
 }
 
-void ATBPlayer::Die()
+void ATBPlayer::Die(ATBPlayerState* Killer)
 {
 	ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
 	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponent();
@@ -144,6 +145,12 @@ void ATBPlayer::Die()
 
 	PS->ForceNetUpdate();
 	ForceNetUpdate();
+
+	if (ATBLevelManager* LevelManager = Cast<ATBLevelManager>(
+		UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass())))
+	{
+		LevelManager->RecordPlayerDeath(*PS, Killer);
+	}
 }
 
 void ATBPlayer::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
@@ -653,6 +660,12 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	{
 		EnhancedInput->BindAction(LeaderboardAction, ETriggerEvent::Started, this, &ATBPlayer::InputLeaderboardStarted);
 		EnhancedInput->BindAction(LeaderboardAction, ETriggerEvent::Completed, this, &ATBPlayer::InputLeaderboardCompleted);
+		EnhancedInput->BindAction(LeaderboardAction, ETriggerEvent::Canceled, this, &ATBPlayer::InputLeaderboardCompleted);
+	}
+	else
+	{
+		PlayerInputComponent->BindKey(EKeys::Tab, IE_Pressed, this, &ATBPlayer::InputLeaderboardStarted);
+		PlayerInputComponent->BindKey(EKeys::Tab, IE_Released, this, &ATBPlayer::InputLeaderboardCompleted);
 	}
 
 	if (SecondaryAction)
