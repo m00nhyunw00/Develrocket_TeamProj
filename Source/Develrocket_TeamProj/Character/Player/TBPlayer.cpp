@@ -647,6 +647,12 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	{
 		EnhancedInput->BindAction(PauseAction, ETriggerEvent::Started, this, &ATBPlayer::InputPauseStarted);
 	}
+	
+	if (LeaderboardAction)
+	{
+		EnhancedInput->BindAction(LeaderboardAction, ETriggerEvent::Started, this, &ATBPlayer::InputLeaderboardStarted);
+		EnhancedInput->BindAction(LeaderboardAction, ETriggerEvent::Completed, this, &ATBPlayer::InputLeaderboardCompleted);
+	}
 
 	if (SecondaryAction)
 	{
@@ -1249,3 +1255,30 @@ void ATBPlayer::InputPauseStarted()
 	}
 }
 
+void ATBPlayer::InputLeaderboardStarted()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+	
+	if (ATBPlayerHUD* HUD = Cast<ATBPlayerHUD>(PC->GetHUD()))
+	{
+		HUD->ShowLeaderboard();
+	}
+}
+
+void ATBPlayer::InputLeaderboardCompleted()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+	
+	if (ATBPlayerHUD* HUD = Cast<ATBPlayerHUD>(PC->GetHUD()))
+	{
+		HUD->HideLeaderboard();
+	}
+}

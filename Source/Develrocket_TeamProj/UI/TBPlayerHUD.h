@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
 #include "AttributeSet.h"
+#include "UI/InGame/TBLeaderboardTypes.h"
 #include "TBPlayerHUD.generated.h"
 
 class UAbilitySystemComponent;
@@ -11,6 +12,7 @@ class UTBPauseMenuWidget;
 class UTBMatchWaitWidget;
 class UTBInteractionComponent;
 class UTBLobbyReadyWidget;
+class UTBLeaderboardWidget;
 
 struct FOnAttributeChangeData;
 
@@ -28,6 +30,9 @@ public:
 	
 	void BindInteraction(UTBInteractionComponent* InInteraction);
 	void UnBindInteraction();
+	
+	void ShowLeaderboard();
+	void HideLeaderboard();
 
 protected:
 	virtual void BeginPlay() override;
@@ -52,6 +57,15 @@ protected:
 	
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UTBLobbyReadyWidget> LobbyReadyWidgetClass;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UTBLeaderboardWidget> LeaderboardWidgetClass;
+	
+	UPROPERTY(Transient)
+	TObjectPtr<UTBLeaderboardWidget> LeaderboardWidget;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "UI", meta=(ClampMin = "0.1", Units = "s"))
+	float LeaderboardRefreshInterval = 0.5f;
 
 private:
 	void HandleAttributeChanged(const FOnAttributeChangeData& Data);
@@ -68,5 +82,10 @@ private:
 	
 	TWeakObjectPtr<UTBInteractionComponent> BoundInteraction; //캐릭터와 함께 사라질 수 있음
 	FDelegateHandle FocusChangedHandle;
+	
+	// Test Only : After Adding LevelManager, We will delete this one
+	TArray<FTBLeaderboardRowData> BuildLeaderboardRows() const;
+	void RefreshLeaderboard();
+	FTimerHandle LeaderboardRefreshTimer;
 	
 };

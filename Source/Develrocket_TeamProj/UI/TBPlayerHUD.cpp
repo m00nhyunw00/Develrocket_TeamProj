@@ -17,6 +17,9 @@
 #include "Interface/TBInteractInterface.h"
 #include "UI/Menu/TBLobbyReadyWidget.h"
 #include "Framework/TBLobbyManager.h"
+#include "InGame/TBLeaderboardWidget.h"
+#include "GameFramework/GameStateBase.h"
+#include "GameFramework/PlayerState.h"
 
 void ATBPlayerHUD::BeginPlay()
 {
@@ -85,6 +88,16 @@ void ATBPlayerHUD::BeginPlay()
     if (PS)
     {
         BindAbilitySystem(PS->GetAbilitySystemComponent());
+    }
+    
+    if (LeaderboardWidgetClass)
+    {
+        LeaderboardWidget = CreateWidget<UTBLeaderboardWidget>(PC, LeaderboardWidgetClass);
+        if (LeaderboardWidget)
+        {
+            LeaderboardWidget->AddToViewport(8);
+            LeaderboardWidget->SetVisibility(ESlateVisibility::Collapsed);
+        }
     }
 }
 
@@ -201,6 +214,32 @@ void ATBPlayerHUD::HandleFocusedActorChanged(AActor* NewFocus)
     }
 }
 
+TArray<FTBLeaderboardRowData> ATBPlayerHUD::BuildLeaderboardRows() const
+{
+    TArray<FTBLeaderboardRowData> Rows;
+    const AGameStateBase* GS = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+    if (!GS) return Rows;
+    
+    for (const APlayerState* PS : GS->PlayerArray)
+    {
+        if (!IsValid(PS) || PS->IsInactive()) continue; // Exclude Unconnected Player
+        
+        FTBLeaderboardRowData& Row = Rows.AddDefaulted_GetRef();
+        Row.PlayerName = FText::FromString(PS->GetPlayerName());
+        Row.PingMs = FMath::RoundToInt(PS->GetPingInMilliseconds());
+    }
+    
+    // 점수 -> 킬 순으로 우선순위 부여
+    Rows.StableSort([](const FTBLeaderboardRowData& A, const FTBLeaderboardRowData& B){return A.Score != B.Score ? A.Score > B.Score : A.Kills > B.Kills;});
+    for (int32 Index = 0; Index < Rows.Num(); ++Index) Rows[Index].Rank = Index +1;
+    return Rows;
+}
+
+void ATBPlayerHUD::RefreshLeaderboard()
+{
+    if (LeaderboardWidget) LeaderboardWidget->SetLeaderboardRows(BuildLeaderboardRows());
+}
+
 void ATBPlayerHUD::UnbindAbilitySystem()
 {
     if (UAbilitySystemComponent* ASC = BoundASC.Get())
@@ -269,6 +308,21 @@ void ATBPlayerHUD::UnBindInteraction()
     }
 }
 
+void ATBPlayerHUD::ShowLeaderboard()
+{
+    if (!LeaderboardWidget) return;
+    RefreshLeaderboard();
+    LeaderboardWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+    GetWorldTimerManager().SetTimer(LeaderboardRefreshTimer, this, &ThisClass::RefreshLeaderboard, LeaderboardRefreshInterval, true);
+}
+
+void ATBPlayerHUD::HideLeaderboard()
+{
+    GetWorldTimerManager().ClearTimer(LeaderboardRefreshTimer);
+    if (LeaderboardWidget) LeaderboardWidget->SetVisibility(ESlateVisibility::Collapsed);
+}
+
+
 
 
 void ATBPlayerHUD::EndPlay(
@@ -285,6 +339,12 @@ void ATBPlayerHUD::EndPlay(
     if (PauseWidget)
     {
         PauseWidget->RemoveFromParent();
+    }
+    
+    if (LeaderboardWidget)
+    {
+        GetWorldTimerManager().ClearTimer(LeaderboardRefreshTimer);
+        LeaderboardWidget->RemoveFromParent();
     }
 
     Super::EndPlay(EndPlayReason);
