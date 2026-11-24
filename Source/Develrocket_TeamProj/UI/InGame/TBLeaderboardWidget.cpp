@@ -5,36 +5,53 @@
 
 void UTBLeaderboardWidget::SetLeaderboardRows(const TArray<FTBLeaderboardRowData>& Rows)
 {
-	// 새 목록을 넣기 전에 기존 행을 제거
-	ClearLeaderboardRows();
-	
-	// ScrollBox나 행 클래스가 연결되지 않았다면 생성을 중단
+	// ScrollBox나 행 클래스가 연결되지 않았다면 중단
 	if (!PlayerRowsScrollBox || !RowWidgetClass)
 	{
 		return;
 	}
-	
-	// 전달된 데이터마다 행 위젯을 만들어 목록에 추가
-	for (const FTBLeaderboardRowData& RowData : Rows)
+
+	// 모자란 행만 새로 만들어 보관 (이미 있는 행은 재사용)
+	while (RowWidgetPool.Num() < Rows.Num())
 	{
 		UTBLeaderboardRowWidget* RowWidget = CreateWidget<UTBLeaderboardRowWidget>(this, RowWidgetClass);
-		
+		if (!RowWidget)
+		{
+			return;
+		}
+
+		PlayerRowsScrollBox->AddChild(RowWidget);
+		RowWidgetPool.Add(RowWidget);
+	}
+
+	// 데이터가 있는 행은 갱신·표시, 남는 행은 숨김
+	for (int32 Index = 0; Index < RowWidgetPool.Num(); ++Index)
+	{
+		UTBLeaderboardRowWidget* RowWidget = RowWidgetPool[Index];
 		if (!RowWidget)
 		{
 			continue;
 		}
-		
-		// 행 데이터를 행 위젯의 TextBlock들에 적용
-		RowWidget->SetRowData(RowData);
-		PlayerRowsScrollBox->AddChild(RowWidget);
+
+		if (Rows.IsValidIndex(Index))
+		{
+			RowWidget->SetRowData(Rows[Index]);
+			RowWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+		}
+		else
+		{
+			RowWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
 	}
 }
 
 void UTBLeaderboardWidget::ClearLeaderboardRows()
 {
-	// ScrollBox의 이전 리더보드 행을 모두 제거
+	// 완전 초기화: 행 위젯과 보관 목록을 모두 비움
 	if (PlayerRowsScrollBox)
 	{
 		PlayerRowsScrollBox->ClearChildren();
 	}
+
+	RowWidgetPool.Reset();
 }

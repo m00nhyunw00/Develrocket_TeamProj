@@ -28,4 +28,7 @@ protected:
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Leaderboard")
 	TSubclassOf<UTBLeaderboardRowWidget> RowWidgetClass;
+	
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTBLeaderboardRowWidget>> RowWidgetPool;
 };
