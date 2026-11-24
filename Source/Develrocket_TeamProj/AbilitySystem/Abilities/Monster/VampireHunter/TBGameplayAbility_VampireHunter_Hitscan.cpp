@@ -5,6 +5,8 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Monster/TBMonster.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "DrawDebugHelpers.h"
+#include "HAL/IConsoleManager.h"
 #include "Interface/TBHitInterface.h"
 #include "TBGameplayTags.h"
 
@@ -12,6 +14,20 @@ namespace
 {
 const FName TargetActorKey(TEXT("TargetActor"));
 constexpr ECollisionChannel HunterHitscanTraceChannel = ECC_GameTraceChannel2;
+constexpr float AimLockTime = 0.25f;
+constexpr float FireTime = 0.5f;
+
+AActor* GetHunterTarget(const ATBMonster* Monster)
+{
+	const AAIController* Controller = IsValid(Monster) ? Cast<AAIController>(Monster->GetController()) : nullptr;
+	const UBlackboardComponent* Blackboard = Controller ? Controller->GetBlackboardComponent() : nullptr;
+	return Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(TargetActorKey)) : nullptr;
+}
+
+#if ENABLE_DRAW_DEBUG
+TAutoConsoleVariable<int32> CVarDebugHunterShot(
+	TEXT("tb.Debug.HunterShot"), 0, TEXT("Draw the Vampire Hunter's hitscan trace (0: off, 1: on)."));
+#endif
 }
 
 UTBGameplayAbility_VampireHunter_Hitscan::UTBGameplayAbility_VampireHunter_Hitscan()
@@ -41,13 +57,55 @@ void UTBGameplayAbility_VampireHunter_Hitscan::ActivateAbility(FGameplayAbilityS
 	const FGameplayEventData* TriggerEventData)
 {
 	ATBMonster* Monster = ActorInfo ? Cast<ATBMonster>(ActorInfo->AvatarActor.Get()) : nullptr;
-	const AAIController* Controller = IsValid(Monster) ? Cast<AAIController>(Monster->GetController()) : nullptr;
-	const UBlackboardComponent* Blackboard = Controller ? Controller->GetBlackboardComponent() : nullptr;
-	AActor* Target = Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(TargetActorKey)) : nullptr;
+	AActor* Target = GetHunterTarget(Monster);
 	const USkeletalMeshComponent* Mesh = IsValid(Monster) ? Monster->GetMesh() : nullptr;
 	if (!CanUseAgainst(Monster, Target) || (!MuzzleSocketName.IsNone() && (!Mesh || !Mesh->DoesSocketExist(MuzzleSocketName))))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
+	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+	if (!IsActive())
+	{
+		return;
+	}
+
+	ShotTarget = Target;
+	FTimerManager& Timers = Monster->GetWorld()->GetTimerManager();
+	Timers.SetTimer(AimLockTimer, this, &ThisClass::LockAim, AimLockTime, false);
+	Timers.SetTimer(FireTimer, this, &ThisClass::FireShot, FireTime, false);
+}
+
+void UTBGameplayAbility_VampireHunter_Hitscan::LockAim()
+{
+	const ATBMonster* Monster = Cast<ATBMonster>(GetAvatarActorFromActorInfo());
+	const AActor* Target = ShotTarget.Get();
+	if (!IsActive() || !CanUseAgainst(Monster, Target) || GetHunterTarget(Monster) != Target)
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+		return;
+	}
+
+	LockedAimLocation = Target->GetActorLocation();
+#if ENABLE_DRAW_DEBUG
+	if (CVarDebugHunterShot.GetValueOnGameThread() != 0)
+	{
+		DrawDebugPoint(Monster->GetWorld(), LockedAimLocation.GetValue(), 12.0f, FColor::Cyan, false, 2.0f);
+	}
+#endif
+}
+
+void UTBGameplayAbility_VampireHunter_Hitscan::FireShot()
+{
+	ATBMonster* Monster = Cast<ATBMonster>(GetAvatarActorFromActorInfo());
+	AActor* Target = ShotTarget.Get();
+	const USkeletalMeshComponent* Mesh = IsValid(Monster) ? Monster->GetMesh() : nullptr;
+	if (!IsActive() || !LockedAimLocation.IsSet() || !CanUseAgainst(Monster, Target)
+		|| GetHunterTarget(Monster) != Target
+		|| (!MuzzleSocketName.IsNone() && (!Mesh || !Mesh->DoesSocketExist(MuzzleSocketName))))
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 		return;
 	}
 
@@ -62,26 +120,58 @@ void UTBGameplayAbility_VampireHunter_Hitscan::ActivateAbility(FGameplayAbilityS
 		TraceStart = Mesh->GetSocketLocation(MuzzleSocketName);
 	}
 
-	const FVector AimDirection = (Target->GetActorLocation() - TraceStart).GetSafeNormal();
+	const FVector AimDirection = (LockedAimLocation.GetValue() - TraceStart).GetSafeNormal();
 	if (AimDirection.IsNearlyZero())
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 		return;
 	}
 
-	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
-	if (!IsActive())
-	{
-		return;
-	}
-
+	const FVector TraceEnd = TraceStart + AimDirection * TraceRange;
 	FHitResult Hit;
-	if (IsValid(Monster) && IsValid(Target)
-		&& Monster->LineTraceByChannel(Hit, TraceStart, TraceStart + AimDirection * TraceRange, HunterHitscanTraceChannel)
-		&& Hit.GetActor() == Target)
+	const bool bBlockingHit = Monster->LineTraceByChannel(Hit, TraceStart, TraceEnd, HunterHitscanTraceChannel);
+	const bool bHitTarget = bBlockingHit && Hit.GetActor() == Target;
+
+#if ENABLE_DRAW_DEBUG
+	if (CVarDebugHunterShot.GetValueOnGameThread() != 0)
+	{
+		const FColor TraceColor = bHitTarget ? FColor::Green : (bBlockingHit ? FColor::Orange : FColor::Red);
+		const FVector DebugEnd = bBlockingHit ? Hit.ImpactPoint : TraceEnd;
+		DrawDebugLine(Monster->GetWorld(), TraceStart, DebugEnd, TraceColor, false, 2.0f, 0, 2.0f);
+		if (bBlockingHit)
+		{
+			DrawDebugPoint(Monster->GetWorld(), DebugEnd, 12.0f, TraceColor, false, 2.0f);
+		}
+	}
+#endif
+
+	if (bHitTarget)
 	{
 		ITBHitInterface::Execute_ReceiveAttackHit(Target, ShotDamage, Monster, Hit);
 	}
 
-	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+}
+
+void UTBGameplayAbility_VampireHunter_Hitscan::EndAbility(FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo,
+	bool bReplicateEndAbility, bool bWasCancelled)
+{
+	if (UWorld* World = GetWorld())
+	{
+		FTimerManager& Timers = World->GetTimerManager();
+		Timers.ClearTimer(AimLockTimer);
+		Timers.ClearTimer(FireTimer);
+	}
+	ShotTarget.Reset();
+	LockedAimLocation.Reset();
+	if (bWasCancelled && ActorInfo)
+	{
+		UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
+		if (ASC && ASC->GetAnimatingAbility() == this)
+		{
+			ASC->CurrentMontageStop();
+		}
+	}
+	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
