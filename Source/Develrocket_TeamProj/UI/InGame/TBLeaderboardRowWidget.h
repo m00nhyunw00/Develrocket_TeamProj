@@ -38,6 +38,9 @@ protected:
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTextBlock> ScoreText;
 	
+	UPROPERTY(meta=(BindWidgetOptional))
+	TObjectPtr<UTextBlock> AssistText;
+	
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTextBlock> PingText;
 };

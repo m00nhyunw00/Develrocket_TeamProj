@@ -34,6 +34,11 @@ void UTBLeaderboardRowWidget::SetRowData(const FTBLeaderboardRowData& RowData)
 	{
 		ScoreText->SetText(FText::AsNumber(RowData.Score));
 	}
+	
+	if (AssistText)
+	{
+		AssistText->SetText(FText::AsNumber(RowData.Assists));
+	}
 
 	// 핑 값이 없는 경우 숫자 대신 대시를 표시
 	if (PingText)
