@@ -151,6 +151,14 @@ public:
 	// 무기 소켓 월드 위치 조회 ----------------------
 	
 	bool TryGetWeaponSocketLocation(FName SocketName, FVector& OutLocation) const;
+	
+	// Tab키 Leaderboard
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> LeaderboardAction;
+	
+	void InputLeaderboardStarted();
+	void InputLeaderboardCompleted();
+	
 
 protected:
 	// 초기화 및 공통 피격 처리 확장 ----------------------
