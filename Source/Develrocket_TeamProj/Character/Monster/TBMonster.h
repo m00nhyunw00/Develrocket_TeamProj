@@ -37,6 +37,9 @@ struct FTBMonsterStatsRow : public FTableRowBase
 	// Distance between actor origins. Zero disables melee attacks.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0.0", Units = "cm"))
 	float MeleeRange = 150.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "-1", ToolTip = "-1 uses the level manager's default monster kill score. 0 disables the reward."))
+	int32 KillRewardScore = INDEX_NONE;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTBMonsterDied, ATBMonster*, Monster);
@@ -134,11 +137,12 @@ private:
 	void HandleStaggerFull();
 	void HandleAbilityEnded(const FAbilityEndedData& EndedData);
 	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
-	void Die();
+	void Die(AActor* DamageSource);
 	void HandleDeath();
 	
 	bool bGameplayDataInitialized = false;
 	float MeleeDamage = 20.0f;
+	int32 KillRewardScore = INDEX_NONE;
 	bool bDeathHandled = false;
 	bool bReturnedToPool = false;
 	bool bPausedBrainForStagger = false;

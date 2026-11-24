@@ -57,6 +57,17 @@ void ATBPlayerState::AddMatchDeath()
 	ForceNetUpdate();
 }
 
+void ATBPlayerState::AddMatchScore(int32 Points)
+{
+	if (!HasAuthority() || Points <= 0)
+	{
+		return;
+	}
+
+	MatchStats.MatchScore += Points;
+	ForceNetUpdate();
+}
+
 void ATBPlayerState::InitializeGameplayData()
 {
 	if (!HasAuthority() || bGameplayDataInitialized || !AbilitySystemComponent)

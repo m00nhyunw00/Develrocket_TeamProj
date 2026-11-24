@@ -162,6 +162,16 @@ void ATBLevelManager::RecordPlayerDeath(ATBPlayerState& Victim, ATBPlayerState* 
 	}
 }
 
+void ATBLevelManager::RecordMonsterKill(ATBPlayerState& Killer, int32 KillRewardScore)
+{
+	if (!HasAuthority() || !bMatchStarted || Killer.IsInactive())
+	{
+		return;
+	}
+
+	Killer.AddMatchScore(KillRewardScore >= 0 ? KillRewardScore : PointsPerMonsterKill);
+}
+
 void ATBLevelManager::RetryMatchSpawn()
 {
 	if (!HasAuthority() || !bSearchingForSpawn || bMatchStarted) return;

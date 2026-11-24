@@ -6,7 +6,7 @@
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
 #include "TBMonsterAttributeSet.generated.h"
 
-DECLARE_MULTICAST_DELEGATE(FTBMonsterOutOfBlood);
+DECLARE_MULTICAST_DELEGATE_OneParam(FTBMonsterOutOfBlood, AActor* /*DamageSource*/);
 DECLARE_MULTICAST_DELEGATE(FTBMonsterStaggerFull);
 
 // 몬스터 체력 복제 및 서버 피해 계산

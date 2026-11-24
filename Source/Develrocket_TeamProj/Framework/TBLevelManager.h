@@ -67,6 +67,7 @@ public:
 	bool StartMatch();
 
 	void RecordPlayerDeath(ATBPlayerState& Victim, ATBPlayerState* Killer);
+	void RecordMonsterKill(ATBPlayerState& Killer, int32 KillRewardScore);
 
 	// 서버에서 호출. 리스폰할 캐릭터 클래스의 캡슐을 기준으로 위치 탐색.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="City|Player Spawn")
@@ -116,6 +117,9 @@ protected:
 
 	UPROPERTY(EditInstanceOnly, Category = "Match|Scoring", meta = (ClampMin = "0"))
 	int32 PointsPerPlayerKill = 100;
+
+	UPROPERTY(EditInstanceOnly, Category = "Match|Scoring", meta = (ClampMin = "0"))
+	int32 PointsPerMonsterKill = 25;
 	
 private:
 	// Coordinator의 OnLocalCityReady는 Dynamic(Seed, Revision) -> 시그니처를 맞춰야 함

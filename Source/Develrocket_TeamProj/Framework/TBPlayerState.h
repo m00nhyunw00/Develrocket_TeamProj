@@ -44,6 +44,7 @@ public:
 	const FTBMatchStats& GetMatchStats() const { return MatchStats; }
 	void AddMatchKill(int32 Points);
 	void AddMatchDeath();
+	void AddMatchScore(int32 Points);
 
 	// 초기 데이터 적용 ----------------------
 
