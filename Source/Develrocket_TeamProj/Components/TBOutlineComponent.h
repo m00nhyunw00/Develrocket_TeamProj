@@ -34,6 +34,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Outline")
 	void SetOutlineStyle(const FTBOutlineStyle& NewStyle);
 
+	// Linear RGB. Values above 1 are supported for HDR outlines.
+	UFUNCTION(BlueprintCallable, Category = "Outline")
+	virtual void SetOutlineColor(float Red, float Green, float Blue);
+
 protected:
 	virtual void OnRegister() override;
 	virtual void OnUnregister() override;

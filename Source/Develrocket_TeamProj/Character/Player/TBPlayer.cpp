@@ -527,6 +527,7 @@ bool ATBPlayer::TryGetWeaponSocketLocation(FName SocketName, FVector& OutLocatio
 void ATBPlayer::BeginPlay()
 {
 	Super::BeginPlay();
+	SetCharacterOutlineColor(1.0f, 0.0f, 0.0f);
 
 	// 기존 Blueprint에 저장된 값과 관계없이 실행 시 표시 규칙 적용
 	ConfigurePlayerMeshes();

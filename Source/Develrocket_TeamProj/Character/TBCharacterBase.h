@@ -28,6 +28,9 @@ public:
 
 	ATBCharacterBase(const FObjectInitializer& ObjectInitializer);
 
+	UFUNCTION(BlueprintCallable, Category = "Outline")
+	void SetCharacterOutlineColor(float Red, float Green, float Blue);
+
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	
 	UTBAbilitySystemComponent* GetTBAbilitySystemComponent() const;
@@ -128,4 +131,7 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<UTBBloodBarComponent> BloodBarComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Outline")
+	TObjectPtr<UTBOutlineComponent> OutlineComponent;
 };
