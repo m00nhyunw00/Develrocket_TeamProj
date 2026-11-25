@@ -202,6 +202,7 @@ void ATBPlayer::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 
 void ATBPlayer::OnRep_PawnDead()
 {
+	SetCharacterOutlineSuppressed(bPawnDead);
 	if (!bPawnDead)
 	{
 		return;

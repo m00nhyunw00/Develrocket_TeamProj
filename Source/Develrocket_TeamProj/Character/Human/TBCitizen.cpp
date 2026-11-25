@@ -228,6 +228,7 @@ void ATBCitizen::SetCitizenState(ETBCitizenState NewState)
 
 void ATBCitizen::OnRep_CitizenState()
 {
+	SetCharacterOutlineSuppressed(CitizenState == ETBCitizenState::Dead);
 	switch (CitizenState)
 	{
 	case ETBCitizenState::Drained:

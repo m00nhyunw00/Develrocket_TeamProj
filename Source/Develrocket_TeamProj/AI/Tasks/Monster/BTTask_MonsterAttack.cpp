@@ -17,6 +17,7 @@ namespace
 	constexpr double AttackFacingTolerance = 15.0;
 	constexpr float AttackEntrySpeed = 35.0f;
 	constexpr float AttackPreparationRangeMargin = 35.0f;
+	constexpr float MaxBackstepTime = 0.6f;
 }
 
 UBTTask_MonsterAttack::UBTTask_MonsterAttack()
@@ -96,6 +97,12 @@ EBTNodeResult::Type UBTTask_MonsterAttack::ExecuteTask(UBehaviorTreeComponent& O
 
 void UBTTask_MonsterAttack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
 {
+	if (BackstepState != EBackstepState::None)
+	{
+		TickBackstep(OwnerComp, DeltaSeconds);
+		return;
+	}
+
 	if (PreparationTarget.IsExplicitlyNull()) return;
 
 	AAIController* Controller = OwnerComp.GetAIOwner();
@@ -137,12 +144,12 @@ void UBTTask_MonsterAttack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* N
 	const FGameplayAbilitySpecHandle Handle = FindUsableAttack(Monster, Blackboard);
 	PreparationTarget.Reset();
 	const EBTNodeResult::Type Result = Handle.IsValid()
-		? StartAttack(OwnerComp, *Monster, Handle) : EBTNodeResult::Failed;
+		? StartAttack(OwnerComp, *Monster, *Target, Handle) : EBTNodeResult::Failed;
 	if (Result != EBTNodeResult::InProgress) FinishLatentTask(OwnerComp, Result);
 }
 
 EBTNodeResult::Type UBTTask_MonsterAttack::StartAttack(
-	UBehaviorTreeComponent& OwnerComp, ATBMonster& Monster, FGameplayAbilitySpecHandle Handle)
+	UBehaviorTreeComponent& OwnerComp, ATBMonster& Monster, const AActor& Target, FGameplayAbilitySpecHandle Handle)
 {
 	UAbilitySystemComponent* ASC = Monster.GetAbilitySystemComponent();
 	Monster.GetCharacterMovement()->StopMovementImmediately();
@@ -150,6 +157,7 @@ EBTNodeResult::Type UBTTask_MonsterAttack::StartAttack(
 	ActiveASC = ASC;
 	ActiveTree = &OwnerComp;
 	ActiveHandle = Handle;
+	AttackTarget = &Target;
 	bEndedDuringActivation = false;
 	bCancelledDuringActivation = false;
 	AbilityEndedHandle = ASC->OnAbilityEnded.AddUObject(this, &ThisClass::HandleAbilityEnded);
@@ -160,7 +168,7 @@ EBTNodeResult::Type UBTTask_MonsterAttack::StartAttack(
 	{
 		const bool bSuccess = bActivated && bEndedDuringActivation && !bCancelledDuringActivation;
 		ClearAbilityBinding();
-		return bSuccess ? EBTNodeResult::Succeeded : EBTNodeResult::Failed;
+		return CompleteAttack(OwnerComp, bSuccess);
 	}
 	return EBTNodeResult::InProgress;
 }
@@ -178,13 +186,66 @@ void UBTTask_MonsterAttack::HandleAbilityEnded(const FAbilityEndedData& EndedDat
 	ClearAbilityBinding();
 	if (Tree)
 	{
-		FinishLatentTask(*Tree, EndedData.bWasCancelled ? EBTNodeResult::Failed : EBTNodeResult::Succeeded);
+		const EBTNodeResult::Type Result = CompleteAttack(*Tree, !EndedData.bWasCancelled);
+		if (Result != EBTNodeResult::InProgress) FinishLatentTask(*Tree, Result);
 	}
+}
+
+EBTNodeResult::Type UBTTask_MonsterAttack::CompleteAttack(UBehaviorTreeComponent& OwnerComp, bool bSucceeded)
+{
+	const ATBMonsterAIController* Controller = Cast<ATBMonsterAIController>(OwnerComp.GetAIOwner());
+	const ATBMonster* Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
+	if (bSucceeded && IsValid(Monster) && Monster->GetMonsterBehavior() == ETBMonsterBehavior::Anasimus
+		&& AttackTarget.IsValid())
+	{
+		// Wait for the ability to release its movement state before requesting the backstep.
+		BackstepState = EBackstepState::Pending;
+		return EBTNodeResult::InProgress;
+	}
+
+	AttackTarget.Reset();
+	return bSucceeded ? EBTNodeResult::Succeeded : EBTNodeResult::Failed;
+}
+
+void UBTTask_MonsterAttack::TickBackstep(UBehaviorTreeComponent& OwnerComp, float DeltaSeconds)
+{
+	ATBMonsterAIController* Controller = Cast<ATBMonsterAIController>(OwnerComp.GetAIOwner());
+	const ATBMonster* Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
+	const UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
+	AActor* Target = Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(BlackboardKey.SelectedKeyName)) : nullptr;
+	if (IsValid(Monster) && !Monster->IsMovementBlocked() && IsValid(Target) && Target == AttackTarget.Get())
+	{
+		if (BackstepState == EBackstepState::Pending && Controller->TryAnasimusBackstep(*Target))
+		{
+			BackstepState = EBackstepState::Moving;
+			BackstepTimeRemaining = MaxBackstepTime;
+			return;
+		}
+		if (BackstepState == EBackstepState::Moving && Controller->IsAnasimusBackstepping()
+			&& (BackstepTimeRemaining -= DeltaSeconds) > 0.0f)
+		{
+			return;
+		}
+	}
+
+	if (Controller) Controller->StopAnasimusBackstep();
+	AttackTarget.Reset();
+	BackstepState = EBackstepState::None;
+	FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 }
 
 EBTNodeResult::Type UBTTask_MonsterAttack::AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
 	PreparationTarget.Reset();
+	if (BackstepState == EBackstepState::Moving)
+	{
+		if (ATBMonsterAIController* Controller = Cast<ATBMonsterAIController>(OwnerComp.GetAIOwner()))
+		{
+			Controller->StopAnasimusBackstep();
+		}
+	}
+	BackstepState = EBackstepState::None;
+	AttackTarget.Reset();
 	UAbilitySystemComponent* ASC = ActiveASC.Get();
 	const FGameplayAbilitySpecHandle Handle = ActiveHandle;
 	ClearAbilityBinding();

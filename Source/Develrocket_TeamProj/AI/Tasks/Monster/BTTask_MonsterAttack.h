@@ -26,7 +26,10 @@ protected:
 
 private:
 	FGameplayAbilitySpecHandle FindUsableAttack(const ATBMonster* Monster, const UBlackboardComponent* Blackboard) const;
-	EBTNodeResult::Type StartAttack(UBehaviorTreeComponent& OwnerComp, ATBMonster& Monster, FGameplayAbilitySpecHandle Handle);
+	EBTNodeResult::Type StartAttack(UBehaviorTreeComponent& OwnerComp, ATBMonster& Monster, const AActor& Target,
+		FGameplayAbilitySpecHandle Handle);
+	EBTNodeResult::Type CompleteAttack(UBehaviorTreeComponent& OwnerComp, bool bSucceeded);
+	void TickBackstep(UBehaviorTreeComponent& OwnerComp, float DeltaSeconds);
 	void HandleAbilityEnded(const FAbilityEndedData& EndedData);
 	void ClearAbilityBinding();
 	TWeakObjectPtr<class UAbilitySystemComponent> ActiveASC;
@@ -34,7 +37,11 @@ private:
 	FGameplayAbilitySpecHandle ActiveHandle;
 	FDelegateHandle AbilityEndedHandle;
 	TWeakObjectPtr<AActor> PreparationTarget;
+	TWeakObjectPtr<const AActor> AttackTarget;
 	float PreparationTimeRemaining = 0.0f;
+	enum class EBackstepState : uint8 { None, Pending, Moving };
+	EBackstepState BackstepState = EBackstepState::None;
+	float BackstepTimeRemaining = 0.0f;
 	bool bActivating = false;
 	bool bEndedDuringActivation = false;
 	bool bCancelledDuringActivation = false;

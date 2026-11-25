@@ -12,6 +12,17 @@ void UTBOutlineComponent::SetOutlineEnabled(bool bEnabled)
 	RefreshOutline();
 }
 
+void UTBOutlineComponent::SetOutlineSuppressed(bool bSuppressed)
+{
+	if (bOutlineSuppressed == bSuppressed)
+	{
+		return;
+	}
+
+	bOutlineSuppressed = bSuppressed;
+	RefreshOutline();
+}
+
 void UTBOutlineComponent::SetOutlineStyle(const FTBOutlineStyle& NewStyle)
 {
 	Style = NewStyle;
@@ -66,6 +77,12 @@ void UTBOutlineComponent::RefreshOutline()
 		return;
 	}
 
+	if (!bOutlineEnabled || bOutlineSuppressed)
+	{
+		Subsystem->RemoveOutline(this);
+		return;
+	}
+
 	UPrimitiveComponent* Mesh = Cast<UPrimitiveComponent>(TargetMesh.GetComponent(Owner));
 	if (TargetMesh == FComponentReference{} && !Cast<USkeletalMeshComponent>(Mesh))
 	{
@@ -79,7 +96,7 @@ void UTBOutlineComponent::RefreshOutline()
 		}
 	}
 
-	if (bOutlineEnabled && IsValid(Mesh) && (Mesh->IsA<USkeletalMeshComponent>() || Mesh->IsA<UStaticMeshComponent>()))
+	if (IsValid(Mesh) && (Mesh->IsA<USkeletalMeshComponent>() || Mesh->IsA<UStaticMeshComponent>()))
 	{
 		Subsystem->SetOutline(this, Mesh, Style);
 	}

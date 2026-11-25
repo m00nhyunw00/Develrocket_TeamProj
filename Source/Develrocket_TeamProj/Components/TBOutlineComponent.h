@@ -31,6 +31,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Outline")
 	void SetOutlineEnabled(bool bEnabled);
 
+	void SetOutlineSuppressed(bool bSuppressed);
+
 	UFUNCTION(BlueprintCallable, Category = "Outline")
 	void SetOutlineStyle(const FTBOutlineStyle& NewStyle);
 
@@ -56,6 +58,8 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = "Outline", meta = (ShowOnlyInnerProperties))
 	FTBOutlineStyle Style;
+
+	bool bOutlineSuppressed = false;
 
 	void RefreshOutline();
 };

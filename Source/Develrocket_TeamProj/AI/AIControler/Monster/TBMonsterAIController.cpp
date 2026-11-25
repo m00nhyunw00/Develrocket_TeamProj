@@ -21,6 +21,11 @@
 #include "NavigationPath.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
+namespace
+{
+	constexpr EAIFocusPriority::Type AnasimusCombatFocus = EAIFocusPriority::Gameplay + 1;
+}
+
 ATBMonsterAIController::ATBMonsterAIController()
 {
 	bPreferPatrolHeading = true;
@@ -300,7 +305,7 @@ bool ATBMonsterAIController::WantsCombatRetreat(const AActor& Target) const
 
 FPathFollowingRequestResult ATBMonsterAIController::MoveTo(const FAIMoveRequest& MoveRequest, FNavPathSharedPtr* OutPath)
 {
-	const AActor* Target = MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor() : nullptr;
+	AActor* Target = MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor() : nullptr;
 	ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
 	if (!HasAuthority() || !IsValid(Monster) || !IsValid(Target) || Target != TrackedTarget.Get()
 		|| Monster->IsMovementBlocked())
@@ -319,6 +324,11 @@ FPathFollowingRequestResult ATBMonsterAIController::MoveTo(const FAIMoveRequest&
 		return Super::MoveTo(ChaseRequest, OutPath);
 	}
 
+	if (Monster->GetMonsterBehavior() == ETBMonsterBehavior::Anasimus)
+	{
+		return MoveAnasimusTowardTarget(MoveRequest, *Target, *Monster, OutPath);
+	}
+
 	if (GetWorld()->GetTimeSeconds() < NextCombatRepositionTime)
 	{
 		return Super::MoveTo(MoveRequest, OutPath);
@@ -326,23 +336,18 @@ FPathFollowingRequestResult ATBMonsterAIController::MoveTo(const FAIMoveRequest&
 
 	const FVector Origin = GetNavAgentLocation();
 	const FVector Offset = Target->GetActorLocation() - Origin;
-	const double Distance = Offset.Size2D();
 	const FVector TowardTarget = Offset.GetSafeNormal2D();
 	const FVector Sideways = FVector::CrossProduct(FVector::UpVector, TowardTarget);
-	const ETBMonsterBehavior Behavior = Monster->GetMonsterBehavior();
-	const bool bFlank = Behavior == ETBMonsterBehavior::Anasimus && Distance > Monster->GetMeleeAttackRange()
-		&& Distance < 850.0 && FVector::DotProduct(Target->GetActorForwardVector().GetSafeNormal2D(), -TowardTarget) > 0.45;
-	const bool bRetreat = WantsCombatRetreat(*Target);
-	if ((!bFlank && !bRetreat) || TowardTarget.IsNearlyZero() || (bFlank && !LineOfSightTo(Target)))
+	if (!WantsCombatRetreat(*Target) || TowardTarget.IsNearlyZero())
 	{
 		return Super::MoveTo(MoveRequest, OutPath);
 	}
 
-	const FVector ForwardOffset = TowardTarget * (bFlank ? FMath::Min(220.0, Distance * 0.5) : -180.0);
-	const FVector LateralOffset = Sideways * (bFlank ? 270.0 : 130.0) * (FMath::RandBool() ? 1.0 : -1.0);
+	const FVector ForwardOffset = TowardTarget * -180.0;
+	const FVector LateralOffset = Sideways * 130.0 * (FMath::RandBool() ? 1.0 : -1.0);
 	const UNavigationSystemV1* Navigation = UNavigationSystemV1::GetCurrent(GetWorld());
 	const ANavigationData* NavData = Navigation ? Navigation->GetNavDataForProps(GetNavAgentPropertiesRef(), Origin) : nullptr;
-	NextCombatRepositionTime = GetWorld()->GetTimeSeconds() + (bFlank ? 4.0 : 2.5);
+	NextCombatRepositionTime = GetWorld()->GetTimeSeconds() + 2.5;
 
 	for (const double Side : {1.0, -1.0})
 	{
@@ -376,8 +381,143 @@ FPathFollowingRequestResult ATBMonsterAIController::MoveTo(const FAIMoveRequest&
 	return Super::MoveTo(MoveRequest, OutPath);
 }
 
+FPathFollowingRequestResult ATBMonsterAIController::MoveAnasimusTowardTarget(const FAIMoveRequest& MoveRequest,
+	AActor& Target, ATBMonster& Monster, FNavPathSharedPtr* OutPath)
+{
+	const FVector Origin = GetNavAgentLocation();
+	const FVector ToTarget = Target.GetActorLocation() - Origin;
+	const double Distance = ToTarget.Size2D();
+	const double MeleeRange = Monster.GetMeleeAttackRange();
+	const double ForwardStep = FMath::Clamp(Distance - MeleeRange + 35.0, 0.0, 200.0);
+	const UNavigationSystemV1* Navigation = UNavigationSystemV1::GetCurrent(GetWorld());
+	const ANavigationData* NavData = Navigation ? Navigation->GetNavDataForProps(GetNavAgentPropertiesRef(), Origin) : nullptr;
+	if (NavData && Distance > MeleeRange + 25.0 && LineOfSightTo(&Target))
+	{
+		const FVector Forward = ToTarget.GetSafeNormal2D();
+		const FVector Sideways = FVector::CrossProduct(FVector::UpVector, Forward);
+		const double PreferredSide = bAnasimusApproachLeft ? -1.0 : 1.0;
+		for (const double Side : {PreferredSide, -PreferredSide})
+		{
+			FNavLocation Goal;
+			const FVector Point = Origin + Forward * ForwardStep + Sideways * (ForwardStep * 0.65 * Side);
+			if (!Navigation->ProjectPointToNavigation(Point, Goal, FVector(45.0, 45.0, 100.0), NavData)
+				|| FVector::Dist2D(Goal.Location, Target.GetActorLocation()) >= Distance - 25.0)
+			{
+				continue;
+			}
+
+			FAIMoveRequest Step(Goal.Location);
+			Step.SetAcceptanceRadius(18.0f).SetNavigationFilter(MoveRequest.GetNavigationFilter());
+			const FPathFollowingRequestResult Result = RequestAnasimusMove(Step, Target, OutPath);
+			if (Result.Code == EPathFollowingRequestResult::RequestSuccessful)
+			{
+				bAnasimusApproachLeft = Side > 0.0;
+				return Result;
+			}
+		}
+	}
+
+	FAIMoveRequest DirectMove(MoveRequest);
+	const float ContactDistance = Monster.GetSimpleCollisionRadius() + Target.GetSimpleCollisionRadius() + 5.0f;
+	const float ApproachDistance = FMath::Max(ContactDistance, Monster.GetMeleeAttackRange() - 20.0f);
+	DirectMove.SetAcceptanceRadius(ApproachDistance).SetReachTestIncludesAgentRadius(false).SetReachTestIncludesGoalRadius(false);
+	return Super::MoveTo(DirectMove, OutPath);
+}
+
+bool ATBMonsterAIController::TryAnasimusBackstep(AActor& Target)
+{
+	ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
+	if (!IsValid(Monster) || Monster->GetMonsterBehavior() != ETBMonsterBehavior::Anasimus
+		|| TrackedTarget.Get() != &Target || Monster->IsMovementBlocked() || bPoolSuspended
+		|| !Monster->GetCharacterMovement()->IsMovingOnGround())
+	{
+		return false;
+	}
+
+	const FVector Origin = GetNavAgentLocation();
+	const FVector Away = (Origin - Target.GetActorLocation()).GetSafeNormal2D();
+	const UNavigationSystemV1* Navigation = UNavigationSystemV1::GetCurrent(GetWorld());
+	const ANavigationData* NavData = Navigation ? Navigation->GetNavDataForProps(GetNavAgentPropertiesRef(), Origin) : nullptr;
+	if (!NavData || Away.IsNearlyZero()) return false;
+
+	for (const double Distance : {170.0, 90.0})
+	{
+		FNavLocation Goal;
+		FVector NavHit;
+		if (!Navigation->ProjectPointToNavigation(Origin + Away * Distance, Goal, FVector(35.0, 35.0, 80.0), NavData)
+			|| FVector::DotProduct(Goal.Location - Origin, Away) < 65.0
+			|| NavData->Raycast(Origin, Goal.Location, NavHit, NavData->GetDefaultQueryFilter(), this))
+		{
+			continue;
+		}
+
+		FAIMoveRequest Backstep(Goal.Location);
+		Backstep.SetAcceptanceRadius(12.0f);
+		if (RequestAnasimusMove(Backstep, Target, nullptr).Code == EPathFollowingRequestResult::RequestSuccessful)
+		{
+			UCharacterMovementComponent* Movement = Monster->GetCharacterMovement();
+			PreviousBackstepSpeed = Movement->MaxWalkSpeed;
+			Movement->MaxWalkSpeed = FMath::Max(420.0f, Movement->MaxWalkSpeed * 1.8f);
+			return true;
+		}
+	}
+	return false;
+}
+
+FPathFollowingRequestResult ATBMonsterAIController::RequestAnasimusMove(FAIMoveRequest Request, AActor& Target,
+	FNavPathSharedPtr* OutPath)
+{
+	Request.SetAllowPartialPath(false).SetCanStrafe(true)
+		.SetReachTestIncludesAgentRadius(false).SetReachTestIncludesGoalRadius(false);
+	FPathFollowingRequestResult Result;
+	FPathFindingQuery Query;
+	if (!BuildPathfindingQuery(Request, Query)) return Result;
+	FNavPathSharedPtr Path;
+	FindPathForMoveRequest(Request, Query, Path);
+	if (!Path.IsValid() || !Path->IsValid() || Path->IsPartial()) return Result;
+
+	Result.MoveId = RequestMove(Request, Path);
+	if (!Result.MoveId.IsValid()) return Result;
+
+	AnasimusMoveID = Result.MoveId;
+	UCharacterMovementComponent* Movement = CastChecked<ACharacter>(GetPawn())->GetCharacterMovement();
+	bPreviousAnasimusOrientToMovement = Movement->bOrientRotationToMovement;
+	bPreviousAnasimusUseControllerRotation = Movement->bUseControllerDesiredRotation;
+	Movement->bOrientRotationToMovement = false;
+	Movement->bUseControllerDesiredRotation = true;
+	bAllowStrafe = true;
+	SetFocus(&Target, AnasimusCombatFocus);
+	Result.Code = EPathFollowingRequestResult::RequestSuccessful;
+	if (OutPath) *OutPath = Path;
+	return Result;
+}
+
+void ATBMonsterAIController::StopAnasimusBackstep()
+{
+	if (IsAnasimusBackstepping()) FinishAnasimusMove(true);
+}
+
+void ATBMonsterAIController::FinishAnasimusMove(bool bAbortMove)
+{
+	if (!AnasimusMoveID.IsValid()) return;
+
+	const FAIRequestID FinishedID = AnasimusMoveID;
+	AnasimusMoveID = FAIRequestID::InvalidRequest;
+	ClearFocus(AnasimusCombatFocus);
+	if (ACharacter* MovingCharacter = GetCharacter())
+	{
+		UCharacterMovementComponent* Movement = MovingCharacter->GetCharacterMovement();
+		Movement->bOrientRotationToMovement = bPreviousAnasimusOrientToMovement;
+		Movement->bUseControllerDesiredRotation = bPreviousAnasimusUseControllerRotation;
+		if (PreviousBackstepSpeed.IsSet()) Movement->MaxWalkSpeed = PreviousBackstepSpeed.GetValue();
+	}
+	PreviousBackstepSpeed.Reset();
+	if (bAbortMove && GetCurrentMoveRequestID() == FinishedID) StopMovement();
+}
+
 void ATBMonsterAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
 {
+	if (AnasimusMoveID.IsValid() && RequestID == AnasimusMoveID) FinishAnasimusMove(false);
 	Super::OnMoveCompleted(RequestID, Result);
 	if (InvestigationRequestID.IsValid() && RequestID == InvestigationRequestID) FinishInvestigation(false);
 }
@@ -472,6 +612,8 @@ void ATBMonsterAIController::RefreshTargetAfterStagger()
 
 void ATBMonsterAIController::ClearTrackedTarget()
 {
+	FinishAnasimusMove(true);
+	bAnasimusApproachLeft = true;
 	bDamagePriorityTarget = false;
 	if (AActor* PreviousTarget = TrackedTarget.Get())
 	{
