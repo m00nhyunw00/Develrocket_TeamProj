@@ -69,6 +69,8 @@ public:
 	virtual void OnPoolActivated_Implementation() override;
 	virtual void OnPoolDeactivated_Implementation() override;
 	virtual void OnPoolReady() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	void PrepareSummonedSpawn(float Scale, float WalkSpeedMultiplier, bool bAlreadyScaled);
 	void RestorePoolVisualState();
 
 	UFUNCTION(BlueprintPure, Category = "Monster|State")
@@ -151,6 +153,8 @@ private:
 	const FTBMonsterStatsRow* FindMonsterStats() const;
 	FName ResolveMonsterStatsRow() const;
 	void ApplyMonsterStats(const FTBMonsterStatsRow& Stats);
+	UFUNCTION()
+	void OnRep_SummonedSize();
 	void HandleStaggerFull();
 	void HandleAbilityEnded(const FAbilityEndedData& EndedData);
 	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
@@ -163,6 +167,13 @@ private:
 	bool bDeathHandled = false;
 	bool bReturnedToPool = false;
 	bool bPausedBrainForStagger = false;
+	TOptional<FTBMonsterStatsRow> SummonedBaseStats;
+	FVector SummonedBaseScale = FVector::OneVector;
+	float SummonScaleMultiplier = 1.0f;
+	UPROPERTY(ReplicatedUsing = OnRep_SummonedSize)
+	FVector SummonedScale = FVector::ZeroVector;
+	UPROPERTY(ReplicatedUsing = OnRep_SummonedSize)
+	float SummonedWalkSpeed = -1.0f;
 	FDelegateHandle OutOfBloodHandle;
 	FDelegateHandle StaggerFullHandle;
 	FDelegateHandle AbilityEndedHandle;

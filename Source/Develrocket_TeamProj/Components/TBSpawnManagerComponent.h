@@ -26,12 +26,16 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="Spawn|Pool")
 	static bool NotifyActorDied(AActor* Actor);
 	static bool ReturnActorToPool(AActor* Actor);
+	static UTBSpawnManagerComponent* FindForActor(AActor* Actor);
+	AActor* SpawnSummonedMonster(TSubclassOf<AActor> ActorClass, const FTransform& Transform,
+		float Scale, float WalkSpeedMultiplier, int32 PoolCapacity);
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
-	static UTBSpawnManagerComponent* FindForActor(AActor* Actor);
+	AActor* ActivateFromPool(int32 PoolIndex, const FTransform& Transform, TOptional<float> SummonScale = {},
+		float SummonWalkSpeedMultiplier = 1.0f);
 
 	// 풀별 수량과 다음 시도 시각을 확인하고 재사용하거나 새로 생성합니다.
 	void UpdatePools();

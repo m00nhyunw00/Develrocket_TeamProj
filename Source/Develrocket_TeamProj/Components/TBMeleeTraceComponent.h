@@ -39,6 +39,7 @@ public:
 
     // 검사 메시 지정 및 공격 준비
     bool PrepareAttack(UPrimitiveComponent* InMesh);
+    void SetTraceRadiusScale(float Scale);
 
     // 애니메이션의 타격 구간 제어
     void StartTrace();
@@ -82,6 +83,7 @@ private:
 
     bool bAttackPrepared = false;
     bool bTracing = false;
+    float TraceRadiusScale = 1.0f;
 
     // 타격 콜백 도중 판정 상태 변경 확인
     uint32 TraceRevision = 0;
