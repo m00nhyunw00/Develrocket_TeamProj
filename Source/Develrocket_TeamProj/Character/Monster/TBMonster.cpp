@@ -468,6 +468,7 @@ void ATBMonster::Die(AActor* DamageSource)
 
 void ATBMonster::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
+	SetCharacterOutlineSuppressed(NewCount > 0);
 	if (NewCount <= 0)
 	{
 		if (bDeathHandled) RestorePoolVisualState();

@@ -60,6 +60,11 @@ void ATBCharacterBase::SetCharacterOutlineColor(float Red, float Green, float Bl
     OutlineComponent->SetOutlineColor(Red, Green, Blue);
 }
 
+void ATBCharacterBase::SetCharacterOutlineSuppressed(bool bSuppressed)
+{
+    OutlineComponent->SetOutlineSuppressed(bSuppressed);
+}
+
 UAbilitySystemComponent* ATBCharacterBase::GetAbilitySystemComponent() const
 {
     return AbilitySystemComponent.Get();

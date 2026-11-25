@@ -22,6 +22,9 @@ public:
 	virtual bool RunBehaviorTree(UBehaviorTree* BTAsset) override;
 	virtual FPathFollowingRequestResult MoveTo(const FAIMoveRequest& MoveRequest, FNavPathSharedPtr* OutPath = nullptr) override;
 	bool WantsCombatRetreat(const AActor& Target) const;
+	bool TryAnasimusBackstep(AActor& Target);
+	bool IsAnasimusBackstepping() const { return AnasimusMoveID.IsValid() && PreviousBackstepSpeed.IsSet(); }
+	void StopAnasimusBackstep();
 
 	void InvestigateDamageSource(AActor* DamageSource);
 	void TryStartPendingInvestigation();
@@ -79,6 +82,10 @@ protected:
 	float SightDebugInterval = 0.2f;
 
 private:
+	FPathFollowingRequestResult MoveAnasimusTowardTarget(const FAIMoveRequest& MoveRequest, AActor& Target,
+		ATBMonster& Monster, FNavPathSharedPtr* OutPath);
+	FPathFollowingRequestResult RequestAnasimusMove(FAIMoveRequest Request, AActor& Target, FNavPathSharedPtr* OutPath);
+	void FinishAnasimusMove(bool bAbortMove);
 	void DrawSightDebug();
 	void FinishInvestigation(bool bStopMove);
 	TOptional<FVector> PendingInvestigationLocation;
@@ -89,4 +96,9 @@ private:
 	bool bPoolSuspended = false;
 	FTimerHandle SightDebugTimer;
 	double NextCombatRepositionTime = 0.0;
+	FAIRequestID AnasimusMoveID;
+	TOptional<float> PreviousBackstepSpeed;
+	bool bAnasimusApproachLeft = true;
+	bool bPreviousAnasimusOrientToMovement = false;
+	bool bPreviousAnasimusUseControllerRotation = false;
 };
