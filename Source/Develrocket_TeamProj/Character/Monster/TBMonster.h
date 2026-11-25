@@ -80,6 +80,8 @@ public:
 
 	TSubclassOf<UGameplayAbility> GetMeleeAbilityClass() const { return MeleeAbilityClass; }
 	float GetMeleeAttackRange() const { return MeleeAttackRange; }
+	bool IsSummonedMonster() const { return SummonedBaseStats.IsSet(); }
+	double GetMeleeDistanceSquaredTo(const AActor& Target) const;
 	const UTBMonsterSkillSet* GetSkillSet() const { return SkillSet; }
 	ETBMonsterBehavior GetMonsterBehavior() const;
 	UTBMonsterMovementComponent* GetMonsterMovement() const;

@@ -228,6 +228,22 @@ ETBMonsterBehavior ATBMonster::GetMonsterBehavior() const
 	return ETBMonsterBehavior::Default;
 }
 
+double ATBMonster::GetMeleeDistanceSquaredTo(const AActor& Target) const
+{
+	const FVector Offset = Target.GetActorLocation() - GetActorLocation();
+	if (!IsSummonedMonster())
+	{
+		return Offset.SizeSquared();
+	}
+
+	float TargetRadius = 0.0f;
+	float TargetHalfHeight = 0.0f;
+	Target.GetSimpleCollisionCylinder(TargetRadius, TargetHalfHeight);
+	const double HorizontalDistance = FMath::Max(0.0, Offset.Size2D() - TargetRadius);
+	const double VerticalGap = FMath::Max(0.0, FMath::Abs(Offset.Z) - GetCapsuleComponent()->GetScaledCapsuleHalfHeight() - TargetHalfHeight);
+	return FMath::Square(HorizontalDistance) + FMath::Square(VerticalGap);
+}
+
 void ATBMonster::ApplyMonsterStats(const FTBMonsterStatsRow& Stats)
 {
 	KillRewardScore = Stats.KillRewardScore;

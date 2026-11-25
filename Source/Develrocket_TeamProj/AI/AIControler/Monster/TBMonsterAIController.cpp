@@ -303,7 +303,23 @@ FPathFollowingRequestResult ATBMonsterAIController::MoveTo(const FAIMoveRequest&
 	const AActor* Target = MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor() : nullptr;
 	ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
 	if (!HasAuthority() || !IsValid(Monster) || !IsValid(Target) || Target != TrackedTarget.Get()
-		|| Monster->IsMovementBlocked() || GetWorld()->GetTimeSeconds() < NextCombatRepositionTime)
+		|| Monster->IsMovementBlocked())
+	{
+		return Super::MoveTo(MoveRequest, OutPath);
+	}
+
+	if (Monster->IsSummonedMonster() && Monster->GetMeleeAttackRange() > 0.0f)
+	{
+		// Leave room to brake and keep the target within the scaled melee trace.
+		const float ApproachDistance = FMath::Max(Monster->GetSimpleCollisionRadius() + 5.0f,
+			Monster->GetMeleeAttackRange() * 0.5f);
+		FAIMoveRequest ChaseRequest(MoveRequest);
+		ChaseRequest.SetAcceptanceRadius(Target->GetSimpleCollisionRadius() + ApproachDistance)
+			.SetReachTestIncludesAgentRadius(false).SetReachTestIncludesGoalRadius(false);
+		return Super::MoveTo(ChaseRequest, OutPath);
+	}
+
+	if (GetWorld()->GetTimeSeconds() < NextCombatRepositionTime)
 	{
 		return Super::MoveTo(MoveRequest, OutPath);
 	}

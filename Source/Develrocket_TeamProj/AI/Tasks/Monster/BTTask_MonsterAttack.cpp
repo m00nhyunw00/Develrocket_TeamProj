@@ -49,7 +49,7 @@ FGameplayAbilitySpecHandle UBTTask_MonsterAttack::FindUsableAttack(const ATBMons
 
 	const float MeleeRange = Monster->GetMeleeAttackRange();
 	if (!FMath::IsFinite(MeleeRange) || MeleeRange <= 0.0f
-		|| FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(MeleeRange))
+		|| Monster->GetMeleeDistanceSquaredTo(*Target) > FMath::Square(MeleeRange))
 	{
 		return {};
 	}
@@ -88,7 +88,8 @@ EBTNodeResult::Type UBTTask_MonsterAttack::ExecuteTask(UBehaviorTreeComponent& O
 	if (UPathFollowingComponent* PathFollowing = Controller->GetPathFollowingComponent())
 	{
 		PathFollowing->AbortMove(*this, FPathFollowingResultFlags::OwnerFinished,
-			FAIRequestID::CurrentRequest, EPathFollowingVelocityMode::Keep);
+			FAIRequestID::CurrentRequest,
+			Monster->IsSummonedMonster() ? EPathFollowingVelocityMode::Reset : EPathFollowingVelocityMode::Keep);
 	}
 	return EBTNodeResult::InProgress;
 }
@@ -113,7 +114,8 @@ void UBTTask_MonsterAttack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* N
 
 	const FVector ToTarget = Target->GetActorLocation() - Monster->GetActorLocation();
 	const float AttackRange = Monster->GetMeleeAttackRange();
-	if (ToTarget.SizeSquared() > FMath::Square(AttackRange + AttackPreparationRangeMargin))
+	const double DistanceSquared = Monster->GetMeleeDistanceSquaredTo(*Target);
+	if (DistanceSquared > FMath::Square(AttackRange + AttackPreparationRangeMargin))
 	{
 		PreparationTarget.Reset();
 		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
@@ -127,7 +129,7 @@ void UBTTask_MonsterAttack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* N
 	Monster->SetActorRotation(Rotation);
 	if (FMath::Abs(FMath::FindDeltaAngleDegrees(Rotation.Yaw, TargetYaw)) > AttackFacingTolerance
 		|| Monster->GetVelocity().SizeSquared2D() > FMath::Square(AttackEntrySpeed)
-		|| ToTarget.SizeSquared() > FMath::Square(AttackRange))
+		|| DistanceSquared > FMath::Square(AttackRange))
 	{
 		return;
 	}
