@@ -52,12 +52,14 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_MoveSpeedBonus);
 
 	
-	// 총격 연출 ----------------------
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_BloodTrail);
+	// 공격·피격·강화 연출 ----------------------
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Attack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Attack_Weapon_BloodTrail);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Impact_Blood_World);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Impact_Blood_Flesh_Red);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Impact_Blood_Flesh_Green);
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Fire);
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Melee);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Attack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Attack_Fire);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Attack_Melee);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Empowered);
 }

@@ -63,8 +63,10 @@ bool UTBGameplayCue_BloodImpact::OnExecute_Implementation(
         return true;
     };
 
-    // 혈탄 자체의 색상은 대상과 관계없이 붉은색 유지
-    const FLinearColor BulletBloodColor(0.4f, 0.01f, 0.01f, 1.0f);
+    // 발사 시점의 강화 여부에 따른 혈탄 색상 선택
+    const bool bEnhanced = Parameters.NormalizedMagnitude > 0.5f;
+    const FLinearColor BulletBloodColor = bEnhanced
+        ? EnhancedBulletBloodColor : FLinearColor(0.4f, 0.01f, 0.01f, 1.0f);
     const bool bBulletSpawned = SpawnParticle(BulletImpactSystem.Get(), BulletBloodColor);
 
     // 대상 혈액 파티클은 별도 생성하며, 미지정 시 생략

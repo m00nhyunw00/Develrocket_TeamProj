@@ -318,10 +318,11 @@ TSubclassOf<UGameplayEffect> ATBPlayer::GetAttackDamageEffect() const
 }
 
 FHitResult ATBPlayer::TraceHitscanShot(
-    const FGameplayTag& TrailCueTag,
+    const FGameplayTag& AttackVisualCueTag,
     const FGameplayTag& DefaultImpactCueTag,
     float TraceRange,
-    bool bDrawTrace)
+    bool bDrawTrace,
+    bool bEnhanced)
 {
     FHitResult HitResult;
 
@@ -373,19 +374,21 @@ FHitResult ATBPlayer::TraceHitscanShot(
     const FVector TrailEnd =
         bBlockingHit ? FVector(HitResult.ImpactPoint) : TraceEnd;
 
-    // 명중 여부와 관계없이 발사 궤적 연출
-    if (TrailCueTag.IsValid())
+    // 명중 여부와 관계없이 끝점 확정 후 공격 연출을 한 번 실행
+    if (AttackVisualCueTag.IsValid())
     {
-        FGameplayCueParameters TrailParameters;
-        TrailParameters.Location = TrailEnd;
-        TrailParameters.Instigator = this;
-        TrailParameters.EffectCauser = this;
+        FGameplayCueParameters AttackVisualParameters;
+        AttackVisualParameters.Location = TrailEnd;
+        AttackVisualParameters.Instigator = this;
+        AttackVisualParameters.EffectCauser = this;
+        // 강화 버프 종료 후에도 발사 시점의 연출 정보 유지
+        AttackVisualParameters.NormalizedMagnitude = bEnhanced ? 1.0f : 0.0f;
 
-        // 서버에서 실행한 궤적 Cue의 발사자 전달을 위한 예측 키 분리
+        // 서버에서 실행한 공격 Cue의 발사자 전달을 위한 예측 키 분리
         FScopedPredictionWindow CuePredictionWindow(
             PlayerASC, FPredictionKey(), false);
 
-        PlayerASC->ExecuteGameplayCue(TrailCueTag, TrailParameters);
+        PlayerASC->ExecuteGameplayCue(AttackVisualCueTag, AttackVisualParameters);
     }
 
     // 서버 트레이스 결과 디버그 표시
@@ -442,6 +445,7 @@ FHitResult ATBPlayer::TraceHitscanShot(
         ImpactParameters.Normal = HitResult.ImpactNormal;
         ImpactParameters.Instigator = this;
         ImpactParameters.EffectCauser = this;
+        ImpactParameters.NormalizedMagnitude = bEnhanced ? 1.0f : 0.0f;
 
         // 서버에서 실행한 탄착 Cue의 예측 키 분리
         FScopedPredictionWindow ImpactPredictionWindow(
