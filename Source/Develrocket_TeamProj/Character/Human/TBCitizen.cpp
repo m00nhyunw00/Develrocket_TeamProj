@@ -15,6 +15,7 @@
 #include "AbilitySystem/Attributes/TBCitizenAttributeSet.h"
 #include "Components/TBHealComponent.h"
 #include "TBGameplayTags.h"
+#include "Character/Human/TBCitizenAppearanceData.h"
 
 // 생성자 =====================
 ATBCitizen::ATBCitizen(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
@@ -47,6 +48,8 @@ void ATBCitizen::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifeti
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATBCitizen, CitizenState);
+	
+	DOREPLIFETIME(ATBCitizen, CurrentAppearance);
 }
 
 void ATBCitizen::BeginPlay()
@@ -79,6 +82,11 @@ void ATBCitizen::BeginPlay()
 	}
 
 	ResetVitals();
+
+	if (!CurrentAppearance)                          // 레벨에 직접 배치된 시민용 (풀이 이미 골랐으면 건너뜀)
+	{
+		ChooseAppearance();
+	}
 }
 
 void ATBCitizen::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -264,6 +272,55 @@ void ATBCitizen::RestoreAliveState()
 	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 }
 
+void ATBCitizen::ChooseAppearance()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+	
+	TArray<UTBCitizenAppearanceData*> Candidates;
+	for (UTBCitizenAppearanceData* Data : AppearanceCandidates)
+	{
+		if (Data && Data->SkeletalMesh)
+		{
+			Candidates.Add(Data);
+		}
+	}
+	
+	if (Candidates.IsEmpty())
+	{
+		return;
+	}
+	
+	if (Candidates.Num() > 1)
+	{
+		Candidates.Remove(CurrentAppearance.Get());
+	}
+	
+	CurrentAppearance = Candidates[FMath::RandRange(0, Candidates.Num() - 1)];
+	ApplyAppearance();
+	ForceNetUpdate();
+}
+
+void ATBCitizen::OnRep_Appearance()
+{
+	ApplyAppearance();
+}
+
+void ATBCitizen::ApplyAppearance()
+{
+	if (!CurrentAppearance || !CurrentAppearance->SkeletalMesh)
+	{
+		return;
+	}
+
+	if (GetMesh()->GetSkeletalMeshAsset() != CurrentAppearance->SkeletalMesh)   // 같은 메시면 교체 생략
+	{
+		GetMesh()->SetSkeletalMeshAsset(CurrentAppearance->SkeletalMesh);
+	}
+}
+
 void ATBCitizen::StartDeathSequence()
 {
 	float HoldTime = CorpseHoldSeconds;
@@ -303,7 +360,9 @@ void ATBCitizen::OnPoolActivated_Implementation()
 	AbilitySystemComponent->CancelAllAbilities();    // 남아 있는 사망 GA 종료 → 사망 몽타주 정지
 
 	ResetVitals();                                   // 혈액 가득 + 출혈 제거
-	
+
+	ChooseAppearance();                              // 풀에서 다시 나올 때마다 새 옷
+
 	SetCitizenState(ETBCitizenState::Idle);          // 태그 해제 + 모든 머신에서 충돌·이동 복구
 }
 
@@ -432,4 +491,45 @@ void ATBCitizen::HandleBleedingTagChanged(const FGameplayTag Tag, int32 NewCount
 			: Defaults->GetCharacterMovement()->MaxWalkSpeed;
 	}
 	ForceNetUpdate();                                // 부상 애니메이션·속도가 바로 보이도록
+}
+
+float ATBCitizen::PlayStartle()
+{
+	if (!HasAuthority())
+	{
+		return 0.f;
+	}
+	
+	TArray<int32> Candidates;
+	for (int32 Index = 0; Index < StartleMontages.Num(); ++Index)
+	{
+		if (StartleMontages[Index])
+		{
+			Candidates.Add(Index);
+		}
+	}
+	
+	if (Candidates.IsEmpty())
+	{
+		return 0.f;
+	}
+	
+	if (Candidates.Num() > 1)
+	{
+		Candidates.Remove(LastStartleIndex);
+	}
+	
+	const int32 Chosen = Candidates[FMath::RandRange(0, Candidates.Num() - 1)];
+	LastStartleIndex = Chosen;
+	
+	MulticastPlayStartle(static_cast<uint8>(Chosen));
+	return StartleMontages[Chosen]->GetPlayLength();	
+}
+
+void ATBCitizen::MulticastPlayStartle_Implementation(uint8 MontageIndex)
+{
+	if (StartleMontages.IsValidIndex(MontageIndex) && StartleMontages[MontageIndex])
+	{
+		PlayAnimMontage(StartleMontages[MontageIndex]);
+	}
 }
