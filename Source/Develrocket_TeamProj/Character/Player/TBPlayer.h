@@ -29,6 +29,7 @@ public:
 	virtual void OnRep_PlayerState() override;
 	virtual void OnRep_Controller() override;
 	virtual void PawnClientRestart() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	// 입력 바인딩 ----------------------
 
@@ -377,5 +378,9 @@ private:
 	// 사망 처리 상태 ----------------------
 
 	// 사망 처리 중복 방지
-	bool bDeathHandled = false;
+	UPROPERTY(ReplicatedUsing = OnRep_PawnDead)
+	bool bPawnDead = false;
+
+	UFUNCTION()
+	void OnRep_PawnDead();
 };

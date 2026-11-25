@@ -6,6 +6,7 @@
 #include "TBPlayerState.generated.h"
 
 struct FGameplayTag;
+struct FActiveGameplayEffectHandle;
 struct FOnAttributeChangeData;
 class UTBPlayerAttributeSet;
 class UAbilitySystemComponent;
@@ -49,6 +50,7 @@ public:
 	// 초기 데이터 적용 ----------------------
 
 	void InitializeGameplayData();
+	bool ResetForRespawn(FActiveGameplayEffectHandle DeathEffect);
 	
 	// 현재 PlayerState의 사망 관련 이벤트를 한 번만 연결
 	void InitializeDeathEvents();

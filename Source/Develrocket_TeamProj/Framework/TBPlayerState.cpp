@@ -109,23 +109,46 @@ void ATBPlayerState::InitializeGameplayData()
 	bGameplayDataInitialized = true;
 }
 
+bool ATBPlayerState::ResetForRespawn(FActiveGameplayEffectHandle DeathEffect)
+{
+	if (!HasAuthority() || !bGameplayDataInitialized || !IsValid(AbilitySystemComponent)
+		|| !IsValid(PlayerAttributeSet) || PlayerAttributeSet->GetMaxBlood() <= 0.0f)
+	{
+		return false;
+	}
+
+	AbilitySystemComponent->CancelAllAbilities();
+	if (DeathEffect.IsValid())
+	{
+		AbilitySystemComponent->RemoveActiveGameplayEffect(DeathEffect, -1);
+	}
+
+	if (AbilitySystemComponent->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
+	{
+		return false;
+	}
+
+	AbilitySystemComponent->SetNumericAttributeBase(UTBAttributeSetBase::GetBloodAttribute(), PlayerAttributeSet->GetMaxBlood());
+	AbilitySystemComponent->SetNumericAttributeBase(UTBPlayerAttributeSet::GetLoadedBloodAttribute(), PlayerAttributeSet->GetMaxLoadedBlood());
+	AbilitySystemComponent->SetNumericAttributeBase(UTBPlayerAttributeSet::GetAmmoAtLastReloadAttribute(), PlayerAttributeSet->GetLoadedBlood());
+	ForceNetUpdate();
+	return true;
+}
+
 void ATBPlayerState::InitializeDeathEvents()
 {
-	if (bDeathEventsBound || !IsValid(AbilitySystemComponent.Get()))
+	if (!HasAuthority() || bDeathEventsBound || !IsValid(AbilitySystemComponent.Get()))
 	{
 		return;
 	}
 
 	bDeathEventsBound = true;
 
-	// 서버와 클라이언트에서 사망 상태 변화 감지
+	// 사망 판정은 서버 ASC에서 처리하고 사망 상태는 Pawn이 복제합니다.
 	AbilitySystemComponent->RegisterGameplayTagEvent(TBGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleDeadTagChanged);
 
 	// 혈액 감소에 따른 사망 판정은 서버에서만 수행
-	if (HasAuthority())
-	{
-		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UTBAttributeSetBase::GetBloodAttribute()).AddUObject(this, &ThisClass::HandleBloodChanged);
-	}
+	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UTBAttributeSetBase::GetBloodAttribute()).AddUObject(this, &ThisClass::HandleBloodChanged);
 }
 
 void ATBPlayerState::ApplyBloodRecovery()

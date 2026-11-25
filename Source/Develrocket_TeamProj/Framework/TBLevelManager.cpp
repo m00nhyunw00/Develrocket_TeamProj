@@ -68,6 +68,11 @@ void ATBLevelManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	GetWorldTimerManager().ClearTimer(MatchSpawnRetryTimer);
 	GetWorldTimerManager().ClearTimer(PendingSpawnRetryTimer);
 	GetWorldTimerManager().ClearTimer(AutoStartTimeoutHandle);
+	for (auto& Entry : PlayerRespawns)
+	{
+		GetWorldTimerManager().ClearTimer(Entry.Value.Timer);
+	}
+	PlayerRespawns.Reset();
 	FGameModeEvents::GameModePostLoginEvent.Remove(PostLoginHandle);
 	PendingSpawnRequests.Empty();
 	Super::EndPlay(EndPlayReason);
@@ -159,6 +164,98 @@ void ATBLevelManager::RecordPlayerDeath(ATBPlayerState& Victim, ATBPlayerState* 
 	if (IsValid(Killer) && Killer != &Victim && !Killer->IsInactive())
 	{
 		Killer->AddMatchKill(PointsPerPlayerKill);
+	}
+}
+
+void ATBLevelManager::QueuePlayerRespawn(ATBPlayer& DeadPawn, FActiveGameplayEffectHandle DeathEffect)
+{
+	if (!HasAuthority() || !bMatchStarted || !DeadPawn.IsDead())
+	{
+		return;
+	}
+
+	APlayerController* Controller = Cast<APlayerController>(DeadPawn.GetController());
+	ATBPlayerState* PlayerState = DeadPawn.GetPlayerState<ATBPlayerState>();
+	if (!IsValid(Controller) || !IsValid(PlayerState))
+	{
+		return;
+	}
+
+	const TWeakObjectPtr<APlayerController> ControllerKey(Controller);
+	if (PlayerRespawns.Contains(ControllerKey))
+	{
+		return;
+	}
+
+	FPlayerRespawnRequest& Request = PlayerRespawns.Add(ControllerKey);
+	Request.DeadPawn = &DeadPawn;
+	Request.PlayerState = PlayerState;
+	Request.DeathEffect = DeathEffect;
+	const FTimerDelegate Attempt = FTimerDelegate::CreateUObject(this, &ThisClass::TryRespawnPlayer, ControllerKey);
+	GetWorldTimerManager().SetTimer(Request.Timer, Attempt, FMath::Max(0.01f, PlayerRespawnDelay), false);
+}
+
+void ATBLevelManager::TryRespawnPlayer(TWeakObjectPtr<APlayerController> ControllerKey)
+{
+	FPlayerRespawnRequest* Request = PlayerRespawns.Find(ControllerKey);
+	if (!Request)
+	{
+		return;
+	}
+
+	APlayerController* Controller = ControllerKey.Get();
+	ATBPlayerState* PlayerState = Request->PlayerState.Get();
+	ATBPlayer* DeadPawn = Request->DeadPawn.Get();
+	AGameModeBase* GameMode = GetWorld()->GetAuthGameMode();
+	if (!IsValid(GameMode) || !bMatchStarted || GameMode->HasMatchEnded()
+		|| !IsValid(Controller) || !IsValid(PlayerState) || PlayerState->IsInactive()
+		|| PlayerState->IsOnlyASpectator() || Controller->GetPlayerState<ATBPlayerState>() != PlayerState
+		|| (Controller->GetPawn() && Controller->GetPawn() != DeadPawn))
+	{
+		PlayerRespawns.Remove(ControllerKey);
+		return;
+	}
+
+	UClass* PawnClass = GameMode->GetDefaultPawnClassForController(Controller);
+	if (!PawnClass || !PawnClass->IsChildOf<ATBPlayer>())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TBLevel] Cannot respawn %s with Pawn class %s."), *GetNameSafe(Controller), *GetNameSafe(PawnClass));
+		PlayerRespawns.Remove(ControllerKey);
+		return;
+	}
+
+	FTransform SpawnTransform;
+	if (GameMode->PlayerCanRestart(Controller) && FindSafePlayerSpawn(PawnClass, DeadPawn, SpawnTransform))
+	{
+		if (!PlayerState->ResetForRespawn(Request->DeathEffect))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[TBLevel] Could not reset GAS state for %s."), *GetNameSafe(Controller));
+			PlayerRespawns.Remove(ControllerKey);
+			return;
+		}
+		Request->DeathEffect.Invalidate();
+
+		if (Controller->GetPawn())
+		{
+			Controller->UnPossess();
+		}
+
+		GameMode->RestartPlayerAtTransform(Controller, SpawnTransform);
+		if (IsValid(Controller->GetPawn()))
+		{
+			PlayerRespawns.Remove(ControllerKey);
+			if (IsValid(DeadPawn))
+			{
+				DeadPawn->Destroy();
+			}
+			return;
+		}
+	}
+
+	const FTimerDelegate Attempt = FTimerDelegate::CreateUObject(this, &ThisClass::TryRespawnPlayer, ControllerKey);
+	if (FPlayerRespawnRequest* Pending = PlayerRespawns.Find(ControllerKey))
+	{
+		GetWorldTimerManager().SetTimer(Pending->Timer, Attempt, FMath::Max(0.1f, SpawnRetryInterval), false);
 	}
 }
 
@@ -343,7 +440,8 @@ bool ATBLevelManager::FindSafePlayerSpawnInternal(const ACharacter* Character, A
 		for (const FVector& Reserved : ReservedLocations) bTooClose |= FVector::Dist2D(Location, Reserved) < MinimumPlayerSpawnDistance;
 		for (TActorIterator<ATBPlayer> It(World); It && !bTooClose; ++It)
 		{
-			if (*It != IgnoredActor && !IgnoredPlayers.Contains(*It) && FVector::Dist2D(Location, It->GetActorLocation()) < MinimumPlayerSpawnDistance) bTooClose = true;
+			if (*It != IgnoredActor && !IgnoredPlayers.Contains(*It) && !It->IsDead()
+				&& FVector::Dist2D(Location, It->GetActorLocation()) < MinimumPlayerSpawnDistance) bTooClose = true;
 		}
 		for (TActorIterator<ATBMonster> It(World); It && !bTooClose; ++It)
 		{
