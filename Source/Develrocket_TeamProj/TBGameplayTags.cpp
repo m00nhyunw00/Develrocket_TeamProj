@@ -49,4 +49,9 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Attack_Fire, "GameplayCue.Blackwood.Attack.Fire");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Attack_Melee, "GameplayCue.Blackwood.Attack.Melee");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Empowered, "GameplayCue.Blackwood.Empowered");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Amanai_Attack, "GameplayCue.Amanai.Attack");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Amanai_Attack_PrimaryAttack, "GameplayCue.Amanai.Attack.PrimaryAttack");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Amanai_Attack_SwordWave, "GameplayCue.Amanai.Attack.SwordWave");
+	
+	UE_DEFINE_GAMEPLAY_TAG(Event_Combat_Projectile_Launch, "Event.Combat.Projectile.Launch");
 }
