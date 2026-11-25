@@ -32,6 +32,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Leaderboard")
 	TSubclassOf<UTBLeaderboardRowWidget> RowWidgetClass;
 
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTBLeaderboardRowWidget>> RowWidgetPool;
+	
 private:
 	UHorizontalBox* CreateDefaultRow(const TArray<FText>& Columns, bool bHighlight);
 };
