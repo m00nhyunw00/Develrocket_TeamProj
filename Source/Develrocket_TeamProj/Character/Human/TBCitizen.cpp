@@ -52,6 +52,7 @@ void ATBCitizen::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifeti
 void ATBCitizen::BeginPlay()
 {
 	Super::BeginPlay();
+	SetCharacterOutlineColor(0.0f, 0.0f, 1.0f);
 
 	InitializeAbilitySystem(AbilitySystemComponent.Get(), this);
 

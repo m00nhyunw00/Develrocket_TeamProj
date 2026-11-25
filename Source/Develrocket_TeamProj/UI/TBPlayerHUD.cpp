@@ -17,6 +17,9 @@
 #include "Interface/TBInteractInterface.h"
 #include "UI/Menu/TBLobbyReadyWidget.h"
 #include "Framework/TBLobbyManager.h"
+#include "InGame/TBLeaderboardWidget.h"
+#include "GameFramework/GameStateBase.h"
+#include "GameFramework/PlayerState.h"
 
 void ATBPlayerHUD::BeginPlay()
 {
@@ -86,6 +89,67 @@ void ATBPlayerHUD::BeginPlay()
     {
         BindAbilitySystem(PS->GetAbilitySystemComponent());
     }
+    
+    if (UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass()))
+    {
+        LeaderboardWidget = CreateWidget<UTBLeaderboardWidget>(
+            PC, LeaderboardWidgetClass ? LeaderboardWidgetClass.Get() : UTBLeaderboardWidget::StaticClass());
+        if (LeaderboardWidget)
+        {
+            LeaderboardWidget->AddToViewport(8);
+            LeaderboardWidget->SetVisibility(ESlateVisibility::Collapsed);
+        }
+    }
+}
+
+TArray<FTBLeaderboardRowData> ATBPlayerHUD::BuildLeaderboardRows() const
+{
+    TArray<FTBLeaderboardRowData> Rows;
+    const AGameStateBase* GS = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+    if (!GS) return Rows;
+
+    // HUD를 소유한 로컬 PC의 PlayerState = "나"
+    const APlayerController* OwningPC = GetOwningPlayerController();
+    const APlayerState* LocalPS = OwningPC ? OwningPC->PlayerState.Get() : nullptr;
+
+    for (const APlayerState* PS : GS->PlayerArray)
+    {
+        if (!IsValid(PS) || PS->IsInactive()) continue; // 접속이 끊긴 플레이어 제외
+
+        FTBLeaderboardRowData& Row = Rows.AddDefaulted_GetRef();
+        Row.PlayerName = FText::FromString(PS->GetPlayerName());
+        Row.PingMs = FMath::RoundToInt(PS->GetPingInMilliseconds());
+        Row.bIsLocalPlayer = (PS == LocalPS);
+
+        if (const ATBPlayerState* TBPlayerState = Cast<ATBPlayerState>(PS))
+        {
+            const FTBMatchStats& Stats = TBPlayerState->GetMatchStats();
+            Row.Kills = Stats.Kills;
+            Row.Deaths = Stats.Deaths;
+            Row.Score = Stats.MatchScore;
+        }
+    }
+
+    // 점수와 킬이 같으면 사망 수가 적은 플레이어를 먼저 표시
+    Rows.StableSort([](const FTBLeaderboardRowData& A, const FTBLeaderboardRowData& B)
+    {
+        if (A.Score != B.Score)
+        {
+            return A.Score > B.Score;
+        }
+        if (A.Kills != B.Kills)
+        {
+            return A.Kills > B.Kills;
+        }
+        return A.Deaths < B.Deaths;
+    });
+
+    for (int32 Index = 0; Index < Rows.Num(); ++Index)
+    {
+        Rows[Index].Rank = Index + 1;
+    }
+
+    return Rows;
 }
 
 void ATBPlayerHUD::BindAbilitySystem(UAbilitySystemComponent* InASC)
@@ -193,12 +257,17 @@ void ATBPlayerHUD::HandleFocusedActorChanged(AActor* NewFocus)
     if (NewFocus && NewFocus->Implements<UTBInteractInterface>())
     {
         const FText Prompt = ITBInteractInterface::Execute_GetInteractPrompt(NewFocus);
-        HUDWidget->ShowInteractPrompt(FText::FromString(TEXT("F")), Prompt);
+        HUDWidget->ShowInteractPrompt(FText::FromString(TEXT("C")), Prompt);
     }
     else
     {
         HUDWidget->HideInteractPrompt();
     }
+}
+
+void ATBPlayerHUD::RefreshLeaderboard()
+{
+    if (LeaderboardWidget) LeaderboardWidget->SetLeaderboardRows(BuildLeaderboardRows());
 }
 
 void ATBPlayerHUD::UnbindAbilitySystem()
@@ -234,6 +303,7 @@ void ATBPlayerHUD::TogglePauseMenu()
     }
     else
     {
+        HideLeaderboard();
         PauseWidget->OpenPauseMenu();
     }
 }
@@ -269,6 +339,21 @@ void ATBPlayerHUD::UnBindInteraction()
     }
 }
 
+void ATBPlayerHUD::ShowLeaderboard()
+{
+    if (!LeaderboardWidget) return;
+    RefreshLeaderboard();
+    LeaderboardWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+    GetWorldTimerManager().SetTimer(LeaderboardRefreshTimer, this, &ThisClass::RefreshLeaderboard, LeaderboardRefreshInterval, true);
+}
+
+void ATBPlayerHUD::HideLeaderboard()
+{
+    GetWorldTimerManager().ClearTimer(LeaderboardRefreshTimer);
+    if (LeaderboardWidget) LeaderboardWidget->SetVisibility(ESlateVisibility::Collapsed);
+}
+
+
 
 
 void ATBPlayerHUD::EndPlay(
@@ -285,6 +370,12 @@ void ATBPlayerHUD::EndPlay(
     if (PauseWidget)
     {
         PauseWidget->RemoveFromParent();
+    }
+    
+    if (LeaderboardWidget)
+    {
+        GetWorldTimerManager().ClearTimer(LeaderboardRefreshTimer);
+        LeaderboardWidget->RemoveFromParent();
     }
 
     Super::EndPlay(EndPlayReason);

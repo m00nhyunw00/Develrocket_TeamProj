@@ -4,6 +4,7 @@
 #include "AbilitySystemGlobals.h"
 #include "Abilities/GameplayAbility.h"
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_MonsterSkill.h"
+#include "AbilitySystem/Abilities/Monster/VampireHunter/TBGameplayAbility_VampireHunter_Hitscan.h"
 #include "AI/TBMonsterSkillSet.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
@@ -13,6 +14,41 @@
 
 namespace
 {
+struct FSkillContext
+{
+	AAIController* Controller = nullptr;
+	ATBMonster* Monster = nullptr;
+	AActor* Target = nullptr;
+	UAbilitySystemComponent* ASC = nullptr;
+	const UTBMonsterSkillSet* SkillSet = nullptr;
+	double DistanceSquared = 0.0;
+
+	bool Initialize(UBehaviorTreeComponent& OwnerComp, FName TargetKey)
+	{
+		Controller = OwnerComp.GetAIOwner();
+		Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
+		const UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
+		Target = Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(TargetKey)) : nullptr;
+		if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead() || !IsValid(Target))
+		{
+			return false;
+		}
+		const UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
+		if (!IsValid(TargetASC) || TargetASC->GetAvatarActor() != Target || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
+		{
+			return false;
+		}
+		ASC = Monster->GetAbilitySystemComponent();
+		SkillSet = Monster->GetSkillSet();
+		if (!SkillSet || !IsValid(ASC) || ASC->GetAvatarActor() != Monster || !ASC->AbilityActorInfo.IsValid())
+		{
+			return false;
+		}
+		DistanceSquared = FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation());
+		return true;
+	}
+};
+
 bool IsSkillInRange(const FTBMonsterSkillEntry& Skill, double DistanceSquared)
 {
 	return Skill.AbilityClass && FMath::IsFinite(Skill.MinRange) && FMath::IsFinite(Skill.MaxRange)
@@ -38,6 +74,35 @@ FGameplayAbilitySpec* FindUsableSpec(UAbilitySystemComponent& ASC, const FTBMons
 	}
 	return Spec;
 }
+
+TArray<const FTBMonsterSkillEntry*> GetSkillsInPriorityOrder(const FSkillContext& Context)
+{
+	TArray<const FTBMonsterSkillEntry*> Candidates;
+	for (const FTBMonsterSkillEntry& Skill : Context.SkillSet->Skills)
+	{
+		if (IsSkillInRange(Skill, Context.DistanceSquared))
+		{
+			Candidates.Add(&Skill);
+		}
+	}
+	Candidates.StableSort([](const FTBMonsterSkillEntry& A, const FTBMonsterSkillEntry& B) { return A.Priority > B.Priority; });
+	return Candidates;
+}
+
+bool ActivateSkill(const FSkillContext& Context, const FTBMonsterSkillEntry& Skill, FGameplayAbilitySpecHandle Handle)
+{
+	UAbilitySystemComponent& ASC = *Context.ASC;
+	if (!Skill.bUseTargetEvent)
+	{
+		return ASC.TryActivateAbility(Handle);
+	}
+
+	FGameplayEventData Event;
+	Event.EventTag = Skill.EventTag;
+	Event.Instigator = Context.Monster;
+	Event.Target = Context.Target;
+	return ASC.TriggerAbilityFromGameplayEvent(Handle, ASC.AbilityActorInfo.Get(), Event.EventTag, &Event, ASC);
+}
 }
 
 UBTTask_MonsterSkill::UBTTask_MonsterSkill()
@@ -50,68 +115,64 @@ UBTTask_MonsterSkill::UBTTask_MonsterSkill()
 
 bool UBTTask_MonsterSkill::HasUsableSkill(UBehaviorTreeComponent& OwnerComp) const
 {
-	const AAIController* Controller = OwnerComp.GetAIOwner();
-	const ATBMonster* Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
-	const UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
-	const AActor* Target = Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(BlackboardKey.SelectedKeyName)) : nullptr;
-	if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead() || !IsValid(Target))
+	FSkillContext Context;
+	if (!Context.Initialize(OwnerComp, BlackboardKey.SelectedKeyName))
 	{
 		return false;
 	}
 
-	const UTBMonsterSkillSet* SkillSet = Monster->GetSkillSet();
-	UAbilitySystemComponent* ASC = Monster->GetAbilitySystemComponent();
-	if (!SkillSet || !IsValid(ASC) || ASC->GetAvatarActor() != Monster || !ASC->AbilityActorInfo.IsValid())
+	return Context.SkillSet->Skills.ContainsByPredicate([&Context](const FTBMonsterSkillEntry& Skill)
 	{
-		return false;
-	}
-
-	UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
-	if (!IsValid(TargetASC) || TargetASC->GetAvatarActor() != Target || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
-	{
-		return false;
-	}
-
-	const double DistanceSquared = FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation());
-	return SkillSet->Skills.ContainsByPredicate([ASC, Monster, Target, DistanceSquared](const FTBMonsterSkillEntry& Skill)
-	{
-		return IsSkillInRange(Skill, DistanceSquared) && FindUsableSpec(*ASC, Skill, Monster, Target) != nullptr;
+		return IsSkillInRange(Skill, Context.DistanceSquared)
+			&& FindUsableSpec(*Context.ASC, Skill, Context.Monster, Context.Target);
 	});
+}
+
+UBTTask_MonsterSkill::EMovingSkillResult UBTTask_MonsterSkill::TryUseSkillDuringHunterMovement(UBehaviorTreeComponent& OwnerComp) const
+{
+	FSkillContext Context;
+	if (!Context.Initialize(OwnerComp, BlackboardKey.SelectedKeyName))
+	{
+		return EMovingSkillResult::Unavailable;
+	}
+
+	for (const FTBMonsterSkillEntry* Skill : GetSkillsInPriorityOrder(Context))
+	{
+		const FGameplayAbilitySpec* Spec = FindUsableSpec(*Context.ASC, *Skill, Context.Monster, Context.Target);
+		if (!Spec)
+		{
+			continue;
+		}
+		if (Skill->bStopMovement || !Spec->Ability->IsA<UTBGameplayAbility_VampireHunter_Hitscan>())
+		{
+			return EMovingSkillResult::RequiresTask;
+		}
+		if (ActivateSkill(Context, *Skill, Spec->Handle))
+		{
+			return EMovingSkillResult::Activated;
+		}
+	}
+	return EMovingSkillResult::Unavailable;
 }
 
 EBTNodeResult::Type UBTTask_MonsterSkill::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	AAIController* Controller = OwnerComp.GetAIOwner();
-	ATBMonster* Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
-	const UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
-	AActor* Target = Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(BlackboardKey.SelectedKeyName)) : nullptr;
-	UAbilitySystemComponent* TargetASC = IsValid(Target) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target) : nullptr;
-	if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead() || !IsValid(TargetASC)
-		|| TargetASC->GetAvatarActor() != Target || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
-		return EBTNodeResult::Failed;
-
-	UAbilitySystemComponent* ASC = Monster->GetAbilitySystemComponent();
-	const UTBMonsterSkillSet* SkillSet = Monster->GetSkillSet();
-	if (!IsValid(ASC) || ASC->GetAvatarActor() != Monster || !ASC->AbilityActorInfo.IsValid() || !SkillSet)
-		return EBTNodeResult::Failed;
-
-	TArray<const FTBMonsterSkillEntry*> Candidates;
-	const double DistanceSquared = FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation());
-	for (const FTBMonsterSkillEntry& Skill : SkillSet->Skills)
+	FSkillContext Context;
+	if (!Context.Initialize(OwnerComp, BlackboardKey.SelectedKeyName))
 	{
-		if (IsSkillInRange(Skill, DistanceSquared))
-			Candidates.Add(&Skill);
+		return EBTNodeResult::Failed;
 	}
-	Candidates.StableSort([](const FTBMonsterSkillEntry& A, const FTBMonsterSkillEntry& B) { return A.Priority > B.Priority; });
-	for (const FTBMonsterSkillEntry* Skill : Candidates)
+
+	UAbilitySystemComponent* ASC = Context.ASC;
+	for (const FTBMonsterSkillEntry* Skill : GetSkillsInPriorityOrder(Context))
 	{
-		FGameplayAbilitySpec* Spec = FindUsableSpec(*ASC, *Skill, Monster, Target);
+		FGameplayAbilitySpec* Spec = FindUsableSpec(*ASC, *Skill, Context.Monster, Context.Target);
 		if (!Spec)
 			continue;
 		if (Skill->bStopMovement)
 		{
-			Controller->StopMovement();
-			Monster->GetCharacterMovement()->StopMovementImmediately();
+			Context.Controller->StopMovement();
+			Context.Monster->GetCharacterMovement()->StopMovementImmediately();
 		}
 		ActiveASC = ASC;
 		ActiveTree = &OwnerComp;
@@ -120,13 +181,7 @@ EBTNodeResult::Type UBTTask_MonsterSkill::ExecuteTask(UBehaviorTreeComponent& Ow
 		bCancelledDuringActivation = false;
 		AbilityEndedHandle = ASC->OnAbilityEnded.AddUObject(this, &ThisClass::HandleAbilityEnded);
 		bActivating = true;
-		FGameplayEventData Event;
-		Event.EventTag = Skill->EventTag;
-		Event.Instigator = Monster;
-		Event.Target = Target;
-		const bool bActivated = Skill->bUseTargetEvent
-			? ASC->TriggerAbilityFromGameplayEvent(ActiveHandle, ASC->AbilityActorInfo.Get(), Event.EventTag, &Event, *ASC)
-			: ASC->TryActivateAbility(ActiveHandle);
+		const bool bActivated = ActivateSkill(Context, *Skill, ActiveHandle);
 		bActivating = false;
 		if (bActivated && !bEndedDuringActivation) return EBTNodeResult::InProgress;
 		const bool bSuccess = bActivated && bEndedDuringActivation && !bCancelledDuringActivation;

@@ -7,6 +7,7 @@
 class UInputAction;
 class UCameraComponent;
 class UTBInteractionComponent;
+class ATBPlayerState;
 struct FInputActionValue;
 
 UCLASS()
@@ -28,6 +29,7 @@ public:
 	virtual void OnRep_PlayerState() override;
 	virtual void OnRep_Controller() override;
 	virtual void PawnClientRestart() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	// 입력 바인딩 ----------------------
 
@@ -126,7 +128,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Player|State")
 	bool IsDead() const;
 
-	void Die();
+	void Die(ATBPlayerState* Killer = nullptr);
 
 	// 사망 태그 변화에 따른 캐릭터 상태 갱신
 	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
@@ -151,6 +153,14 @@ public:
 	// 무기 소켓 월드 위치 조회 ----------------------
 	
 	bool TryGetWeaponSocketLocation(FName SocketName, FVector& OutLocation) const;
+	
+	// Tab키 Leaderboard
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> LeaderboardAction;
+	
+	void InputLeaderboardStarted();
+	void InputLeaderboardCompleted();
+	
 
 protected:
 	// 초기화 및 공통 피격 처리 확장 ----------------------
@@ -368,5 +378,9 @@ private:
 	// 사망 처리 상태 ----------------------
 
 	// 사망 처리 중복 방지
-	bool bDeathHandled = false;
+	UPROPERTY(ReplicatedUsing = OnRep_PawnDead)
+	bool bPawnDead = false;
+
+	UFUNCTION()
+	void OnRep_PawnDead();
 };

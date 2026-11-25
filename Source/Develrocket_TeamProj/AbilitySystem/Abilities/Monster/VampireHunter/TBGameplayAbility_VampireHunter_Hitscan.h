@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_MonsterSkill.h"
+#include "TimerManager.h"
 #include "TBGameplayAbility_VampireHunter_Hitscan.generated.h"
 
 UCLASS()
@@ -14,6 +15,8 @@ public:
 	virtual bool CanUseAgainst(const ATBMonster* Monster, const AActor* Target) const override;
 	virtual void ActivateAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 		FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+		FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
 protected:
 	virtual bool ShouldWaitForMontageEnd() const override { return false; }
@@ -27,4 +30,13 @@ protected:
 	// Leave empty to start at the Hunter's eyes. Otherwise use a socket on the character mesh.
 	UPROPERTY(EditDefaultsOnly, Category = "Hunter|Hitscan")
 	FName MuzzleSocketName;
+
+private:
+	void LockAim();
+	void FireShot();
+
+	TWeakObjectPtr<AActor> ShotTarget;
+	TOptional<FVector> LockedAimLocation;
+	FTimerHandle AimLockTimer;
+	FTimerHandle FireTimer;
 };

@@ -15,6 +15,7 @@ class UTBAbilitySystemComponent;
 class UAbilitySystemComponent;
 class UTBBloodBarComponent;
 class UTBOutlineComponent;
+class UTBHealComponent;
 class UGameplayEffect;
 
 UCLASS(Abstract)
@@ -27,6 +28,9 @@ public:
 	// 생성 및 공통 ASC 접근 ----------------------
 
 	ATBCharacterBase(const FObjectInitializer& ObjectInitializer);
+
+	UFUNCTION(BlueprintCallable, Category = "Outline")
+	void SetCharacterOutlineColor(float Red, float Green, float Blue);
 
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	
@@ -143,4 +147,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<UTBBloodBarComponent> BloodBarComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Outline")
+	TObjectPtr<UTBOutlineComponent> OutlineComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Heal")
+	TObjectPtr<UTBHealComponent> HealComponent;
 };

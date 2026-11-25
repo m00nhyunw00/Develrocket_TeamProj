@@ -1,6 +1,7 @@
 #include "TBMonster.h"
 
 #include "AIController.h"
+#include "AI/AIControler/Monster/TBHunterAIController.h"
 #include "AI/AIControler/Monster/TBMonsterAIController.h"
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
@@ -8,6 +9,7 @@
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Stagger.h"
 #include "BrainComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "Character/Player/TBPlayer.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/TBMonsterMovementComponent.h"
 #include "Components/TBSpawnManagerComponent.h"
@@ -15,6 +17,9 @@
 #include "Components/TBBloodBarComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Framework/TBLevelManager.h"
+#include "Framework/TBPlayerState.h"
+#include "Kismet/GameplayStatics.h"
 #include "Abilities/GameplayAbility.h"
 #include "TBGameplayTags.h"
 #include "Interface/TBHitInterface.h"
@@ -62,6 +67,16 @@ ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer)
 void ATBMonster::BeginPlay()
 {
 	Super::BeginPlay();
+
+	const bool bIsHunter = AIControllerClass && AIControllerClass->IsChildOf<ATBHunterAIController>();
+	if (bIsHunter)
+	{
+		SetCharacterOutlineColor(0.5f, 0.0f, 1.0f);
+	}
+	else
+	{
+		SetCharacterOutlineColor(1.0f, 1.0f, 0.0f);
+	}
 
 	// 서버와 클라이언트에서 몬스터 자신을 ASC의 OwnerActor·AvatarActor로 연결
 	InitializeMonsterAbilitySystem();
@@ -192,6 +207,7 @@ const FTBMonsterStatsRow* ATBMonster::FindMonsterStats() const
 
 void ATBMonster::ApplyMonsterStats(const FTBMonsterStatsRow& Stats)
 {
+	KillRewardScore = Stats.KillRewardScore;
 	const float MaxBlood = FMath::Max(1.0f, Stats.MaxBlood);
 	AbilitySystemComponent->SetNumericAttributeBase(UTBMonsterAttributeSet::GetMaxBloodAttribute(), MaxBlood);
 	AbilitySystemComponent->SetNumericAttributeBase(UTBMonsterAttributeSet::GetMaxStaggerAttribute(), FMath::Max(0.0f, Stats.MaxStagger));
@@ -321,7 +337,7 @@ void ATBMonster::HandleAbilityEnded(const FAbilityEndedData& EndedData)
 	}
 }
 
-void ATBMonster::Die()
+void ATBMonster::Die(AActor* DamageSource)
 {
 	if (!HasAuthority() || IsDead() || !AbilitySystemComponent)
 	{
@@ -350,6 +366,17 @@ void ATBMonster::Die()
 		return;
 	}
 	ForceNetUpdate();
+
+	const ATBPlayer* Attacker = Cast<ATBPlayer>(DamageSource);
+	ATBPlayerState* Killer = IsValid(Attacker) ? Attacker->GetPlayerState<ATBPlayerState>() : nullptr;
+	if (IsValid(Killer))
+	{
+		if (ATBLevelManager* LevelManager = Cast<ATBLevelManager>(
+			UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass())))
+		{
+			LevelManager->RecordMonsterKill(*Killer, KillRewardScore);
+		}
+	}
 }
 
 void ATBMonster::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
@@ -439,6 +466,7 @@ void ATBMonster::OnPoolActivated_Implementation()
 		ApplyMonsterStats(*Stats);
 		return;
 	}
+	KillRewardScore = INDEX_NONE;
 	MonsterAttributes->SetStagger(0.0f);
 	MonsterAttributes->SetIncomingDamage(0.0f);
 	MonsterAttributes->SetBlood(MonsterAttributes->GetMaxBlood());

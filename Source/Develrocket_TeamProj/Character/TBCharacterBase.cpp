@@ -5,6 +5,7 @@
 #include "GameplayEffect.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/TBBloodBarComponent.h"
+#include "Components/TBHealComponent.h"
 #include "GameFramework/PlayerController.h"
 
 #include "Components/TBCharacterMovementComponent.h"
@@ -12,6 +13,7 @@
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "Components/DecalComponent.h"
 #include "Components/TBMeleeTraceComponent.h"
+#include "Components/TBOutlineComponent.h"
 #include "Projectiles/TBProjectile.h"
 
 // 기본 이동 컴포넌트를 프로젝트의 커스텀 클래스로 교체
@@ -47,6 +49,15 @@ ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
     CrouchedEyeHeight = 48.0f;
     
     MeleeTraceComponent = CreateDefaultSubobject<UTBMeleeTraceComponent>(TEXT("MeleeTraceComponent"));
+
+    OutlineComponent = CreateDefaultSubobject<UTBOutlineComponent>(TEXT("OutlineComponent"));
+    
+    HealComponent = CreateDefaultSubobject<UTBHealComponent>(TEXT("HealComponent"));
+}
+
+void ATBCharacterBase::SetCharacterOutlineColor(float Red, float Green, float Blue)
+{
+    OutlineComponent->SetOutlineColor(Red, Green, Blue);
 }
 
 UAbilitySystemComponent* ATBCharacterBase::GetAbilitySystemComponent() const

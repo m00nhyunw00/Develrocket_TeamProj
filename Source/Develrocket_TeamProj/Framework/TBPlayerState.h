@@ -6,6 +6,7 @@
 #include "TBPlayerState.generated.h"
 
 struct FGameplayTag;
+struct FActiveGameplayEffectHandle;
 struct FOnAttributeChangeData;
 class UTBPlayerAttributeSet;
 class UAbilitySystemComponent;
@@ -13,6 +14,21 @@ class UTBAbilitySystemComponent;
 class UTBAttributeSetBase;
 class UGameplayAbility;
 class UGameplayEffect;
+
+USTRUCT(BlueprintType)
+struct FTBMatchStats
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Match")
+	int32 Kills = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Match")
+	int32 Deaths = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Match")
+	int32 MatchScore = 0;
+};
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBPlayerState
@@ -24,10 +40,17 @@ public:
 	ATBPlayerState();
 
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	const FTBMatchStats& GetMatchStats() const { return MatchStats; }
+	void AddMatchKill(int32 Points);
+	void AddMatchDeath();
+	void AddMatchScore(int32 Points);
 
 	// 초기 데이터 적용 ----------------------
 
 	void InitializeGameplayData();
+	bool ResetForRespawn(FActiveGameplayEffectHandle DeathEffect);
 	
 	// 현재 PlayerState의 사망 관련 이벤트를 한 번만 연결
 	void InitializeDeathEvents();
@@ -105,6 +128,9 @@ protected:
 	TSubclassOf<UGameplayEffect> DeathEffectClass;
 	
 private:
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Match", meta = (AllowPrivateAccess = "true"))
+	FTBMatchStats MatchStats;
+
 	// 반복 초기화에 따른 자원 재설정 및 중복 부여 방지
 	bool bGameplayDataInitialized = false;
 	

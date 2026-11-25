@@ -28,9 +28,14 @@ ATBMonsterAIController::ATBMonsterAIController()
 
 ETeamAttitude::Type ATBMonsterAIController::GetTeamAttitudeTowards(const AActor& Other) const
 {
-	if (Other.IsA<ATBPlayer>() || Other.IsA<ATBCitizen>()) return ETeamAttitude::Hostile;
+	if (CanTargetActor(Other)) return ETeamAttitude::Hostile;
 	if (Other.IsA<ATBMonster>()) return ETeamAttitude::Friendly;
 	return ETeamAttitude::Neutral;
+}
+
+bool ATBMonsterAIController::CanTargetActor(const AActor& Actor) const
+{
+	return Actor.IsA<ATBPlayer>() || Actor.IsA<ATBCitizen>();
 }
 
 bool ATBMonsterAIController::RunBehaviorTree(UBehaviorTree* BTAsset)
@@ -186,11 +191,10 @@ void ATBMonsterAIController::InvestigateDamageSource(AActor* DamageSource)
 	const ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
 	UBlackboardComponent* BlackboardComponent = GetBlackboardComponent();
 	if (!HasAuthority() || bPoolSuspended || !IsValid(Monster) || Monster->IsDead() || !IsValid(DamageSource) || DamageSource == Monster || !BlackboardComponent) return;
-	// 플레이어와 Citizen의 자식 BP도 IsA 검사에 포함된다.
 	UAbilitySystemComponent* SourceASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DamageSource);
 	if (IsValid(SourceASC) && SourceASC->GetAvatarActor() == DamageSource
 		&& !SourceASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-		&& (DamageSource->IsA<ATBPlayer>() || DamageSource->IsA<ATBCitizen>()))
+		&& CanTargetActor(*DamageSource))
 	{
 		if (!bDamagePriorityTarget || !TrackedTarget.IsValid() || !TrackedTargetASC.IsValid()
 			|| TrackedTargetASC->GetAvatarActor() != TrackedTarget.Get()
@@ -344,7 +348,7 @@ void ATBMonsterAIController::RefreshTargetAfterStagger()
 	UBlackboardComponent* BlackboardComponent = GetBlackboardComponent();
 	if (!IsValid(Target) || !IsValid(ASC) || ASC->GetAvatarActor() != Target
 		|| ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-		|| (!Target->IsA<ATBPlayer>() && !Target->IsA<ATBCitizen>()) || !BlackboardComponent || !GetPerceptionComponent())
+		|| !CanTargetActor(*Target) || !BlackboardComponent || !GetPerceptionComponent())
 	{
 		UpdateTarget();
 		return;
@@ -410,7 +414,7 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 	if ((bPreserveTargetDuringStagger || (bDamagePriorityTarget && !bMemoryExpired)) && IsValid(PreservedTarget) && PreservedTarget != ExcludedActor
 		&& IsValid(PreservedASC) && PreservedASC->GetAvatarActor() == PreservedTarget
 		&& !PreservedASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-		&& (PreservedTarget->IsA<ATBPlayer>() || PreservedTarget->IsA<ATBCitizen>()))
+		&& CanTargetActor(*PreservedTarget))
 	{
 		TArray<AActor*> SeenActors;
 		GetPerceptionComponent()->GetCurrentlyPerceivedActors(UAISense_Sight::StaticClass(), SeenActors);
@@ -429,14 +433,13 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 
 	TArray<AActor*> PerceivedActors;
 	GetPerceptionComponent()->GetCurrentlyPerceivedActors(UAISense_Sight::StaticClass(), PerceivedActors);
-	AActor* ClosestPlayer = nullptr;
+	AActor* ClosestTarget = nullptr;
 	double ClosestDistanceSquared = TNumericLimits<double>::Max();
-	// 시야에 들어온 살아 있는 플레이어와 Citizen 중 가장 가까운 대상을 찾는다.
 	for (AActor* Candidate : PerceivedActors)
 	{
 		UAbilitySystemComponent* ASC = IsValid(Candidate) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Candidate) : nullptr;
 		if (!IsValid(ASC) || Candidate == ExcludedActor || ASC->GetAvatarActor() != Candidate
-			|| (!Candidate->IsA<ATBPlayer>() && !Candidate->IsA<ATBCitizen>())
+			|| !CanTargetActor(*Candidate)
 			|| ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
 		{
 			continue;
@@ -446,15 +449,15 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 		if (DistanceSquared < ClosestDistanceSquared)
 		{
 			ClosestDistanceSquared = DistanceSquared;
-			ClosestPlayer = Candidate;
+			ClosestTarget = Candidate;
 		}
 	}
 
 	AActor* PreviousTarget = TrackedTarget.Get();
 	UAbilitySystemComponent* PreviousASC = TrackedTargetASC.Get();
-	if (!ClosestPlayer && !bMemoryExpired && IsValid(PreviousTarget) && IsValid(PreviousASC)
+	if (!ClosestTarget && !bMemoryExpired && IsValid(PreviousTarget) && IsValid(PreviousASC)
 		&& PreviousASC->GetAvatarActor() == PreviousTarget
-		&& (PreviousTarget->IsA<ATBPlayer>() || PreviousTarget->IsA<ATBCitizen>())
+		&& CanTargetActor(*PreviousTarget)
 		&& !PreviousASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead) && PreviousTarget != ExcludedActor && LostSightMemorySeconds > 0.0f)
 	{
 		if (!GetWorldTimerManager().IsTimerActive(TargetMemoryTimer))
@@ -465,9 +468,9 @@ void ATBMonsterAIController::UpdateTarget(AActor* ExcludedActor, bool bMemoryExp
 	}
 
 	GetWorldTimerManager().ClearTimer(TargetMemoryTimer);
-	SetTrackedTarget(ClosestPlayer);
-	BlackboardComponent->SetValueAsObject(TEXT("TargetActor"), ClosestPlayer);
-	if (ClosestPlayer)
+	SetTrackedTarget(ClosestTarget);
+	BlackboardComponent->SetValueAsObject(TEXT("TargetActor"), ClosestTarget);
+	if (ClosestTarget)
 	{
 		PendingInvestigationLocation.Reset();
 		FinishInvestigation(true);

@@ -8,6 +8,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
+#include "InputCoreTypes.h"
 #include "TBGameplayTags.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
@@ -17,11 +18,12 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Framework/TBPlayerState.h"
+#include "Framework/TBLevelManager.h"
+#include "Kismet/GameplayStatics.h"
+#include "Net/UnrealNetwork.h"
 #include "UI/TBPlayerHUD.h"
 #include "Components/TBInteractionComponent.h"
 #include "Interface/TBInteractInterface.h"
-
-class ATBPlayerState;
 
 // 컴포넌트 및 회전 설정 ----------------------
 
@@ -96,10 +98,17 @@ bool ATBPlayer::IsDead() const
 {
 	const UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 
-	return IsValid(ASC) && ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
+	return bPawnDead || (HasAuthority() && IsValid(ASC) && ASC->GetAvatarActor() == this
+		&& ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead));
 }
 
-void ATBPlayer::Die()
+void ATBPlayer::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ATBPlayer, bPawnDead);
+}
+
+void ATBPlayer::Die(ATBPlayerState* Killer)
 {
 	ATBPlayerState* PS = GetPlayerState<ATBPlayerState>();
 	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponent();
@@ -144,11 +153,18 @@ void ATBPlayer::Die()
 
 	PS->ForceNetUpdate();
 	ForceNetUpdate();
+
+	if (ATBLevelManager* LevelManager = Cast<ATBLevelManager>(
+		UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass())))
+	{
+		LevelManager->RecordPlayerDeath(*PS, Killer);
+		LevelManager->QueuePlayerRespawn(*this, AppliedHandle);
+	}
 }
 
 void ATBPlayer::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
-	if (NewCount <= 0 || bDeathHandled)
+	if (!HasAuthority() || NewCount <= 0 || bPawnDead)
 	{
 		return;
 	}
@@ -161,11 +177,22 @@ void ATBPlayer::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 	}
 
 	// 취소 콜백 등에 의한 중복 처리 방지
-	bDeathHandled = true;
+	bPawnDead = true;
+	PlayerASC->CancelAllAbilities();
+	OnRep_PawnDead();
 
-	if (HasAuthority())
+	// The death ability runs on the server and owns the death animation.
+	if (!PlayerASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Death))
 	{
-		PlayerASC->CancelAllAbilities();
+		UE_LOG(LogTemp, Warning, TEXT("%s: Death ability activation failed."), *GetName());
+	}
+}
+
+void ATBPlayer::OnRep_PawnDead()
+{
+	if (!bPawnDead)
+	{
+		return;
 	}
 
 	GetCharacterMovement()->StopMovementImmediately();
@@ -187,15 +214,6 @@ void ATBPlayer::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 	if (IsValid(FirstPersonWeaponMesh.Get()))
 	{
 		FirstPersonWeaponMesh->SetHiddenInGame(true, true);
-	}
-
-	// 부여된 어빌리티 중 Ability.Death 태그로 검색 및 실행
-	if (HasAuthority())
-	{
-		if (!PlayerASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Death))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("%s: Death ability activation failed."), *GetName());
-		}
 	}
 }
 
@@ -527,6 +545,7 @@ bool ATBPlayer::TryGetWeaponSocketLocation(FName SocketName, FVector& OutLocatio
 void ATBPlayer::BeginPlay()
 {
 	Super::BeginPlay();
+	SetCharacterOutlineColor(1.0f, 0.0f, 0.0f);
 
 	// 기존 Blueprint에 저장된 값과 관계없이 실행 시 표시 규칙 적용
 	ConfigurePlayerMeshes();
@@ -647,6 +666,18 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	{
 		EnhancedInput->BindAction(PauseAction, ETriggerEvent::Started, this, &ATBPlayer::InputPauseStarted);
 	}
+	
+	if (LeaderboardAction)
+	{
+		EnhancedInput->BindAction(LeaderboardAction, ETriggerEvent::Started, this, &ATBPlayer::InputLeaderboardStarted);
+		EnhancedInput->BindAction(LeaderboardAction, ETriggerEvent::Completed, this, &ATBPlayer::InputLeaderboardCompleted);
+		EnhancedInput->BindAction(LeaderboardAction, ETriggerEvent::Canceled, this, &ATBPlayer::InputLeaderboardCompleted);
+	}
+	else
+	{
+		PlayerInputComponent->BindKey(EKeys::Tab, IE_Pressed, this, &ATBPlayer::InputLeaderboardStarted);
+		PlayerInputComponent->BindKey(EKeys::Tab, IE_Released, this, &ATBPlayer::InputLeaderboardCompleted);
+	}
 
 	if (SecondaryAction)
 	{
@@ -758,7 +789,7 @@ void ATBPlayer::InitializeFromPlayerState()
 	TBPlayerState->InitializeGameplayData();
 
 	// 이벤트 등록 전에 도착한 사망 상태 반영
-	if (IsDead())
+	if (HasAuthority() && IsDead())
 	{
 		HandleDeadTagChanged(TBGameplayTags::State_Dead, 1);
 	}
@@ -1249,3 +1280,30 @@ void ATBPlayer::InputPauseStarted()
 	}
 }
 
+void ATBPlayer::InputLeaderboardStarted()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+	
+	if (ATBPlayerHUD* HUD = Cast<ATBPlayerHUD>(PC->GetHUD()))
+	{
+		HUD->ShowLeaderboard();
+	}
+}
+
+void ATBPlayer::InputLeaderboardCompleted()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+	
+	if (ATBPlayerHUD* HUD = Cast<ATBPlayerHUD>(PC->GetHUD()))
+	{
+		HUD->HideLeaderboard();
+	}
+}

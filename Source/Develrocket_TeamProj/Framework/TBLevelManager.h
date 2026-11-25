@@ -2,15 +2,19 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "ActiveGameplayEffectHandle.h"
 #include "Framework/TBSpawnPoolData.h"
 #include "TBLevelManager.generated.h"
 
 class ACityLayoutCoordinator;
 class ACharacter;
 class UTBSpawnManagerComponent;
+class UDaySystemComponent;
 class UTBSpawnPoolDataAsset;
 class AGameModeBase;
 class APlayerController;
+class ATBPlayerState;
+class ATBPlayer;
 
 // 위젯이 구독할 로컬 알림 (일반 멀티캐스트)
 DECLARE_MULTICAST_DELEGATE(FOnTBLocalCityReady);
@@ -54,6 +58,9 @@ public:
 	// 이 레벨 매니저의 런타임 풀을 참조해 스폰과 반환을 관리합니다.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Spawn|Pool")
 	TObjectPtr<UTBSpawnManagerComponent> SpawnManager;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Day System")
+	TObjectPtr<UDaySystemComponent> DaySystem;
 	
 	// 플레이어와 몬스터가 공유할 바닥 액터, 범위 및 탐색 설정을 반환합니다.
 	bool GetSpawnFloorSearchParameters(AActor*& OutFloor, FBox& OutBounds, int32& OutMaxAttempts, float& OutTraceHeight) const;
@@ -64,6 +71,10 @@ public:
 	
 	// 호스트(서버)의 START버튼이 호출
 	bool StartMatch();
+
+	void RecordPlayerDeath(ATBPlayerState& Victim, ATBPlayerState* Killer);
+	void QueuePlayerRespawn(ATBPlayer& DeadPawn, FActiveGameplayEffectHandle DeathEffect);
+	void RecordMonsterKill(ATBPlayerState& Killer, int32 KillRewardScore);
 
 	// 서버에서 호출. 리스폰할 캐릭터 클래스의 캡슐을 기준으로 위치 탐색.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="City|Player Spawn")
@@ -99,6 +110,9 @@ protected:
 	UPROPERTY(EditInstanceOnly, Category="City|Player Spawn", meta=(ClampMin="0.1", Units="s"))
 	float SpawnRetryInterval = 1.0f;
 
+	UPROPERTY(EditInstanceOnly, Category="Match|Respawn", meta=(ClampMin="0.0", Units="s"))
+	float PlayerRespawnDelay = 3.0f;
+
 	UPROPERTY(EditInstanceOnly, Category="City|Player Spawn")
 	TObjectPtr<AActor> SpawnFloor;
 
@@ -110,6 +124,12 @@ protected:
 	
 	UPROPERTY(EditInstanceOnly, Category="Match|AutoStart", meta=(ClampMin="0.0", Units="s"))
 	float AutoStartTimeout = 30.0f;
+
+	UPROPERTY(EditInstanceOnly, Category = "Match|Scoring", meta = (ClampMin = "0"))
+	int32 PointsPerPlayerKill = 100;
+
+	UPROPERTY(EditInstanceOnly, Category = "Match|Scoring", meta = (ClampMin = "0"))
+	int32 PointsPerMonsterKill = 25;
 	
 private:
 	// Coordinator의 OnLocalCityReady는 Dynamic(Seed, Revision) -> 시그니처를 맞춰야 함
@@ -126,6 +146,17 @@ private:
 	bool bSpawnPoolsInitialized = false;
 	void RetryMatchSpawn();
 	void RetryPendingSpawns();
+	void TryRespawnPlayer(TWeakObjectPtr<APlayerController> Controller);
+
+	struct FPlayerRespawnRequest
+	{
+		TWeakObjectPtr<ATBPlayer> DeadPawn;
+		TWeakObjectPtr<ATBPlayerState> PlayerState;
+		FActiveGameplayEffectHandle DeathEffect;
+		FTimerHandle Timer;
+	};
+
+	TMap<TWeakObjectPtr<APlayerController>, FPlayerRespawnRequest> PlayerRespawns;
 
 	bool PlacePlayersAroundCity();
 	bool FindSafePlayerSpawnInternal(const ACharacter* Character, AActor* IgnoredActor, const TArray<AActor*>& IgnoredPlayers, const TArray<FVector>& ReservedLocations, FTransform& OutSpawnTransform) const;
