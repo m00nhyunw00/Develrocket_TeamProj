@@ -32,6 +32,9 @@ public:
 	void SetOutlineEnabled(bool bEnabled);
 
 	void SetOutlineSuppressed(bool bSuppressed);
+	bool CanRevealWithBloodPulse() const;
+	void RevealWithBloodPulse(float Duration);
+	void ClearBloodPulseReveal();
 
 	UFUNCTION(BlueprintCallable, Category = "Outline")
 	void SetOutlineStyle(const FTBOutlineStyle& NewStyle);
@@ -56,10 +59,14 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Outline")
 	bool bOutlineEnabled = true;
 
+	UPROPERTY(EditAnywhere, Category = "Outline", meta = (DisplayName = "Detectable by Blood Pulse"))
+	bool bDetectableByBloodPulse = false;
+
 	UPROPERTY(EditAnywhere, Category = "Outline", meta = (ShowOnlyInnerProperties))
 	FTBOutlineStyle Style;
 
 	bool bOutlineSuppressed = false;
+	FTimerHandle BloodPulseRevealTimer;
 
 	void RefreshOutline();
 };
