@@ -20,6 +20,7 @@
 #include "Framework/TBPlayerState.h"
 #include "Framework/TBLevelManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Net/UnrealNetwork.h"
 #include "UI/TBPlayerHUD.h"
 #include "Components/TBInteractionComponent.h"
 #include "Interface/TBInteractInterface.h"
@@ -97,7 +98,14 @@ bool ATBPlayer::IsDead() const
 {
 	const UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 
-	return IsValid(ASC) && ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
+	return bPawnDead || (HasAuthority() && IsValid(ASC) && ASC->GetAvatarActor() == this
+		&& ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead));
+}
+
+void ATBPlayer::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ATBPlayer, bPawnDead);
 }
 
 void ATBPlayer::Die(ATBPlayerState* Killer)
@@ -150,12 +158,13 @@ void ATBPlayer::Die(ATBPlayerState* Killer)
 		UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass())))
 	{
 		LevelManager->RecordPlayerDeath(*PS, Killer);
+		LevelManager->QueuePlayerRespawn(*this, AppliedHandle);
 	}
 }
 
 void ATBPlayer::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
-	if (NewCount <= 0 || bDeathHandled)
+	if (!HasAuthority() || NewCount <= 0 || bPawnDead)
 	{
 		return;
 	}
@@ -168,11 +177,22 @@ void ATBPlayer::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 	}
 
 	// 취소 콜백 등에 의한 중복 처리 방지
-	bDeathHandled = true;
+	bPawnDead = true;
+	PlayerASC->CancelAllAbilities();
+	OnRep_PawnDead();
 
-	if (HasAuthority())
+	// The death ability runs on the server and owns the death animation.
+	if (!PlayerASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Death))
 	{
-		PlayerASC->CancelAllAbilities();
+		UE_LOG(LogTemp, Warning, TEXT("%s: Death ability activation failed."), *GetName());
+	}
+}
+
+void ATBPlayer::OnRep_PawnDead()
+{
+	if (!bPawnDead)
+	{
+		return;
 	}
 
 	GetCharacterMovement()->StopMovementImmediately();
@@ -194,15 +214,6 @@ void ATBPlayer::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount)
 	if (IsValid(FirstPersonWeaponMesh.Get()))
 	{
 		FirstPersonWeaponMesh->SetHiddenInGame(true, true);
-	}
-
-	// 부여된 어빌리티 중 Ability.Death 태그로 검색 및 실행
-	if (HasAuthority())
-	{
-		if (!PlayerASC->TryActivateAbilityByTag(TBGameplayTags::Ability_Death))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("%s: Death ability activation failed."), *GetName());
-		}
 	}
 }
 
@@ -778,7 +789,7 @@ void ATBPlayer::InitializeFromPlayerState()
 	TBPlayerState->InitializeGameplayData();
 
 	// 이벤트 등록 전에 도착한 사망 상태 반영
-	if (IsDead())
+	if (HasAuthority() && IsDead())
 	{
 		HandleDeadTagChanged(TBGameplayTags::State_Dead, 1);
 	}
