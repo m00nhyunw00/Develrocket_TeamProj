@@ -1,4 +1,5 @@
 #include "Framework/TBLevelManager.h"
+#include "Components/DaySystemComponent.h"
 #include "Components/TBSpawnManagerComponent.h"
 #include "Framework/TBSpawnPoolDataAsset.h"
 #include "Framework/TBPlayerState.h"
@@ -19,6 +20,7 @@
 ATBLevelManager::ATBLevelManager()
 {
 	SpawnManager = CreateDefaultSubobject<UTBSpawnManagerComponent>(TEXT("SpawnManager"));
+	DaySystem = CreateDefaultSubobject<UDaySystemComponent>(TEXT("DaySystem"));
 	bReplicates = true;
 	bAlwaysRelevant = true;
 	PrimaryActorTick.bCanEverTick = false;

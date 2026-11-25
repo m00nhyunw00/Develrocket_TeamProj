@@ -9,6 +9,7 @@
 class ACityLayoutCoordinator;
 class ACharacter;
 class UTBSpawnManagerComponent;
+class UDaySystemComponent;
 class UTBSpawnPoolDataAsset;
 class AGameModeBase;
 class APlayerController;
@@ -57,6 +58,9 @@ public:
 	// 이 레벨 매니저의 런타임 풀을 참조해 스폰과 반환을 관리합니다.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Spawn|Pool")
 	TObjectPtr<UTBSpawnManagerComponent> SpawnManager;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Day System")
+	TObjectPtr<UDaySystemComponent> DaySystem;
 	
 	// 플레이어와 몬스터가 공유할 바닥 액터, 범위 및 탐색 설정을 반환합니다.
 	bool GetSpawnFloorSearchParameters(AActor*& OutFloor, FBox& OutBounds, int32& OutMaxAttempts, float& OutTraceHeight) const;
