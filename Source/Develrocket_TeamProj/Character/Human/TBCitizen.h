@@ -11,6 +11,7 @@ class UAnimMontage;
 class UGameplayAbility;
 class UGameplayEffect;
 class UTBCitizenAttributeSet;
+class UTBCitizenAppearanceData;
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBCitizen : public ATBCharacterBase, public ITBInteractInterface
@@ -42,6 +43,9 @@ public:
 	virtual void OnPoolActivated_Implementation() override;       // [서버] 풀에서 꺼낼 때 살아있는 상태로 복구
 	virtual void OnPoolDeactivated_Implementation() override;     // [서버] 풀로 넣기 직전 정리
 	virtual void OnPoolReady() override;
+	
+	ETBCitizenState GetCitizenState() const { return CitizenState; }
+	float PlayStartle();
 	
 protected:
 	virtual bool CanReceiveAttack(float Damage) const override;
@@ -121,6 +125,21 @@ protected:
 	void OnRep_CitizenState();                            // [모든 머신] 보이는 처리만
 
 	void SetCitizenState(ETBCitizenState NewState);       // [서버] 상태 변경의 유일한 입구
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Animation")
+	TArray<TObjectPtr<UAnimMontage>> StartleMontages;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Appearance")
+	TArray<TObjectPtr<UTBCitizenAppearanceData>> AppearanceCandidates;
+	
+	UPROPERTY(ReplicatedUsing = OnRep_Appearance)
+	TObjectPtr<UTBCitizenAppearanceData> CurrentAppearance;
+	
+	UFUNCTION()
+	void OnRep_Appearance();
+	
+	void ChooseAppearance();
+	void ApplyAppearance();
 
 private:
 	void StartDeathSequence();                            // [서버] 사망 GA 실행 + 시체 타이머
@@ -133,4 +152,9 @@ private:
 	FActiveGameplayEffectHandle BleedEffectHandle;        // 현재 적용 중인 출혈 GE
 	FDelegateHandle OutOfBloodHandle;
 	FDelegateHandle BleedingTagHandle;
+	
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastPlayStartle(uint8 MontageIndex);
+	
+	int32 LastStartleIndex = INDEX_NONE;
 };
