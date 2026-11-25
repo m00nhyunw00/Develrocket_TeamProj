@@ -40,11 +40,13 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Data_Heal, "Data.Heal");
 	UE_DEFINE_GAMEPLAY_TAG(Data_MoveSpeedBonus, "Data.MoveSpeedBonus");
 	
-	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_BloodTrail, "GameplayCue.Weapon.BloodTrail");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Attack, "GameplayCue.Attack");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Attack_Weapon_BloodTrail, "GameplayCue.Attack.Weapon.BloodTrail");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Impact_Blood_World, "GameplayCue.Impact.Blood.World");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Impact_Blood_Flesh_Red, "GameplayCue.Impact.Blood.Flesh.Red");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Impact_Blood_Flesh_Green, "GameplayCue.Impact.Blood.Flesh.Green");
-	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Fire, "GameplayCue.Blackwood.Fire");
-	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Melee, "GameplayCue.Blackwood.Melee");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Attack, "GameplayCue.Blackwood.Attack");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Attack_Fire, "GameplayCue.Blackwood.Attack.Fire");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Attack_Melee, "GameplayCue.Blackwood.Attack.Melee");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Empowered, "GameplayCue.Blackwood.Empowered");
 }

@@ -37,6 +37,7 @@ void UTBGameplayAbility_Attack::ActivateAbility(
 {
     bAttackActionCompleted = false;
     CurrentAttackDamage = 0.0f;
+    bCurrentAttackEnhanced = false;
 
     ATBCharacterBase* Attacker = ActorInfo ? Cast<ATBCharacterBase>(ActorInfo->AvatarActor.Get()) : nullptr;
 
@@ -108,16 +109,16 @@ void UTBGameplayAbility_Attack::OnActionCommitted()
     }
 
     // 피해량을 확정한 뒤 강화 상태 종료
-    const bool bEnhanced = Attacker->ConsumeAttackEnhancement(AttackId, CurrentAttackDamage);
+    bCurrentAttackEnhanced = Attacker->ConsumeAttackEnhancement(AttackId, CurrentAttackDamage);
 
-    if (AttackVisualCueTag.IsValid())
+    if (ShouldExecuteAttackVisualOnCommit() && AttackVisualCueTag.IsValid())
     {
         FGameplayCueParameters Parameters;
         Parameters.Instigator = Attacker;
         Parameters.EffectCauser = Attacker;
 
         // 버프가 사라진 이후에도 이번 공격의 연출 선택 정보 유지
-        Parameters.NormalizedMagnitude = bEnhanced ? 1.0f : 0.0f;
+        Parameters.NormalizedMagnitude = bCurrentAttackEnhanced ? 1.0f : 0.0f;
 
         FScopedPredictionWindow CuePredictionWindow(ASC, FPredictionKey(), false);
 
