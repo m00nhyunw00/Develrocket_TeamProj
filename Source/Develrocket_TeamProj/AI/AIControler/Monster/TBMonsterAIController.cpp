@@ -11,14 +11,20 @@
 #include "BrainComponent.h"
 #include "Character/Player/TBPlayer.h"
 #include "Character/Monster/TBMonster.h"
+#include "Components/TBMonsterMovementComponent.h"
 #include "DrawDebugHelpers.h"
 #include "EngineUtils.h"
 #include "TimerManager.h"
 #include "Character/Human/TBCitizen.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "NavigationSystem.h"
+#include "NavigationPath.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 ATBMonsterAIController::ATBMonsterAIController()
 {
+	bPreferPatrolHeading = true;
+	bSkipBlockedPatrolPoint = true;
 	UAIPerceptionComponent* PerceptionComp = CreateDefaultSubobject<UAIPerceptionComponent>(TEXT("PerceptionComp"));
 	SetPerceptionComponent(* PerceptionComp);
 	SightConfig = CreateDefaultSubobject<UAISenseConfig_Sight>(TEXT("SightConfig"));
@@ -98,6 +104,12 @@ void ATBMonsterAIController::OnPossess(APawn* InPawn)
 	if (!HasAuthority()) return;
 	if (ATBMonster* Monster = Cast<ATBMonster>(InPawn))
 	{
+		UPathFollowingComponent* PathFollowing = GetPathFollowingComponent();
+		if (UTBMonsterMovementComponent* Movement = Cast<UTBMonsterMovementComponent>(Monster->GetCharacterMovement());
+			PathFollowing && Movement)
+		{
+			PathFollowing->PostProcessMove.BindUObject(Movement, &UTBMonsterMovementComponent::SteerAroundPathObstacle);
+		}
 		Monster->OnMonsterDied.AddUniqueDynamic(this, &ThisClass::HandleMonsterDied);
 		if (Monster->IsDead())
 		{
@@ -123,6 +135,11 @@ void ATBMonsterAIController::OnPossess(APawn* InPawn)
 
 void ATBMonsterAIController::OnUnPossess()
 {
+	NextCombatRepositionTime = 0.0;
+	if (UPathFollowingComponent* PathFollowing = GetPathFollowingComponent())
+	{
+		PathFollowing->PostProcessMove.Unbind();
+	}
 	bPoolSuspended = false;
 	bPreserveTargetDuringStagger = false;
 	PendingInvestigationLocation.Reset();
@@ -148,6 +165,7 @@ void ATBMonsterAIController::DeactivateForPool()
 {
 	if (!HasAuthority() || bPoolSuspended) return;
 	bPoolSuspended = true;
+	NextCombatRepositionTime = 0.0;
 	bPausedBrainForInvestigation = false;
 	if (UBrainComponent* Brain = GetBrainComponent()) Brain->StopLogic(TEXT("Monster inactive"));
 	StopMovement();
@@ -269,6 +287,77 @@ void ATBMonsterAIController::FinishInvestigation(bool bStopMove)
 			if (UBrainComponent* Brain = GetBrainComponent()) Brain->ResumeLogic(TEXT("Damage investigation finished"));
 		}
 	}
+}
+
+bool ATBMonsterAIController::WantsCombatRetreat(const AActor& Target) const
+{
+	const ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
+	return Monster && Monster->GetMonsterBehavior() == ETBMonsterBehavior::SpideEye
+		&& Target.IsA<ATBPlayer>() && GetWorld()->GetTimeSeconds() >= NextCombatRepositionTime
+		&& FVector::DistSquared2D(Monster->GetActorLocation(), Target.GetActorLocation()) < FMath::Square(260.0)
+		&& LineOfSightTo(&Target);
+}
+
+FPathFollowingRequestResult ATBMonsterAIController::MoveTo(const FAIMoveRequest& MoveRequest, FNavPathSharedPtr* OutPath)
+{
+	const AActor* Target = MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor() : nullptr;
+	ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
+	if (!HasAuthority() || !IsValid(Monster) || !IsValid(Target) || Target != TrackedTarget.Get()
+		|| Monster->IsMovementBlocked() || GetWorld()->GetTimeSeconds() < NextCombatRepositionTime)
+	{
+		return Super::MoveTo(MoveRequest, OutPath);
+	}
+
+	const FVector Origin = GetNavAgentLocation();
+	const FVector Offset = Target->GetActorLocation() - Origin;
+	const double Distance = Offset.Size2D();
+	const FVector TowardTarget = Offset.GetSafeNormal2D();
+	const FVector Sideways = FVector::CrossProduct(FVector::UpVector, TowardTarget);
+	const ETBMonsterBehavior Behavior = Monster->GetMonsterBehavior();
+	const bool bFlank = Behavior == ETBMonsterBehavior::Anasimus && Distance > Monster->GetMeleeAttackRange()
+		&& Distance < 850.0 && FVector::DotProduct(Target->GetActorForwardVector().GetSafeNormal2D(), -TowardTarget) > 0.45;
+	const bool bRetreat = WantsCombatRetreat(*Target);
+	if ((!bFlank && !bRetreat) || TowardTarget.IsNearlyZero() || (bFlank && !LineOfSightTo(Target)))
+	{
+		return Super::MoveTo(MoveRequest, OutPath);
+	}
+
+	const FVector ForwardOffset = TowardTarget * (bFlank ? FMath::Min(220.0, Distance * 0.5) : -180.0);
+	const FVector LateralOffset = Sideways * (bFlank ? 270.0 : 130.0) * (FMath::RandBool() ? 1.0 : -1.0);
+	const UNavigationSystemV1* Navigation = UNavigationSystemV1::GetCurrent(GetWorld());
+	const ANavigationData* NavData = Navigation ? Navigation->GetNavDataForProps(GetNavAgentPropertiesRef(), Origin) : nullptr;
+	NextCombatRepositionTime = GetWorld()->GetTimeSeconds() + (bFlank ? 4.0 : 2.5);
+
+	for (const double Side : {1.0, -1.0})
+	{
+		FNavLocation Goal;
+		if (!NavData || !Navigation->ProjectPointToNavigation(Origin + ForwardOffset + LateralOffset * Side, Goal,
+			FVector(60.0, 60.0, 150.0), NavData)
+			|| FVector::DistSquared2D(Origin, Goal.Location) < FMath::Square(90.0))
+		{
+			continue;
+		}
+
+		FAIMoveRequest SideMove(Goal.Location);
+		SideMove.SetAcceptanceRadius(35.0f).SetAllowPartialPath(false).SetReachTestIncludesAgentRadius(false)
+			.SetCanStrafe(MoveRequest.CanStrafe()).SetNavigationFilter(MoveRequest.GetNavigationFilter());
+		FPathFindingQuery Query;
+		FNavPathSharedPtr Path;
+		if (!BuildPathfindingQuery(SideMove, Query)) continue;
+		FindPathForMoveRequest(SideMove, Query, Path);
+		if (!Path.IsValid() || !Path->IsValid() || Path->IsPartial()) continue;
+
+		FPathFollowingRequestResult Result;
+		Result.MoveId = RequestMove(SideMove, Path);
+		if (Result.MoveId.IsValid())
+		{
+			bAllowStrafe = SideMove.CanStrafe();
+			Result.Code = EPathFollowingRequestResult::RequestSuccessful;
+			if (OutPath) *OutPath = Path;
+			return Result;
+		}
+	}
+	return Super::MoveTo(MoveRequest, OutPath);
 }
 
 void ATBMonsterAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)

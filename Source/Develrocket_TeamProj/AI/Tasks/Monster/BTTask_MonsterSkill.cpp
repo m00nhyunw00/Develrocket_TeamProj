@@ -4,6 +4,8 @@
 #include "AbilitySystemGlobals.h"
 #include "Abilities/GameplayAbility.h"
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_MonsterSkill.h"
+#include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Charge.h"
+#include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Leap.h"
 #include "AbilitySystem/Abilities/Monster/VampireHunter/TBGameplayAbility_VampireHunter_Hitscan.h"
 #include "AI/TBMonsterSkillSet.h"
 #include "AIController.h"
@@ -109,6 +111,7 @@ UBTTask_MonsterSkill::UBTTask_MonsterSkill()
 {
 	NodeName = TEXT("TB Monster Skill");
 	bCreateNodeInstance = true;
+	bNotifyTick = true;
 	BlackboardKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(ThisClass, BlackboardKey), AActor::StaticClass());
 	BlackboardKey.SelectedKeyName = TEXT("TargetActor");
 }
@@ -157,6 +160,7 @@ UBTTask_MonsterSkill::EMovingSkillResult UBTTask_MonsterSkill::TryUseSkillDuring
 
 EBTNodeResult::Type UBTTask_MonsterSkill::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
+	RemainingRecovery = 0.0f;
 	FSkillContext Context;
 	if (!Context.Initialize(OwnerComp, BlackboardKey.SelectedKeyName))
 	{
@@ -177,6 +181,16 @@ EBTNodeResult::Type UBTTask_MonsterSkill::ExecuteTask(UBehaviorTreeComponent& Ow
 		ActiveASC = ASC;
 		ActiveTree = &OwnerComp;
 		ActiveHandle = Spec->Handle;
+		RecoveryAfterSkill = 0.0f;
+		const ETBMonsterBehavior Behavior = Context.Monster->GetMonsterBehavior();
+		if (Behavior == ETBMonsterBehavior::Boris && Spec->Ability->IsA<UTBGameplayAbility_Monster_Leap>())
+		{
+			RecoveryAfterSkill = 0.45f;
+		}
+		else if (Behavior == ETBMonsterBehavior::Demon && Spec->Ability->IsA<UTBGameplayAbility_Monster_Charge>())
+		{
+			RecoveryAfterSkill = 0.75f;
+		}
 		bEndedDuringActivation = false;
 		bCancelledDuringActivation = false;
 		AbilityEndedHandle = ASC->OnAbilityEnded.AddUObject(this, &ThisClass::HandleAbilityEnded);
@@ -186,9 +200,21 @@ EBTNodeResult::Type UBTTask_MonsterSkill::ExecuteTask(UBehaviorTreeComponent& Ow
 		if (bActivated && !bEndedDuringActivation) return EBTNodeResult::InProgress;
 		const bool bSuccess = bActivated && bEndedDuringActivation && !bCancelledDuringActivation;
 		ClearAbilityBinding();
+		if (bSuccess && RecoveryAfterSkill > 0.0f)
+		{
+			RemainingRecovery = RecoveryAfterSkill;
+			return EBTNodeResult::InProgress;
+		}
 		if (bSuccess) return EBTNodeResult::Succeeded;
 	}
 	return EBTNodeResult::Failed;
+}
+
+void UBTTask_MonsterSkill::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
+{
+	if (RemainingRecovery <= 0.0f) return;
+	RemainingRecovery = FMath::Max(0.0f, RemainingRecovery - DeltaSeconds);
+	if (RemainingRecovery <= 0.0f) FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 }
 
 void UBTTask_MonsterSkill::HandleAbilityEnded(const FAbilityEndedData& EndedData)
@@ -202,11 +228,18 @@ void UBTTask_MonsterSkill::HandleAbilityEnded(const FAbilityEndedData& EndedData
 	}
 	UBehaviorTreeComponent* Tree = ActiveTree.Get();
 	ClearAbilityBinding();
-	if (Tree) FinishLatentTask(*Tree, EndedData.bWasCancelled ? EBTNodeResult::Failed : EBTNodeResult::Succeeded);
+	if (!Tree) return;
+	if (!EndedData.bWasCancelled && RecoveryAfterSkill > 0.0f)
+	{
+		RemainingRecovery = RecoveryAfterSkill;
+		return;
+	}
+	FinishLatentTask(*Tree, EndedData.bWasCancelled ? EBTNodeResult::Failed : EBTNodeResult::Succeeded);
 }
 
 EBTNodeResult::Type UBTTask_MonsterSkill::AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
+	RemainingRecovery = 0.0f;
 	UAbilitySystemComponent* ASC = ActiveASC.Get();
 	const FGameplayAbilitySpecHandle Handle = ActiveHandle;
 	ClearAbilityBinding();

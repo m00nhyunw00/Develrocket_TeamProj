@@ -43,13 +43,15 @@ bool UTBGameplayAbility_VampireHunter_Hitscan::CanUseAgainst(const ATBMonster* M
 {
 	const ATBCharacterBase* Character = Cast<ATBCharacterBase>(Target);
 	const UAbilitySystemComponent* TargetASC = IsValid(Character) ? Character->GetAbilitySystemComponent() : nullptr;
-	return IsValid(Monster) && Monster->HasAuthority() && !Monster->IsActionBlocked()
+	const AAIController* Controller = IsValid(Monster) ? Cast<AAIController>(Monster->GetController()) : nullptr;
+	return Controller && Monster->HasAuthority() && !Monster->IsActionBlocked()
 		&& IsValid(TargetASC) && Target != Monster && Target->GetWorld() == Monster->GetWorld()
 		&& TargetASC->GetAvatarActor() == Target && !TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
 		&& !TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable)
 		&& FMath::IsFinite(ShotDamage) && ShotDamage > 0.0f
 		&& FMath::IsFinite(TraceRange) && TraceRange > 0.0f
-		&& FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) <= FMath::Square(TraceRange);
+		&& FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) <= FMath::Square(TraceRange)
+		&& Controller->LineOfSightTo(Target);
 }
 
 void UTBGameplayAbility_VampireHunter_Hitscan::ActivateAbility(FGameplayAbilitySpecHandle Handle,

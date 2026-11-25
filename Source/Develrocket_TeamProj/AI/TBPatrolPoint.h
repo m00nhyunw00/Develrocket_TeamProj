@@ -18,7 +18,9 @@ public:
 	ATBPatrolPoint();
 	
 	const FGameplayTag& GetPatrolZone() const{ return PatrolZone; }
-	ATBPatrolPoint* ChooseNextPoint(const ANavigationData* NavData, const ATBPatrolPoint* Previous) const;
+	bool IsJunction() const;
+	ATBPatrolPoint* ChooseNextPoint(const ANavigationData* NavData, const ATBPatrolPoint* Previous,
+		const FVector& PreferredHeading, const ATBPatrolPoint* TemporarilyBlocked = nullptr, float PreferredLegLength = 0.0f) const;
 	void ClearPatrolLinks();
 	void AddPatrolLink(const ANavigationData* NavData, ATBPatrolPoint* Point);
 	

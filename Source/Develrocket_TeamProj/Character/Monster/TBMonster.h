@@ -42,6 +42,18 @@ struct FTBMonsterStatsRow : public FTableRowBase
 	int32 KillRewardScore = INDEX_NONE;
 };
 
+UENUM(BlueprintType)
+enum class ETBMonsterBehavior : uint8
+{
+	Automatic,
+	Default,
+	Boris,
+	Demon,
+	Anasimus,
+	SpideEye,
+	Hunter
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTBMonsterDied, ATBMonster*, Monster);
 
 // 자체 ASC를 소유하는 GAS 기반 AI 몬스터
@@ -67,6 +79,7 @@ public:
 	TSubclassOf<UGameplayAbility> GetMeleeAbilityClass() const { return MeleeAbilityClass; }
 	float GetMeleeAttackRange() const { return MeleeAttackRange; }
 	const UTBMonsterSkillSet* GetSkillSet() const { return SkillSet; }
+	ETBMonsterBehavior GetMonsterBehavior() const;
 	UTBMonsterMovementComponent* GetMonsterMovement() const;
 	UTBRotationComponent* GetAttackRotationComponent() const { return AttackRotationComponent.Get(); }
 
@@ -118,6 +131,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|Initialization")
 	FName MonsterStatsRow;
 
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Behavior")
+	ETBMonsterBehavior MonsterBehavior = ETBMonsterBehavior::Automatic;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Abilities")
 	TArray<TSubclassOf<UGameplayAbility>> StartupAbilities;
 
@@ -133,6 +149,7 @@ private:
 	void InitializeMonsterAbilitySystem();
 	void InitializeGameplayData();
 	const FTBMonsterStatsRow* FindMonsterStats() const;
+	FName ResolveMonsterStatsRow() const;
 	void ApplyMonsterStats(const FTBMonsterStatsRow& Stats);
 	void HandleStaggerFull();
 	void HandleAbilityEnded(const FAbilityEndedData& EndedData);

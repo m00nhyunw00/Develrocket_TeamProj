@@ -1,4 +1,5 @@
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Boom.h"
+#include "AIController.h"
 
 #include "AbilitySystemComponent.h"
 #include "AI/TBAIMovementVisibilitySubsystem.h"
@@ -37,11 +38,17 @@ bool UTBGameplayAbility_Monster_Boom::CanUseAgainst(const ATBMonster* Monster, c
 {
 	const ATBPlayer* Player = Cast<ATBPlayer>(Target);
 	const UAbilitySystemComponent* TargetASC = IsValid(Player) ? Player->GetAbilitySystemComponent() : nullptr;
-	return IsValid(Monster) && Monster->HasAuthority() && !Monster->IsDead() && IsValid(TargetASC)
+	const bool bCanJump = IsValid(Monster) && Monster->HasAuthority() && !Monster->IsDead() && IsValid(TargetASC)
 		&& TargetASC->GetAvatarActor() == Player && !TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
 		&& Monster->GetWorld() == Player->GetWorld() && Monster->GetMesh()->GetAnimInstance()
 		&& ThirdPersonMontage && FMath::IsFinite(ExplosionRadius) && ExplosionRadius > 0.f
 		&& FMath::IsFinite(ExplosionDamage) && ExplosionDamage > 0.f;
+	if (!bCanJump) return false;
+
+	const AAIController* Controller = Cast<AAIController>(Monster->GetController());
+	return Controller && Controller->LineOfSightTo(Player)
+		&& (Monster->GetMonsterBehavior() != ETBMonsterBehavior::SpideEye
+			|| FVector::DistSquared2D(Monster->GetActorLocation(), Player->GetActorLocation()) >= FMath::Square(230.0));
 }
 
 void UTBGameplayAbility_Monster_Boom::ActivateAbility(FGameplayAbilitySpecHandle Handle,

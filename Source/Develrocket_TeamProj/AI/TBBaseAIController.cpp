@@ -7,10 +7,11 @@
 #include "GameFramework/NavMovementComponent.h"
 
 #include "EngineUtils.h"
+#include "Engine/World.h"
 #include "NavigationPath.h"
 #include "NavigationSystem.h"
 
-AActor* ATBBaseAIController::SelectNextPatrolPoint(TSubclassOf<AActor> PointClass, float SearchRadius)
+AActor* ATBBaseAIController::SelectNextPatrolPoint(TSubclassOf<AActor> PointClass, float SearchRadius, float PreferredLegLength)
 {
 	APawn* ControlledPawn = GetPawn();
 	if (!IsValid(ControlledPawn)) return nullptr;
@@ -23,7 +24,12 @@ AActor* ATBBaseAIController::SelectNextPatrolPoint(TSubclassOf<AActor> PointClas
 	const UNavMovementComponent* Movement = Cast<UNavMovementComponent>(ControlledPawn->GetMovementComponent());
 	const ANavigationData* Data = (Nav && Movement) ? Nav->GetNavDataForProps(Movement->GetNavAgentPropertiesRef(), ControlledPawn->GetActorLocation()) : nullptr;
 	const UTBPatrolPointSubsystem* Patrols = GetWorld()->GetSubsystem<UTBPatrolPointSubsystem>();
-	ATBPatrolPoint* Next = (Patrols && Patrols->bPatrolGraphReady && CurrentPatrolPoint.IsValid()) ? CurrentPatrolPoint->ChooseNextPoint(Data, PreviousPatrolPoint.Get()) : nullptr;
+	const FVector PreferredHeading = bPreferPatrolHeading
+		? ControlledPawn->GetActorForwardVector().GetSafeNormal2D()
+		: FVector::ZeroVector;
+	const ATBPatrolPoint* AvoidPoint = GetWorld()->GetTimeSeconds() < BlockedPatrolRetryTime ? BlockedPatrolPoint.Get() : nullptr;
+	ATBPatrolPoint* Next = (Patrols && Patrols->bPatrolGraphReady && CurrentPatrolPoint.IsValid())
+		? CurrentPatrolPoint->ChooseNextPoint(Data, PreviousPatrolPoint.Get(), PreferredHeading, AvoidPoint, PreferredLegLength) : nullptr;
 	if (Next && (!Next->IsA(PointClass) || FVector::DistSquared(ControlledPawn->GetActorLocation(), Next->GetActorLocation()) > FMath::Square(SearchRadius))) Next = nullptr;
 	if (Next)
 	{
@@ -65,6 +71,11 @@ void ATBBaseAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFol
 			PreviousPatrolPoint = CurrentPatrolPoint;
 			CurrentPatrolPoint = PendingPatrolPoint;
 		}
+		else if (bSkipBlockedPatrolPoint && Result.Code == EPathFollowingResult::Blocked && PendingPatrolPoint.IsValid())
+		{
+			BlockedPatrolPoint = PendingPatrolPoint;
+			BlockedPatrolRetryTime = GetWorld()->GetTimeSeconds() + 3.0;
+		}
 		else CurrentPatrolPoint.Reset();
 		PendingPatrolPoint.Reset();
 		PatrolRequestID = FAIRequestID::InvalidRequest;
@@ -81,6 +92,8 @@ void ATBBaseAIController::OnUnPossess()
 void ATBBaseAIController::ResetPatrolState()
 {
 	CurrentPatrolPoint.Reset(); PreviousPatrolPoint.Reset(); PendingPatrolPoint.Reset();
+	BlockedPatrolPoint.Reset();
+	BlockedPatrolRetryTime = 0.0;
 	PatrolRequestID = FAIRequestID::InvalidRequest;
 }
 
@@ -94,11 +107,12 @@ AActor* ATBBaseAIController::FindReachablePatrolPoint(TSubclassOf<AActor> PointC
 	}
 
 	const FVector Start = ControlledPawn->GetActorLocation();
+	const ATBPatrolPoint* AvoidPoint = World->GetTimeSeconds() < BlockedPatrolRetryTime ? BlockedPatrolPoint.Get() : nullptr;
 	TArray<AActor*> Candidates;
 	for (TActorIterator<AActor> It(World, PointClass); It; ++It)
 	{
 		AActor* Point = *It;
-		if (!IsValid(Point) || FVector::DistSquared(Start, Point->GetActorLocation()) > FMath::Square(SearchRadius))
+		if (!IsValid(Point) || Point == AvoidPoint || FVector::DistSquared(Start, Point->GetActorLocation()) > FMath::Square(SearchRadius))
 		{
 			continue;
 		}

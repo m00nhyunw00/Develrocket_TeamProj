@@ -194,15 +194,36 @@ const FTBMonsterStatsRow* ATBMonster::FindMonsterStats() const
 	const UDataTable* Table = MonsterStatsTable.LoadSynchronous();
 	if (!Table) return nullptr;
 
-	FName RowName = MonsterStatsRow;
-	if (RowName.IsNone())
+	return Table->FindRow<FTBMonsterStatsRow>(ResolveMonsterStatsRow(), GetName(), !MonsterStatsRow.IsNone());
+}
+
+FName ATBMonster::ResolveMonsterStatsRow() const
+{
+	if (!MonsterStatsRow.IsNone()) return MonsterStatsRow;
+
+	FString ClassName = GetClass()->GetName();
+	ClassName.RemoveFromStart(TEXT("BP_"));
+	ClassName.RemoveFromEnd(TEXT("_C"));
+	return FName(*ClassName);
+}
+
+ETBMonsterBehavior ATBMonster::GetMonsterBehavior() const
+{
+	if (MonsterBehavior != ETBMonsterBehavior::Automatic) return MonsterBehavior;
+
+	static const TMap<FName, ETBMonsterBehavior> BehaviorsByRow = {
+		{TEXT("Boris"), ETBMonsterBehavior::Boris},
+		{TEXT("Demon"), ETBMonsterBehavior::Demon},
+		{TEXT("Anasimus"), ETBMonsterBehavior::Anasimus},
+		{TEXT("SpideEye"), ETBMonsterBehavior::SpideEye},
+		{TEXT("Hunter"), ETBMonsterBehavior::Hunter},
+		{TEXT("VampireHunter"), ETBMonsterBehavior::Hunter}
+	};
+	if (const ETBMonsterBehavior* Behavior = BehaviorsByRow.Find(ResolveMonsterStatsRow()))
 	{
-		FString ClassName = GetClass()->GetName();
-		ClassName.RemoveFromStart(TEXT("BP_"));
-		ClassName.RemoveFromEnd(TEXT("_C"));
-		RowName = FName(*ClassName);
+		return *Behavior;
 	}
-	return Table->FindRow<FTBMonsterStatsRow>(RowName, GetName(), !MonsterStatsRow.IsNone());
+	return ETBMonsterBehavior::Default;
 }
 
 void ATBMonster::ApplyMonsterStats(const FTBMonsterStatsRow& Stats)

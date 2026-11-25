@@ -25,7 +25,7 @@ namespace
 constexpr float ChargeUpdateInterval = 0.05f;
 constexpr double BlockedChargeGraceSeconds = 0.15;
 
-bool FindChargeWall(ATBMonster& Monster, const UCapsuleComponent& Capsule,
+bool FindChargeWall(const ATBMonster& Monster, const UCapsuleComponent& Capsule,
 	const FVector& Start, const FVector& End, FHitResult& OutHit)
 {
 	const auto* Movement = Monster.GetCharacterMovement();
@@ -83,7 +83,7 @@ UTBGameplayAbility_Monster_Charge::UTBGameplayAbility_Monster_Charge()
 bool UTBGameplayAbility_Monster_Charge::CanUseAgainst(const ATBMonster* Monster, const AActor* Target) const
 {
 	const UAbilitySystemComponent* TargetASC = IsValid(Target) ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target) : nullptr;
-	return IsValid(Monster) && Monster->HasAuthority() && !Monster->IsDead() && IsValid(Target)
+	const bool bCanCharge = IsValid(Monster) && Monster->HasAuthority() && !Monster->IsDead() && IsValid(Target)
 		&& Target->IsA<ATBPlayer>() && IsValid(TargetASC) && TargetASC->GetAvatarActor() == Target
 		&& !TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
 		&& Monster->GetWorld() && Target->GetWorld() == Monster->GetWorld()
@@ -91,6 +91,16 @@ bool UTBGameplayAbility_Monster_Charge::CanUseAgainst(const ATBMonster* Monster,
 		&& ThirdPersonMontage && ThirdPersonMontage->GetSectionIndex(ChargeSection) > 0
 		&& FMath::IsFinite(ChargeSpeed) && ChargeSpeed > 0.f && FMath::IsFinite(MaxDuration) && MaxDuration > 0.f
 		&& FMath::IsFinite(MaxDistance) && MaxDistance > 0.f;
+	if (!bCanCharge) return false;
+
+	const AAIController* Controller = Cast<AAIController>(Monster->GetController());
+	if (!Controller || !Controller->LineOfSightTo(Target)) return false;
+
+	const FVector Start = Monster->GetActorLocation();
+	FVector End = Target->GetActorLocation();
+	End.Z = Start.Z;
+	FHitResult Wall;
+	return !FindChargeWall(*Monster, *Monster->GetCapsuleComponent(), Start, End, Wall);
 }
 
 void UTBGameplayAbility_Monster_Charge::ActivateAbility(FGameplayAbilitySpecHandle Handle,

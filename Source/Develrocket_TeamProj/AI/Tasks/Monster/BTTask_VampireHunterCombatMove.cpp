@@ -17,6 +17,8 @@ namespace
 	constexpr double OrbitHandoffDistance = 60.0;
 	constexpr double TargetReplanDistance = 40.0;
 	constexpr float LocalMoveAcceptanceRadius = 18.0f;
+	constexpr float ChaseArrivalBuffer = 5.0f;
+	constexpr double OrbitSearchRetrySeconds = 0.35;
 }
 
 UBTTask_VampireHunterCombatMove::UBTTask_VampireHunterCombatMove()
@@ -53,6 +55,7 @@ EBTNodeResult::Type UBTTask_VampireHunterCombatMove::ExecuteTask(UBehaviorTreeCo
 	bPreviousOrientToMovement = Movement->bOrientRotationToMovement;
 	bPreviousUseControllerDesiredRotation = Movement->bUseControllerDesiredRotation;
 	bPreviousUseControllerYaw = Monster->bUseControllerRotationYaw;
+	bPreviousAllowStrafe = Controller->bAllowStrafe;
 	Movement->bOrientRotationToMovement = false;
 	Movement->bUseControllerDesiredRotation = true;
 	Monster->bUseControllerRotationYaw = false;
@@ -61,6 +64,10 @@ EBTNodeResult::Type UBTTask_VampireHunterCombatMove::ExecuteTask(UBehaviorTreeCo
 	OrbitLegsUntilSideChoice = FMath::RandRange(2, 4);
 	MovementMode = EMovementMode::Chase;
 	TimeUntilUpdate = MoveUpdateInterval;
+	NextOrbitPlanTime = 0.0;
+	NextSightSearchTime = 0.0;
+	LastVisibleTargetLocation = FAISystem::InvalidLocation;
+	bHadLineOfSight = false;
 	return UpdateMovement(OwnerComp) ? EBTNodeResult::InProgress : EBTNodeResult::Failed;
 }
 
@@ -68,10 +75,13 @@ void UBTTask_VampireHunterCombatMove::TickTask(UBehaviorTreeComponent& OwnerComp
 {
 	TimeUntilUpdate -= DeltaSeconds;
 	const ATBMonster* Monster = ActiveMonster.Get();
+	const AActor* Target = FocusTarget.Get();
+	const bool bReachedCombatRange = MovementMode == EMovementMode::Chase && bHadLineOfSight && Monster && Target
+		&& FVector::DistSquared2D(Monster->GetActorLocation(), Target->GetActorLocation()) <= FMath::Square(OrbitStartDistance);
 	const bool bReadyForOrbitHandoff = Monster && FAISystem::IsValidLocation(ActiveOrbitGoal)
 		&& FAISystem::IsValidLocation(NextOrbitGoal)
 		&& FVector::DistSquared2D(Monster->GetActorLocation(), ActiveOrbitGoal) <= FMath::Square(OrbitHandoffDistance);
-	if (TimeUntilUpdate <= 0.0f || bReadyForOrbitHandoff)
+	if (TimeUntilUpdate <= 0.0f || bReachedCombatRange || bReadyForOrbitHandoff)
 	{
 		TimeUntilUpdate = MoveUpdateInterval;
 		if (!UpdateMovement(OwnerComp))
@@ -96,8 +106,12 @@ bool UBTTask_VampireHunterCombatMove::UpdateMovement(UBehaviorTreeComponent& Own
 	if (bTargetChanged)
 	{
 		FocusTarget = Target;
-		Controller->SetFocus(Target);
+		Controller->ClearFocus(EAIFocusPriority::Gameplay);
+		LastVisibleTargetLocation = FAISystem::InvalidLocation;
+		bHadLineOfSight = false;
+		NextSightSearchTime = 0.0;
 		ActiveOrbitGoal = NextOrbitGoal = FAISystem::InvalidLocation;
+		NextOrbitPlanTime = 0.0;
 	}
 	if (Monster->IsMovementBlocked())
 	{
@@ -106,7 +120,28 @@ bool UBTTask_VampireHunterCombatMove::UpdateMovement(UBehaviorTreeComponent& Own
 	}
 
 	const FVector Origin = Monster->GetActorLocation();
+	if (!Controller->LineOfSightTo(Target))
+	{
+		if (bHadLineOfSight || bTargetChanged)
+		{
+			StopOwnedMove(*Controller);
+			bHadLineOfSight = false;
+			if (FAISystem::IsValidLocation(LastVisibleTargetLocation))
+			{
+				Controller->SetFocalPoint(LastVisibleTargetLocation);
+			}
+		}
+		SearchForFiringAngle(*Controller, Origin);
+		return true;
+	}
+	if (!bHadLineOfSight)
+	{
+		Controller->SetFocus(Target);
+		ActiveOrbitGoal = NextOrbitGoal = FAISystem::InvalidLocation;
+		bHadLineOfSight = true;
+	}
 	const FVector TargetLocation = Target->GetActorLocation();
+	LastVisibleTargetLocation = TargetLocation;
 	const FVector Offset = Origin - TargetLocation;
 	const double Distance = Offset.Size2D();
 	const double RetreatStart = FMath::Min(RetreatStartDistance, OrbitStartDistance);
@@ -130,15 +165,19 @@ bool UBTTask_VampireHunterCombatMove::UpdateMovement(UBehaviorTreeComponent& Own
 		&& MoveId.IsValid() && PathFollowing->GetCurrentRequestId() == MoveId;
 	if (MovementMode == EMovementMode::Orbit)
 	{
+		const double Now = Monster->GetWorld()->GetTimeSeconds();
 		const bool bFollowingOrbit = bMoveActive && ActiveMoveMode == EMovementMode::Orbit
 			&& FAISystem::IsValidLocation(ActiveOrbitGoal);
 		if (FVector::DistSquared2D(OrbitPlanTargetLocation, TargetLocation) > FMath::Square(TargetReplanDistance))
 		{
 			NextOrbitGoal = FAISystem::InvalidLocation;
 		}
-		if (!FAISystem::IsValidLocation(NextOrbitGoal))
+		if (!FAISystem::IsValidLocation(NextOrbitGoal) && Now >= NextOrbitPlanTime)
 		{
-			FindOrbitGoal(*Controller, bFollowingOrbit ? ActiveOrbitGoal : Origin, TargetLocation, RetreatEnd);
+			if (!FindOrbitGoal(*Controller, bFollowingOrbit ? ActiveOrbitGoal : Origin, TargetLocation, RetreatEnd))
+			{
+				NextOrbitPlanTime = Now + OrbitSearchRetrySeconds;
+			}
 		}
 		if (bFollowingOrbit && FVector::DistSquared2D(Origin, ActiveOrbitGoal) > FMath::Square(OrbitHandoffDistance))
 		{
@@ -154,12 +193,17 @@ bool UBTTask_VampireHunterCombatMove::UpdateMovement(UBehaviorTreeComponent& Own
 				OrbitLegsUntilSideChoice = bSideChanged || OrbitLegsUntilSideChoice <= 0
 					? FMath::RandRange(2, 4) : OrbitLegsUntilSideChoice - 1;
 			}
+			else
+			{
+				NextOrbitPlanTime = Now + OrbitSearchRetrySeconds;
+			}
 			NextOrbitGoal = FAISystem::InvalidLocation;
 		}
 		return true;
 	}
 
 	ActiveOrbitGoal = NextOrbitGoal = FAISystem::InvalidLocation;
+	NextOrbitPlanTime = 0.0;
 	if (MovementMode == EMovementMode::Chase)
 	{
 		if (bMoveActive && ActiveMoveMode == EMovementMode::Chase && PathFollowing->GetMoveGoal() == Target)
@@ -167,7 +211,7 @@ bool UBTTask_VampireHunterCombatMove::UpdateMovement(UBehaviorTreeComponent& Own
 			return true;
 		}
 		FAIMoveRequest Request(Target);
-		Request.SetAcceptanceRadius(FMath::Max(5.0f, OrbitStartDistance - 20.0f));
+		Request.SetAcceptanceRadius(FMath::Max(1.0f, OrbitStartDistance - ChaseArrivalBuffer));
 		Request.SetAllowPartialPath(true);
 		StartMove(*Controller, Request);
 		return true;
@@ -199,6 +243,30 @@ bool UBTTask_VampireHunterCombatMove::UpdateMovement(UBehaviorTreeComponent& Own
 		StopOwnedMove(*Controller);
 	}
 	return true;
+}
+
+void UBTTask_VampireHunterCombatMove::SearchForFiringAngle(AAIController& Controller, const FVector& Origin)
+{
+	const double Now = Controller.GetWorld()->GetTimeSeconds();
+	if (!FAISystem::IsValidLocation(LastVisibleTargetLocation) || Now < NextSightSearchTime
+		|| (MoveId.IsValid() && Controller.GetCurrentMoveRequestID() == MoveId))
+	{
+		return;
+	}
+	NextSightSearchTime = Now + 0.65;
+	const FVector Forward = (LastVisibleTargetLocation - Origin).GetSafeNormal2D();
+	const FVector Sideways = FVector::CrossProduct(FVector::UpVector, Forward);
+	for (const float Side : {OrbitSide, -OrbitSide})
+	{
+		const FVector Candidate = Origin + Sideways * Side * 260.0 + Forward * 120.0;
+		FVector Goal;
+		if (FindLocalGoal(Controller, Origin, Candidate, LastVisibleTargetLocation, RetreatStartDistance, Goal)
+			&& StartLocalMove(Controller, Goal))
+		{
+			OrbitSide = Side;
+			return;
+		}
+	}
 }
 
 bool UBTTask_VampireHunterCombatMove::FindOrbitGoal(AAIController& Controller, const FVector& From,
@@ -264,33 +332,7 @@ bool UBTTask_VampireHunterCombatMove::StartLocalMove(AAIController& Controller, 
 	FAIMoveRequest Request(Goal);
 	Request.SetAcceptanceRadius(LocalMoveAcceptanceRadius);
 	Request.SetAllowPartialPath(false);
-	Request.SetCanStrafe(true);
-	Request.SetUsePathfinding(true);
-	Request.SetReachTestIncludesAgentRadius(false);
-	Request.SetReachTestIncludesGoalRadius(false);
-
-	FPathFindingQuery Query;
-	FNavPathSharedPtr Path;
-	if (Controller.BuildPathfindingQuery(Request, Query))
-	{
-		Controller.FindPathForMoveRequest(Request, Query, Path);
-	}
-	if (!Path.IsValid() || !Path->IsValid() || Path->IsPartial())
-	{
-		return false;
-	}
-
-	// Submit only a complete path so a failed candidate cannot cancel the active move.
-	const FAIRequestID NewMoveId = Controller.RequestMove(Request, Path);
-	if (!NewMoveId.IsValid())
-	{
-		return false;
-	}
-
-	Controller.bAllowStrafe = true;
-	MoveId = NewMoveId;
-	ActiveMoveMode = MovementMode;
-	return true;
+	return StartMove(Controller, Request);
 }
 
 bool UBTTask_VampireHunterCombatMove::StartMove(AAIController& Controller, FAIMoveRequest& Request)
@@ -299,14 +341,27 @@ bool UBTTask_VampireHunterCombatMove::StartMove(AAIController& Controller, FAIMo
 	Request.SetUsePathfinding(true);
 	Request.SetReachTestIncludesAgentRadius(false);
 	Request.SetReachTestIncludesGoalRadius(false);
-	const FPathFollowingRequestResult Result = Controller.MoveTo(Request);
-	if (Result.Code == EPathFollowingRequestResult::RequestSuccessful)
+	FPathFindingQuery Query;
+	FNavPathSharedPtr Path;
+	if (Controller.BuildPathfindingQuery(Request, Query))
 	{
-		MoveId = Result.MoveId;
-		ActiveMoveMode = MovementMode;
-		return true;
+		Controller.FindPathForMoveRequest(Request, Query, Path);
 	}
-	return false;
+	if (!Path.IsValid() || !Path->IsValid() || (Path->IsPartial() && !Request.IsUsingPartialPaths()))
+	{
+		return false;
+	}
+
+	// Keep the current move until the replacement path is ready.
+	const FAIRequestID NewMoveId = Controller.RequestMove(Request, Path);
+	if (!NewMoveId.IsValid())
+	{
+		return false;
+	}
+	Controller.bAllowStrafe = true;
+	MoveId = NewMoveId;
+	ActiveMoveMode = MovementMode;
+	return true;
 }
 
 void UBTTask_VampireHunterCombatMove::StopOwnedMove(AAIController& Controller)
@@ -331,7 +386,12 @@ void UBTTask_VampireHunterCombatMove::OnTaskFinished(UBehaviorTreeComponent& Own
 	if (AAIController* Controller = OwnerComp.GetAIOwner())
 	{
 		StopOwnedMove(*Controller);
-		if (!FocusTarget.IsExplicitlyNull() && Controller->GetFocusActorForPriority(EAIFocusPriority::Gameplay) == FocusTarget.Get())
+		Controller->bAllowStrafe = bPreviousAllowStrafe;
+		const bool bFocusOwned = Controller->GetFocusActorForPriority(EAIFocusPriority::Gameplay) == FocusTarget.Get()
+			|| (!Controller->GetFocusActorForPriority(EAIFocusPriority::Gameplay)
+				&& FAISystem::IsValidLocation(LastVisibleTargetLocation)
+				&& Controller->GetFocalPointForPriority(EAIFocusPriority::Gameplay).Equals(LastVisibleTargetLocation));
+		if (!FocusTarget.IsExplicitlyNull() && bFocusOwned)
 		{
 			if (AActor* Actor = PreviousFocusActor.Get())
 			{
