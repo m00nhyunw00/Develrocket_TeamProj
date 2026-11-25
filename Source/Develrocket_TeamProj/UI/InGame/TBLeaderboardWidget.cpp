@@ -82,23 +82,43 @@ void UTBLeaderboardWidget::SetLeaderboardRows(const TArray<FTBLeaderboardRowData
 	for (const FTBLeaderboardRowData& RowData : Rows)
 	{
 		UTBLeaderboardRowWidget* RowWidget = CreateWidget<UTBLeaderboardRowWidget>(this, RowWidgetClass);
-		
+		if (!RowWidget)
+		{
+			return;
+		}
+
+		PlayerRowsScrollBox->AddChild(RowWidget);
+		RowWidgetPool.Add(RowWidget);
+	}
+
+	// 데이터가 있는 행은 갱신·표시, 남는 행은 숨김
+	for (int32 Index = 0; Index < RowWidgetPool.Num(); ++Index)
+	{
+		UTBLeaderboardRowWidget* RowWidget = RowWidgetPool[Index];
 		if (!RowWidget)
 		{
 			continue;
 		}
-		
-		// 행 데이터를 행 위젯의 TextBlock들에 적용
-		RowWidget->SetRowData(RowData);
-		PlayerRowsScrollBox->AddChild(RowWidget);
+
+		if (Rows.IsValidIndex(Index))
+		{
+			RowWidget->SetRowData(Rows[Index]);
+			RowWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+		}
+		else
+		{
+			RowWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
 	}
 }
 
 void UTBLeaderboardWidget::ClearLeaderboardRows()
 {
-	// ScrollBox의 이전 리더보드 행을 모두 제거
+	// 완전 초기화: 행 위젯과 보관 목록을 모두 비움
 	if (PlayerRowsScrollBox)
 	{
 		PlayerRowsScrollBox->ClearChildren();
 	}
+
+	RowWidgetPool.Reset();
 }

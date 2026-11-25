@@ -56,11 +56,26 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Melee")
     TArray<FTBMeleeTraceSegment> TraceSegments;
 
+    // 한 타격 구간에서 연속된 검사 위치 사이의 목표 간격(cm)
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Melee", meta = (ClampMin = "0.1", Units = "cm"))
+    float MaxTraceStepDistance = 10.0f;
+
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Melee")
     TEnumAsByte<EDrawDebugTrace::Type> DrawDebugType = EDrawDebugTrace::None;
 
 private:
+    struct FSegmentPose
+    {
+        FVector Start;
+        FVector End;
+    };
+
+    void TraceCurrentPose();
+    bool SweepSegment(AActor* OwnerActor, const FVector& Start, const FVector& End, float Radius,
+        const TArray<AActor*>& IgnoredActors, TArray<FHitResult>& Hits, uint32 CurrentRevision);
+
     TWeakObjectPtr<UPrimitiveComponent> TraceMesh;
+    TArray<FSegmentPose> PreviousPoses;
 
     // 현재 판정 구간에서 이미 감지한 대상
     TSet<TWeakObjectPtr<AActor>> HitActors;

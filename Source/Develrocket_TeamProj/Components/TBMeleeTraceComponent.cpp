@@ -56,6 +56,7 @@ void UTBMeleeTraceComponent::StartTrace()
     ++TraceRevision;
     bTracing = true;
     SetComponentTickEnabled(true);
+    TraceCurrentPose();
 }
 
 void UTBMeleeTraceComponent::StopTrace()
@@ -65,6 +66,7 @@ void UTBMeleeTraceComponent::StopTrace()
 
     SetComponentTickEnabled(false);
     HitActors.Reset();
+    PreviousPoses.Reset();
 }
 
 void UTBMeleeTraceComponent::FinishAttack()
@@ -84,11 +86,14 @@ void UTBMeleeTraceComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-    if (!bTracing)
+    if (bTracing)
     {
-        return;
+        TraceCurrentPose();
     }
+}
 
+void UTBMeleeTraceComponent::TraceCurrentPose()
+{
     AActor* OwnerActor = GetOwner();
     UPrimitiveComponent* Mesh = TraceMesh.Get();
 
@@ -107,39 +112,83 @@ void UTBMeleeTraceComponent::TickComponent(float DeltaTime, ELevelTick TickType,
         IgnoredActors.AddUnique(MeshOwner);
     }
 
+    const bool bHasPreviousPose = PreviousPoses.Num() == TraceSegments.Num();
+    PreviousPoses.SetNum(TraceSegments.Num());
     const uint32 CurrentRevision = TraceRevision;
-    constexpr ECollisionChannel MeleeTraceChannel = ECC_GameTraceChannel3;
+    TArray<FHitResult> Hits;
 
-    for (const FTBMeleeTraceSegment& Segment : TraceSegments)
+    for (int32 Index = 0; Index < TraceSegments.Num(); ++Index)
     {
-        const FVector Start = Mesh->GetSocketLocation(Segment.StartSocket);
-        const FVector End = Mesh->GetSocketLocation(Segment.EndSocket);
+        const FTBMeleeTraceSegment& Segment = TraceSegments[Index];
+        const FSegmentPose Current = {
+            Mesh->GetSocketLocation(Segment.StartSocket),
+            Mesh->GetSocketLocation(Segment.EndSocket)
+        };
+        const FSegmentPose Previous = bHasPreviousPose ? PreviousPoses[Index] : Current;
+        PreviousPoses[Index] = Current;
 
-        TArray<FHitResult> Hits;
-        UKismetSystemLibrary::SphereTraceMulti(
-            OwnerActor, Start, End, Segment.Radius,
-            UEngineTypes::ConvertToTraceType(MeleeTraceChannel),
-            false, IgnoredActors, DrawDebugType, Hits, true);
+        const FVector PreviousBlade = Previous.End - Previous.Start;
+        const FVector CurrentBlade = Current.End - Current.Start;
+        const double PreviousLength = PreviousBlade.Size();
+        const double CurrentLength = CurrentBlade.Size();
+        // 시작과 끝 소켓이 같은 구형 판정도 이동 경로를 보간
+        const FVector FallbackDirection = CurrentBlade.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+        const FVector PreviousDirection = PreviousBlade.GetSafeNormal(UE_SMALL_NUMBER, FallbackDirection);
+        const FVector CurrentDirection = CurrentBlade.GetSafeNormal(UE_SMALL_NUMBER, PreviousDirection);
+        const FQuat Swing = FQuat::FindBetweenNormals(PreviousDirection, CurrentDirection);
 
-        for (const FHitResult& Hit : Hits)
+        // 칼끝의 회전 호와 시작 소켓의 이동을 합산해 빠른 구간에만 중간 검사 추가
+        const double Travel = FVector::Distance(Previous.Start, Current.Start)
+            + FMath::Abs(CurrentLength - PreviousLength) + FMath::Max(PreviousLength, CurrentLength) * Swing.GetAngle();
+        const double Spacing = FMath::Max(0.1f, FMath::Min(MaxTraceStepDistance, Segment.Radius));
+        constexpr int32 MaxStepsPerSegment = 32;
+        const int32 Steps = FMath::CeilToInt(FMath::Clamp(Travel / Spacing, 1.0, static_cast<double>(MaxStepsPerSegment)));
+
+        for (int32 Step = 1; Step < Steps; ++Step)
         {
-            AActor* Target = Hit.GetActor();
-            const TWeakObjectPtr<AActor> TargetKey(Target);
+            const double Alpha = static_cast<double>(Step) / Steps;
+            const FVector Start = FMath::Lerp(Previous.Start, Current.Start, Alpha);
+            const FVector Direction = FQuat::Slerp(FQuat::Identity, Swing, Alpha).RotateVector(PreviousDirection);
+            const FVector End = Start + Direction * FMath::Lerp(PreviousLength, CurrentLength, Alpha);
 
-            if (!IsValid(Target) || HitActors.Contains(TargetKey))
-            {
-                continue;
-            }
-
-            HitActors.Add(TargetKey);
-            OnHit.Broadcast(Hit);
-
-            if (!bTracing || TraceRevision != CurrentRevision)
+            if (!SweepSegment(OwnerActor, Start, End, Segment.Radius, IgnoredActors, Hits, CurrentRevision))
             {
                 return;
             }
         }
+
+        if (!SweepSegment(OwnerActor, Current.Start, Current.End, Segment.Radius, IgnoredActors, Hits, CurrentRevision))
+        {
+            return;
+        }
     }
+}
+
+bool UTBMeleeTraceComponent::SweepSegment(AActor* OwnerActor, const FVector& Start, const FVector& End, float Radius,
+    const TArray<AActor*>& IgnoredActors, TArray<FHitResult>& Hits, uint32 CurrentRevision)
+{
+    constexpr ECollisionChannel MeleeTraceChannel = ECC_GameTraceChannel3;
+    UKismetSystemLibrary::SphereTraceMulti(
+        OwnerActor, Start, End, Radius, UEngineTypes::ConvertToTraceType(MeleeTraceChannel),
+        false, IgnoredActors, DrawDebugType, Hits, true);
+
+    for (const FHitResult& Hit : Hits)
+    {
+        AActor* Target = Hit.GetActor();
+        const TWeakObjectPtr<AActor> TargetKey(Target);
+        if (!IsValid(Target) || HitActors.Contains(TargetKey))
+        {
+            continue;
+        }
+
+        HitActors.Add(TargetKey);
+        OnHit.Broadcast(Hit);
+        if (!bTracing || TraceRevision != CurrentRevision)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 void UTBMeleeTraceComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)

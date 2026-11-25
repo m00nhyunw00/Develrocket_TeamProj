@@ -257,7 +257,7 @@ void ATBPlayerHUD::HandleFocusedActorChanged(AActor* NewFocus)
     if (NewFocus && NewFocus->Implements<UTBInteractInterface>())
     {
         const FText Prompt = ITBInteractInterface::Execute_GetInteractPrompt(NewFocus);
-        HUDWidget->ShowInteractPrompt(FText::FromString(TEXT("F")), Prompt);
+        HUDWidget->ShowInteractPrompt(FText::FromString(TEXT("C")), Prompt);
     }
     else
     {
