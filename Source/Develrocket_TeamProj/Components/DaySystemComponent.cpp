@@ -1,8 +1,8 @@
-#include "Tests/DaySystemComponent.h"
+#include "Components/DaySystemComponent.h"
 
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
 #include "AbilitySystemComponent.h"
-#include "AbilitySystemGlobals.h"
+#include "Character/Player/TBPlayer.h"
 #include "Components/DirectionalLightComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/DirectionalLight.h"
@@ -16,6 +16,7 @@
 #include "Net/UnrealNetwork.h"
 #include "TBGameplayTags.h"
 #include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
 #include "UObject/SoftObjectPath.h"
 
 ADayCycleController::ADayCycleController()
@@ -86,13 +87,18 @@ UDaySystemComponent::UDaySystemComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
+
+	static const ConstructorHelpers::FClassFinder<UGameplayEffect> DefaultSunlightDamageEffect(
+		TEXT("/Game/_Game/Blueprints/AbilitySystem/GE_SunlightDamage"));
+	SunlightDamageEffect = DefaultSunlightDamageEffect.Class;
 }
 
 void UDaySystemComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
-	LevelManager = Cast<ATBLevelManager>(UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass()));
+	const ATBLevelManager* Manager = Cast<ATBLevelManager>(GetOwner());
+	if (!Manager || !Manager->HasAuthority()) return;
+
 	if (!ExplicitSunLight.IsValid() && IsValid(DirectionalLight))
 	{
 		ExplicitSunLight = DirectionalLight->GetComponent();
@@ -114,9 +120,16 @@ void UDaySystemComponent::BeginPlay()
 void UDaySystemComponent::SetDirectionalLight(ADirectionalLight* InLight)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
+	UDaySystemComponent* LevelDaySystem = GetLevelDaySystem();
+	if (!LevelDaySystem) return;
+	if (LevelDaySystem != this)
+	{
+		LevelDaySystem->SetDirectionalLight(InLight);
+		return;
+	}
 	DirectionalLight = InLight;
 	ExplicitSunLight = IsValid(InLight) ? InLight->GetComponent() : nullptr;
-	NextSunlightDamageTime.Reset();
+	NextSunlightDamageTimes.Reset();
 	EnsureDayCycleController();
 	TraceSunlight();
 }
@@ -124,9 +137,26 @@ void UDaySystemComponent::SetDirectionalLight(ADirectionalLight* InLight)
 void UDaySystemComponent::SetSunLightComponent(UDirectionalLightComponent* InLight)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
+	UDaySystemComponent* LevelDaySystem = GetLevelDaySystem();
+	if (!LevelDaySystem) return;
+	if (LevelDaySystem != this)
+	{
+		LevelDaySystem->SetSunLightComponent(InLight);
+		return;
+	}
 	ExplicitSunLight = InLight;
-	NextSunlightDamageTime.Reset();
+	NextSunlightDamageTimes.Reset();
 	TraceSunlight();
+}
+
+UDaySystemComponent* UDaySystemComponent::GetLevelDaySystem() const
+{
+	const ATBLevelManager* Manager = Cast<ATBLevelManager>(GetOwner());
+	if (!Manager)
+	{
+		Manager = Cast<ATBLevelManager>(UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass()));
+	}
+	return Manager ? Manager->DaySystem.Get() : nullptr;
 }
 
 void UDaySystemComponent::EnsureDayCycleController()
@@ -150,7 +180,7 @@ UDirectionalLightComponent* UDaySystemComponent::ResolveSunLight(double Now)
 
 	if (Now >= NextSunSearchTime)
 	{
-		// The city graph spawns the sky BP after the character may have begun play.
+		// The city graph can spawn the sky Blueprint after the level manager begins play.
 		NextSunSearchTime = Now + 1.0;
 		static const FSoftClassPath DayNightCycleClass(
 			TEXT("/Game/_Assets/_Original/DayNightCycle/Components/BP_DayNightCycle.BP_DayNightCycle_C"));
@@ -182,69 +212,84 @@ UDirectionalLightComponent* UDaySystemComponent::ResolveSunLight(double Now)
 
 void UDaySystemComponent::TraceSunlight()
 {
-	AActor* Owner = GetOwner();
+	const ATBLevelManager* Manager = Cast<ATBLevelManager>(GetOwner());
 	UWorld* World = GetWorld();
-	if (!Owner || !Owner->HasAuthority() || !World) return;
+	if (!Manager || !Manager->HasAuthority() || !World) return;
 
 	const double Now = World->GetTimeSeconds();
 	UDirectionalLightComponent* Sun = ResolveSunLight(Now);
 	bHasValidSunTrace = IsValid(Sun);
 	bSunTraceClear = false;
-	if (bHasValidSunTrace)
-	{
-		const FVector TowardSun = -Sun->GetForwardVector();
-		if (TowardSun.Z > 0.0 && Sun->Intensity > 0.0f && Sun->IsVisible())
-		{
-			const FVector Ray = TowardSun * FMath::Max(1.0f, TraceDistance);
-			FCollisionQueryParams Params(SCENE_QUERY_STAT(SunlightTrace), false, Owner);
-			Params.AddIgnoredActor(Sun->GetOwner());
+	const FVector TowardSun = bHasValidSunTrace ? -Sun->GetForwardVector() : FVector::ZeroVector;
+	const bool bSunIsUp = TowardSun.Z > 0.0 && Sun->Intensity > 0.0f && Sun->IsVisible();
+	const bool bMatchReady = Manager->IsLocalCityReady() && Manager->IsMatchStarted();
+	const FVector Ray = TowardSun * FMath::Max(1.0f, TraceDistance);
 
-			const FVector Head = Owner->GetActorLocation() + TraceStartOffset;
-			const FVector Chest = Head - FVector(0.0, 0.0, TraceStartOffset.Z * 0.5);
-			const auto IsExposedAt = [&](const FVector& Start)
-			{
-				const FVector End = Start + Ray;
-				const bool bClear = !World->LineTraceTestByChannel(Start, End, TraceChannel, Params);
-				if (bDrawDebugTrace) MulticastDrawTrace(Start, End, bClear);
-				return bClear;
-			};
-			bSunTraceClear = IsExposedAt(Head) || IsExposedAt(Chest);
-		}
+	for (auto It = NextSunlightDamageTimes.CreateIterator(); It; ++It)
+	{
+		if (!It.Key().IsValid()) It.RemoveCurrent();
 	}
 
-	UpdateSunlightDamage(Now);
+	for (TActorIterator<ATBPlayer> It(World); It; ++It)
+	{
+		ATBPlayer& Player = **It;
+		const bool bValidPlayerTrace = bHasValidSunTrace && bMatchReady && !Player.IsDead();
+		const bool bExposed = bValidPlayerTrace && bSunIsUp && TracePlayer(Player, *Sun, Ray);
+		bSunTraceClear |= bExposed;
+
+		// Keep existing character Blueprints' sunlight queries working without a second timer.
+		if (UDaySystemComponent* PlayerDaySystem = Player.FindComponentByClass<UDaySystemComponent>())
+		{
+			PlayerDaySystem->bHasValidSunTrace = bValidPlayerTrace;
+			PlayerDaySystem->bSunTraceClear = bExposed;
+		}
+
+		UpdateSunlightDamage(Player, Now, bExposed);
+	}
 }
 
-void UDaySystemComponent::UpdateSunlightDamage(double Now)
+bool UDaySystemComponent::TracePlayer(ATBPlayer& Player, const UDirectionalLightComponent& Sun, const FVector& Ray)
 {
-	const ATBLevelManager* Manager = LevelManager.Get();
-	if (!bEnableSunlightDamage || !SunlightDamageEffect || !bSunTraceClear
-		|| !FMath::IsFinite(SunlightDamagePerSecond) || SunlightDamagePerSecond <= 0.0f
-		|| (Manager && (!Manager->IsMatchStarted() || !Manager->IsLocalCityReady())))
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(SunlightTrace), false, &Player);
+	Params.AddIgnoredActor(Sun.GetOwner());
+
+	const FVector Head = Player.GetActorLocation() + TraceStartOffset;
+	const FVector Chest = Head - FVector(0.0, 0.0, TraceStartOffset.Z * 0.5);
+	const auto IsExposedAt = [&](const FVector& Start)
 	{
-		NextSunlightDamageTime.Reset();
+		const FVector End = Start + Ray;
+		const bool bClear = !GetWorld()->LineTraceTestByChannel(Start, End, TraceChannel, Params);
+		if (bDrawDebugTrace) MulticastDrawTrace(Start, End, bClear);
+		return bClear;
+	};
+	return IsExposedAt(Head) || IsExposedAt(Chest);
+}
+
+void UDaySystemComponent::UpdateSunlightDamage(ATBPlayer& Player, double Now, bool bExposed)
+{
+	const TWeakObjectPtr<ATBPlayer> PlayerKey(&Player);
+	if (!bEnableSunlightDamage || !SunlightDamageEffect || !bExposed
+		|| !FMath::IsFinite(SunlightDamagePerSecond) || SunlightDamagePerSecond <= 0.0f)
+	{
+		NextSunlightDamageTimes.Remove(PlayerKey);
 		return;
 	}
 
-	AActor* Owner = GetOwner();
-	UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Owner);
+	UAbilitySystemComponent* ASC = Player.GetAbilitySystemComponent();
 	const FGameplayAttribute BloodAttribute = UTBAttributeSetBase::GetBloodAttribute();
-	if (!IsValid(ASC) || ASC->GetAvatarActor() != Owner || !ASC->HasAttributeSetForAttribute(BloodAttribute)
+	if (!IsValid(ASC) || ASC->GetAvatarActor() != &Player || !ASC->HasAttributeSetForAttribute(BloodAttribute)
 		|| ASC->GetNumericAttribute(BloodAttribute) <= 0.0f
 		|| ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
 		|| ASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable))
 	{
-		NextSunlightDamageTime.Reset();
+		NextSunlightDamageTimes.Remove(PlayerKey);
 		return;
 	}
 
-	if (!NextSunlightDamageTime.IsSet())
-	{
-		NextSunlightDamageTime = Now + FMath::Max(0.0f, SunlightExposureGracePeriod);
-	}
-	if (Now < NextSunlightDamageTime.GetValue()) return;
-
-	NextSunlightDamageTime = Now + 1.0;
+	double& NextDamageTime = NextSunlightDamageTimes.FindOrAdd(PlayerKey,
+		Now + FMath::Max(0.0f, SunlightExposureGracePeriod));
+	if (Now < NextDamageTime) return;
+	NextDamageTime = Now + 1.0;
 	const FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(
 		SunlightDamageEffect, 1.0f, ASC->MakeEffectContext());
 	if (Spec.IsValid())
