@@ -12,7 +12,7 @@ UTBGameplayAbility_Hitscan::UTBGameplayAbility_Hitscan()
 
     ActivationOwnedTags.AddTag(TBGameplayTags::State_Combat);
 
-    BulletTrailCueTag = TBGameplayTags::GameplayCue_Weapon_BloodTrail;
+    AttackVisualCueTag = TBGameplayTags::GameplayCue_Attack_Weapon_BloodTrail;
     DefaultImpactCueTag = TBGameplayTags::GameplayCue_Impact_Blood_World;
 }
 
@@ -69,7 +69,7 @@ void UTBGameplayAbility_Hitscan::ActivateAbility(
 
     if (ActorInfo->IsNetAuthority())
     {
-        const FHitResult HitResult = Player->TraceHitscanShot(BulletTrailCueTag, DefaultImpactCueTag,TraceRange, bDrawTrace);
+        const FHitResult HitResult = Player->TraceHitscanShot(AttackVisualCueTag, DefaultImpactCueTag, TraceRange, bDrawTrace, bCurrentAttackEnhanced);
 
         if (HitResult.bBlockingHit)
         {

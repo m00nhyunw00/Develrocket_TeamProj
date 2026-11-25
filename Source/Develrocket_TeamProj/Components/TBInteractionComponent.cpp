@@ -126,6 +126,18 @@ AActor* UTBInteractionComponent::FindBestTarget(APawn* OwnerPawn, const FVector&
 	// ① 눈 위치 기준 반경 안의 후보 수집 (Visibility에 Block/Overlap 반응하는 콜리전)
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(TBInteractionQuery), false);
 	Params.AddIgnoredActor(OwnerPawn);
+	
+	// FindBestTarget 앞부분에 추가하는 형태 (스케치)
+	FHitResult AimHit;
+	const FVector AimEnd = ViewLocation + ViewDir * InteractRange;
+	if (World->LineTraceSingleByChannel(AimHit, ViewLocation, AimEnd, ECC_Visibility, Params))
+	{
+		AActor* Hit = AimHit.GetActor();
+		if (Hit && Hit->Implements<UTBInteractInterface>() && ITBInteractInterface::Execute_CanInteract(Hit, OwnerPawn))
+		{
+			return Hit;
+		}
+	}
 
 	TArray<FOverlapResult> Overlaps;
 	World->OverlapMultiByChannel(

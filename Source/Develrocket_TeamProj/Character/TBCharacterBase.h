@@ -15,6 +15,7 @@ class UTBAbilitySystemComponent;
 class UAbilitySystemComponent;
 class UTBBloodBarComponent;
 class UTBOutlineComponent;
+class UTBHealComponent;
 class UGameplayEffect;
 
 UCLASS(Abstract)
@@ -149,4 +150,7 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Outline")
 	TObjectPtr<UTBOutlineComponent> OutlineComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Heal")
+	TObjectPtr<UTBHealComponent> HealComponent;
 };

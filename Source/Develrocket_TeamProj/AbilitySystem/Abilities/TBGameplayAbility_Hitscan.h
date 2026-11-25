@@ -29,11 +29,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Combat|Hitscan")
 	bool bDrawHitscanTrace = true;
 
-	// 발사 궤적 연출 Cue
-	UPROPERTY(EditDefaultsOnly, Category = "Effects",
-		meta = (Categories = "GameplayCue"))
-	FGameplayTag BulletTrailCueTag;
-
 	// 벽·바닥 등 비생명체의 기본 피격 연출 Cue
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|GameplayCue",
 		meta = (Categories = "GameplayCue"))
@@ -56,6 +51,12 @@ protected:
 
 	// 몽타주 종료를 기다리지 않고 발사 처리 후 어빌리티 종료
 	virtual bool ShouldWaitForMontageEnd() const override
+	{
+		return false;
+	}
+
+	// 트레이스 끝점 결정 후 공격 연출을 한 번만 실행
+	virtual bool ShouldExecuteAttackVisualOnCommit() const override
 	{
 		return false;
 	}

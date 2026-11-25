@@ -26,9 +26,13 @@ public:
         const FGameplayCueParameters& Parameters) const override;
 
 protected:
-    // 모든 충돌에서 붉은색으로 재생할 혈탄 파티클
+    // 충돌 지점에서 재생할 혈탄 파티클
     UPROPERTY(EditDefaultsOnly, Category = "Impact|Bullet")
     TObjectPtr<UNiagaraSystem> BulletImpactSystem = nullptr;
+
+    // 강화 공격의 혈탄 파티클 색상
+    UPROPERTY(EditDefaultsOnly, Category = "Impact|Bullet")
+    FLinearColor EnhancedBulletBloodColor = FLinearColor(0.27f, 0.01f, 0.4f, 1.0f);
 
     // 생명체의 혈액 파티클, 비생명체용 Cue에서는 미지정
     UPROPERTY(EditDefaultsOnly, Category = "Impact|Target")

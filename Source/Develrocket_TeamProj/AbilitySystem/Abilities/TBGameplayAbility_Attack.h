@@ -43,6 +43,10 @@ protected:
     UPROPERTY(Transient)
     float CurrentAttackDamage = 0.0f;
 
+    // 이번 실행에서 서버가 확정한 강화 여부
+    UPROPERTY(Transient)
+    bool bCurrentAttackEnhanced = false;
+
     // 피해를 허용할 대상 클래스
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Targeting")
     TArray<TSubclassOf<AActor>> AllowedTargetClasses;
@@ -51,11 +55,17 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Cooldown")
     bool bUsePlayerPrimaryAttackCooldown = false;
 
-    // 공격 시작 시 재생할 연출
+    // 이번 공격의 부착 효과·빔·총구 연출을 처리할 공통 Cue
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Effects", meta = (Categories = "GameplayCue"))
     FGameplayTag AttackVisualCueTag;
 
     virtual void OnActionCommitted() override;
+
+    // 히트스캔은 끝점 확정 이후 공통 공격 Cue 실행
+    virtual bool ShouldExecuteAttackVisualOnCommit() const
+    {
+        return true;
+    }
     
     // 명중 시에도 공격자의 행동 가능 상태가 필요한지 조회
     virtual bool RequiresUnblockedAttackerOnHit() const
