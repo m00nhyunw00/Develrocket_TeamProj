@@ -5,6 +5,7 @@
 #include "GameplayEffect.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/TBBloodBarComponent.h"
+#include "Components/TBHealComponent.h"
 #include "GameFramework/PlayerController.h"
 
 #include "Components/TBCharacterMovementComponent.h"
@@ -50,6 +51,8 @@ ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
     MeleeTraceComponent = CreateDefaultSubobject<UTBMeleeTraceComponent>(TEXT("MeleeTraceComponent"));
 
     OutlineComponent = CreateDefaultSubobject<UTBOutlineComponent>(TEXT("OutlineComponent"));
+    
+    HealComponent = CreateDefaultSubobject<UTBHealComponent>(TEXT("HealComponent"));
 }
 
 void ATBCharacterBase::SetCharacterOutlineColor(float Red, float Green, float Blue)
