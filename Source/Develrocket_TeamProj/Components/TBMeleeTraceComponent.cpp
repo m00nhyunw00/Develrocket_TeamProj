@@ -11,6 +11,11 @@ UTBMeleeTraceComponent::UTBMeleeTraceComponent()
     PrimaryComponentTick.TickGroup = TG_PostPhysics;
 }
 
+void UTBMeleeTraceComponent::SetTraceRadiusScale(float Scale)
+{
+    TraceRadiusScale = FMath::IsFinite(Scale) && Scale > 0.0f ? Scale : 1.0f;
+}
+
 bool UTBMeleeTraceComponent::PrepareAttack(UPrimitiveComponent* InMesh)
 {
     AActor* OwnerActor = GetOwner();
@@ -120,6 +125,7 @@ void UTBMeleeTraceComponent::TraceCurrentPose()
     for (int32 Index = 0; Index < TraceSegments.Num(); ++Index)
     {
         const FTBMeleeTraceSegment& Segment = TraceSegments[Index];
+        const float Radius = Segment.Radius * TraceRadiusScale;
         const FSegmentPose Current = {
             Mesh->GetSocketLocation(Segment.StartSocket),
             Mesh->GetSocketLocation(Segment.EndSocket)
@@ -140,7 +146,7 @@ void UTBMeleeTraceComponent::TraceCurrentPose()
         // 칼끝의 회전 호와 시작 소켓의 이동을 합산해 빠른 구간에만 중간 검사 추가
         const double Travel = FVector::Distance(Previous.Start, Current.Start)
             + FMath::Abs(CurrentLength - PreviousLength) + FMath::Max(PreviousLength, CurrentLength) * Swing.GetAngle();
-        const double Spacing = FMath::Max(0.1f, FMath::Min(MaxTraceStepDistance, Segment.Radius));
+        const double Spacing = FMath::Max(0.1f, FMath::Min(MaxTraceStepDistance, Radius));
         constexpr int32 MaxStepsPerSegment = 32;
         const int32 Steps = FMath::CeilToInt(FMath::Clamp(Travel / Spacing, 1.0, static_cast<double>(MaxStepsPerSegment)));
 
@@ -151,13 +157,13 @@ void UTBMeleeTraceComponent::TraceCurrentPose()
             const FVector Direction = FQuat::Slerp(FQuat::Identity, Swing, Alpha).RotateVector(PreviousDirection);
             const FVector End = Start + Direction * FMath::Lerp(PreviousLength, CurrentLength, Alpha);
 
-            if (!SweepSegment(OwnerActor, Start, End, Segment.Radius, IgnoredActors, Hits, CurrentRevision))
+            if (!SweepSegment(OwnerActor, Start, End, Radius, IgnoredActors, Hits, CurrentRevision))
             {
                 return;
             }
         }
 
-        if (!SweepSegment(OwnerActor, Current.Start, Current.End, Segment.Radius, IgnoredActors, Hits, CurrentRevision))
+        if (!SweepSegment(OwnerActor, Current.Start, Current.End, Radius, IgnoredActors, Hits, CurrentRevision))
         {
             return;
         }

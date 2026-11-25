@@ -1,4 +1,5 @@
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Boom.h"
+#include "AIController.h"
 
 #include "AbilitySystemComponent.h"
 #include "AI/TBAIMovementVisibilitySubsystem.h"
@@ -37,11 +38,17 @@ bool UTBGameplayAbility_Monster_Boom::CanUseAgainst(const ATBMonster* Monster, c
 {
 	const ATBPlayer* Player = Cast<ATBPlayer>(Target);
 	const UAbilitySystemComponent* TargetASC = IsValid(Player) ? Player->GetAbilitySystemComponent() : nullptr;
-	return IsValid(Monster) && Monster->HasAuthority() && !Monster->IsDead() && IsValid(TargetASC)
+	const bool bCanJump = IsValid(Monster) && Monster->HasAuthority() && !Monster->IsDead() && IsValid(TargetASC)
 		&& TargetASC->GetAvatarActor() == Player && !TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
 		&& Monster->GetWorld() == Player->GetWorld() && Monster->GetMesh()->GetAnimInstance()
 		&& ThirdPersonMontage && FMath::IsFinite(ExplosionRadius) && ExplosionRadius > 0.f
 		&& FMath::IsFinite(ExplosionDamage) && ExplosionDamage > 0.f;
+	if (!bCanJump) return false;
+
+	const AAIController* Controller = Cast<AAIController>(Monster->GetController());
+	return Controller && Controller->LineOfSightTo(Player)
+		&& (Monster->GetMonsterBehavior() != ETBMonsterBehavior::SpideEye
+			|| FVector::DistSquared2D(Monster->GetActorLocation(), Player->GetActorLocation()) >= FMath::Square(230.0));
 }
 
 void UTBGameplayAbility_Monster_Boom::ActivateAbility(FGameplayAbilitySpecHandle Handle,
@@ -151,11 +158,38 @@ void UTBGameplayAbility_Monster_Boom::HandleMovementUpdated(float DeltaSeconds, 
 	}
 }
 
+namespace
+{
+struct FSmallEyeSizeVariant
+{
+	float Scale;
+	float WalkSpeedMultiplier;
+};
+
+constexpr FSmallEyeSizeVariant SmallEyeSizeVariants[] = {
+	{1.0f, 1.0f},
+	{0.7f, 1.15f},
+	{0.3f, 1.3f},
+};
+
+bool IsSmallEyeClass(const UClass* ActorClass)
+{
+	static const FName SmallEyeClassPath(
+		TEXT("/Game/_Game/Blueprints/Characters/Monster/SpideEye/BP_SmallEye.BP_SmallEye_C"));
+	for (const UClass* Class = ActorClass; Class; Class = Class->GetSuperClass())
+	{
+		if (FName(*Class->GetPathName()) == SmallEyeClassPath) return true;
+	}
+	return false;
+}
+}
+
 void UTBGameplayAbility_Monster_Boom::Detonate(ATBMonster& SourceMonster, const FHitResult& Impact)
 {
 	ATBMonster* Monster = &SourceMonster;
 	bDetonated = true;
 	UWorld* World = Monster->GetWorld();
+	UTBSpawnManagerComponent* SpawnManager = UTBSpawnManagerComponent::FindForActor(Monster);
 	const FVector Origin = Impact.bStartPenetrating ? Impact.Location : Impact.ImpactPoint;
 	const FVector SurfaceNormal = Impact.ImpactNormal.GetSafeNormal();
 	const FTransform SpawnTransform(Monster->GetActorRotation(), Origin);
@@ -199,11 +233,11 @@ void UTBGameplayAbility_Monster_Boom::Detonate(ATBMonster& SourceMonster, const 
 		}
 	}
 
-	SpawnExplosionActors(*World, SpawnTransform, SurfaceNormal, Entries);
+	SpawnExplosionActors(*World, SpawnManager, SpawnTransform, SurfaceNormal, Entries);
 }
 
-void UTBGameplayAbility_Monster_Boom::SpawnExplosionActors(UWorld& World, const FTransform& ImpactTransform,
-	const FVector& SurfaceNormal, const TArray<FTBMonsterBoomSpawnEntry>& Entries)
+void UTBGameplayAbility_Monster_Boom::SpawnExplosionActors(UWorld& World, UTBSpawnManagerComponent* SpawnManager,
+	const FTransform& ImpactTransform, const FVector& SurfaceNormal, const TArray<FTBMonsterBoomSpawnEntry>& Entries) const
 {
 	int64 SpawnCount = 0;
 	double Spacing = 100.0;
@@ -232,20 +266,51 @@ void UTBGameplayAbility_Monster_Boom::SpawnExplosionActors(UWorld& World, const 
 		if (!Entry.ActorClass || Entry.Count <= 0) continue;
 		const ACharacter* Character = Cast<ACharacter>(Entry.ActorClass.GetDefaultObject());
 		const UCapsuleComponent* Capsule = Character ? Character->GetCapsuleComponent() : nullptr;
-		double SurfaceClearance = 2.0;
-		if (Capsule)
-		{
-			const double Radius = Capsule->GetScaledCapsuleRadius();
-			SurfaceClearance += Radius + (Capsule->GetScaledCapsuleHalfHeight() - Radius) * FMath::Abs(SurfaceNormal.Z);
-		}
+		const bool bSmallEye = IsSmallEyeClass(Entry.ActorClass.Get());
 		for (int32 Index = 0; Index < Entry.Count; ++Index, ++SpawnIndex)
 		{
+			const FSmallEyeSizeVariant Variant = bSmallEye
+				? SmallEyeSizeVariants[FMath::RandHelper(UE_ARRAY_COUNT(SmallEyeSizeVariants))]
+				: FSmallEyeSizeVariant{1.0f, 1.0f};
+			const float Scale = Variant.Scale;
+			const double Radius = Capsule ? Capsule->GetScaledCapsuleRadius() * Scale : 0.0;
+			const double HalfHeight = Capsule ? Capsule->GetScaledCapsuleHalfHeight() * Scale : 0.0;
+			const double SurfaceClearance = 2.0 + Radius + (HalfHeight - Radius) * FMath::Abs(SurfaceNormal.Z);
 			const double Angle = StartAngle + SpawnIndex * AngleStep;
 			FVector Offset(FMath::Cos(Angle) * SpawnRadius, FMath::Sin(Angle) * SpawnRadius, 0.0);
 			Offset += SurfaceNormal * FMath::Max(0.0, SurfaceClearance - FVector::DotProduct(Offset, SurfaceNormal));
 			FTransform SpawnTransform = ImpactTransform;
 			SpawnTransform.AddToTranslation(Offset);
-			World.SpawnActor<AActor>(Entry.ActorClass, SpawnTransform, Params);
+			if (!bSmallEye)
+			{
+				World.SpawnActor<AActor>(Entry.ActorClass, SpawnTransform, Params);
+				continue;
+			}
+
+			if (!IsValid(SpawnManager) || !Capsule) continue;
+			const FCollisionShape Shape = FCollisionShape::MakeCapsule(Radius, HalfHeight);
+			const FCollisionResponseParams Responses(Capsule->GetCollisionResponseToChannels());
+			const FCollisionQueryParams Query(SCENE_QUERY_STAT(SmallEyeSpawn));
+			for (int32 Attempt = 0; Attempt < 7; ++Attempt)
+			{
+				FVector Position = SpawnTransform.GetLocation();
+				if (Attempt > 0)
+				{
+					const double SearchAngle = Angle + (Attempt - 1) * PI / 3.0;
+					Position += FVector(FMath::Cos(SearchAngle), FMath::Sin(SearchAngle), 0.0) * Spacing;
+				}
+				const double Clearance = FVector::DotProduct(Position - ImpactTransform.GetLocation(), SurfaceNormal);
+				Position += SurfaceNormal * FMath::Max(0.0, SurfaceClearance - Clearance);
+				if (World.OverlapBlockingTestByChannel(Position, FQuat::Identity, Capsule->GetCollisionObjectType(), Shape, Query, Responses))
+				{
+					continue;
+				}
+				FTransform PooledTransform = SpawnTransform;
+				PooledTransform.SetLocation(Position);
+				SpawnManager->SpawnSummonedMonster(Entry.ActorClass, PooledTransform, Scale,
+					Variant.WalkSpeedMultiplier, SmallEyePoolCapacity);
+				break;
+			}
 		}
 	}
 }

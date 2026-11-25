@@ -21,16 +21,20 @@ public:
 
 protected:
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
+	virtual void TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds) override;
 	virtual EBTNodeResult::Type AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 
 private:
 	FGameplayAbilitySpecHandle FindUsableAttack(const ATBMonster* Monster, const UBlackboardComponent* Blackboard) const;
+	EBTNodeResult::Type StartAttack(UBehaviorTreeComponent& OwnerComp, ATBMonster& Monster, FGameplayAbilitySpecHandle Handle);
 	void HandleAbilityEnded(const FAbilityEndedData& EndedData);
 	void ClearAbilityBinding();
 	TWeakObjectPtr<class UAbilitySystemComponent> ActiveASC;
 	TWeakObjectPtr<UBehaviorTreeComponent> ActiveTree;
 	FGameplayAbilitySpecHandle ActiveHandle;
 	FDelegateHandle AbilityEndedHandle;
+	TWeakObjectPtr<AActor> PreparationTarget;
+	float PreparationTimeRemaining = 0.0f;
 	bool bActivating = false;
 	bool bEndedDuringActivation = false;
 	bool bCancelledDuringActivation = false;

@@ -233,8 +233,10 @@ void UDaySystemComponent::TraceSunlight()
 	for (TActorIterator<ATBPlayer> It(World); It; ++It)
 	{
 		ATBPlayer& Player = **It;
-		const bool bValidPlayerTrace = bHasValidSunTrace && bMatchReady && !Player.IsDead();
-		const bool bExposed = bValidPlayerTrace && bSunIsUp && TracePlayer(Player, *Sun, Ray);
+		FVector CameraLocation;
+		const bool bValidPlayerTrace = bHasValidSunTrace && bMatchReady && !Player.IsDead()
+			&& Player.TryGetFirstPersonCameraLocation(CameraLocation);
+		const bool bExposed = bValidPlayerTrace && bSunIsUp && TracePlayer(Player, *Sun, CameraLocation, Ray);
 		bSunTraceClear |= bExposed;
 
 		// Keep existing character Blueprints' sunlight queries working without a second timer.
@@ -248,21 +250,15 @@ void UDaySystemComponent::TraceSunlight()
 	}
 }
 
-bool UDaySystemComponent::TracePlayer(ATBPlayer& Player, const UDirectionalLightComponent& Sun, const FVector& Ray)
+bool UDaySystemComponent::TracePlayer(const ATBPlayer& Player, const UDirectionalLightComponent& Sun, const FVector& Start, const FVector& Ray)
 {
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(SunlightTrace), false, &Player);
 	Params.AddIgnoredActor(Sun.GetOwner());
 
-	const FVector Head = Player.GetActorLocation() + TraceStartOffset;
-	const FVector Chest = Head - FVector(0.0, 0.0, TraceStartOffset.Z * 0.5);
-	const auto IsExposedAt = [&](const FVector& Start)
-	{
-		const FVector End = Start + Ray;
-		const bool bClear = !GetWorld()->LineTraceTestByChannel(Start, End, TraceChannel, Params);
-		if (bDrawDebugTrace) MulticastDrawTrace(Start, End, bClear);
-		return bClear;
-	};
-	return IsExposedAt(Head) || IsExposedAt(Chest);
+	const FVector End = Start + Ray;
+	const bool bClear = !GetWorld()->LineTraceTestByChannel(Start, End, TraceChannel, Params);
+	if (bDrawDebugTrace) MulticastDrawTrace(Start, End, bClear);
+	return bClear;
 }
 
 void UDaySystemComponent::UpdateSunlightDamage(ATBPlayer& Player, double Now, bool bExposed)

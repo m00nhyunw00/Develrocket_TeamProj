@@ -82,9 +82,6 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Day System")
 	TEnumAsByte<ECollisionChannel> TraceChannel = ECC_Visibility;
 
-	UPROPERTY(EditAnywhere, Category="Day System")
-	FVector TraceStartOffset = FVector(0.0, 0.0, 50.0);
-
 	UPROPERTY(EditAnywhere, Category="Day System|Debug")
 	bool bDrawDebugTrace = false;
 
@@ -108,7 +105,7 @@ private:
 	void TraceSunlight();
 	void EnsureDayCycleController();
 	UDirectionalLightComponent* ResolveSunLight(double Now);
-	bool TracePlayer(ATBPlayer& Player, const UDirectionalLightComponent& Sun, const FVector& Ray);
+	bool TracePlayer(const ATBPlayer& Player, const UDirectionalLightComponent& Sun, const FVector& Start, const FVector& Ray);
 	void UpdateSunlightDamage(ATBPlayer& Player, double Now, bool bExposed);
 	UDaySystemComponent* GetLevelDaySystem() const;
 

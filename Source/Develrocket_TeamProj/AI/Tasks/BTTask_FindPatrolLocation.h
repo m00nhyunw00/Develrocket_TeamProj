@@ -4,6 +4,8 @@
 #include "BehaviorTree/Tasks/BTTask_BlackboardBase.h"
 #include "BTTask_FindPatrolLocation.generated.h"
 
+class ATBPatrolPoint;
+
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API UBTTask_FindPatrolLocation :public UBTTask_BlackboardBase
 {
@@ -30,4 +32,8 @@ protected:
 
 private:
 	float RemainingSearchDelay = 0.0f;
+	float ScanDuration = 0.0f;
+	float PreferredLegLength = 0.0f;
+	double ScanStartYaw = 0.0;
+	TWeakObjectPtr<const ATBPatrolPoint> LastScannedPoint;
 };

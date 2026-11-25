@@ -1,5 +1,6 @@
 #include "Components/TBSpawnManagerComponent.h"
 #include "Components/TBPoolStateComponent.h"
+#include "Character/Monster/TBMonster.h"
 
 #include "Framework/TBLevelManager.h"
 #include "Interface/TBPoolInterface.h"
@@ -45,7 +46,7 @@ void UTBSpawnManagerComponent::UpdatePools()
 		// 외부에서 파괴된 액터는 풀 목록에서 제거합니다.
 		Entry.ActiveActors.RemoveAll([](const TObjectPtr<AActor>& Actor) { return !IsValid(Actor); });
 		Entry.AvailableActors.RemoveAll([](const TObjectPtr<AActor>& Actor) { return !IsValid(Actor); });
-		if (!Config.ActorClass || Config.PoolSize <= 0 || Config.MaxActiveCount <= 0) continue;
+		if (!Config.bSpawnOnInterval || !Config.ActorClass || Config.PoolSize <= 0 || Config.MaxActiveCount <= 0) continue;
 		if (!Config.ActorClass->ImplementsInterface(UTBPoolInterface::StaticClass()))
 		{
 			if (NextSpawnTimes[Index] <= World->GetTimeSeconds())
@@ -60,41 +61,95 @@ void UTBSpawnManagerComponent::UpdatePools()
 		NextSpawnTimes[Index] = World->GetTimeSeconds() + FMath::Max(0.1f, Config.SpawnInterval);
 		FTransform Transform;
 		if (!FindSpawnTransform(Config, Transform)) continue;
-		AActor* Actor = nullptr;
-		// 대기 중인 액터를 우선 재사용하고, 없으면 풀 크기 한도까지 생성합니다.
-		if (!Entry.AvailableActors.IsEmpty())
-		{
-			Actor = Entry.AvailableActors.Pop();
-			if (!IsValid(Actor) || !Actor->SetActorLocationAndRotation(Transform.GetLocation(), Transform.Rotator(), false, nullptr, ETeleportType::TeleportPhysics))
-			{
-				if (IsValid(Actor)) Entry.AvailableActors.Add(Actor);
-				continue;
-			}
-		}
-		else if (Entry.ActiveActors.Num() + Entry.AvailableActors.Num() < Config.PoolSize)
-		{
-			FActorSpawnParameters Params;
-			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
-			Actor = World->SpawnActor<AActor>(Config.ActorClass, Transform, Params);
-		}
-		if (!IsValid(Actor)) continue;
-		UTBPoolStateComponent* PoolState = Actor->FindComponentByClass<UTBPoolStateComponent>();
-		if (!PoolState)
-		{
-			PoolState = NewObject<UTBPoolStateComponent>(Actor);
-			Actor->AddInstanceComponent(PoolState);
-			PoolState->RegisterComponent();
-		}
-		// 액터별 초기화는 인터페이스에 맡기고 서버에서 상태 동기화를 요청합니다.
-		Entry.ActiveActors.Add(Actor);
-		ITBPoolInterface::Execute_OnPoolActivated(Actor);
-		if (!IsValid(Actor) || !IsValid(PoolState) || !Entry.ActiveActors.Contains(Actor)) continue;
-		PoolState->SetPoolActive(true);
-		// Collision restoration may dispatch overlap callbacks that return the actor.
-		if (!IsValid(Actor) || !Entry.ActiveActors.Contains(Actor)) continue;
-		if (ITBPoolInterface* NativePoolActor = Cast<ITBPoolInterface>(Actor)) NativePoolActor->OnPoolReady();
-		Actor->ForceNetUpdate();
+		ActivateFromPool(Index, Transform);
 	}
+}
+
+AActor* UTBSpawnManagerComponent::SpawnSummonedMonster(TSubclassOf<AActor> ActorClass, const FTransform& Transform,
+	float Scale, float WalkSpeedMultiplier, int32 PoolCapacity)
+{
+	PoolOwner = Cast<ATBLevelManager>(GetOwner());
+	if (!IsValid(PoolOwner) || !PoolOwner->HasAuthority() || !ActorClass || !ActorClass->IsChildOf<ATBMonster>()
+		|| PoolCapacity <= 0 || !FMath::IsFinite(Scale) || Scale <= 0.0f
+		|| !FMath::IsFinite(WalkSpeedMultiplier) || WalkSpeedMultiplier <= 0.0f)
+	{
+		return nullptr;
+	}
+
+	int32 PoolIndex = PoolOwner->RuntimeSpawnPools.IndexOfByPredicate([ActorClass](const FTBSpawnPoolRuntime& Entry)
+	{
+		return !Entry.Config.bSpawnOnInterval && Entry.Config.ActorClass == ActorClass;
+	});
+	if (PoolIndex == INDEX_NONE)
+	{
+		PoolIndex = PoolOwner->RuntimeSpawnPools.AddDefaulted();
+		FTBSpawnPoolConfig& Config = PoolOwner->RuntimeSpawnPools[PoolIndex].Config;
+		Config.ActorClass = ActorClass;
+		Config.PoolSize = PoolCapacity;
+		Config.MaxActiveCount = PoolCapacity;
+		Config.bSpawnOnInterval = false;
+	}
+	return ActivateFromPool(PoolIndex, Transform, Scale, WalkSpeedMultiplier);
+}
+
+AActor* UTBSpawnManagerComponent::ActivateFromPool(int32 PoolIndex, const FTransform& Transform,
+	TOptional<float> SummonScale, float SummonWalkSpeedMultiplier)
+{
+	UWorld* World = GetWorld();
+	if (!World || !IsValid(PoolOwner) || !PoolOwner->RuntimeSpawnPools.IsValidIndex(PoolIndex)) return nullptr;
+
+	FTBSpawnPoolRuntime& Entry = PoolOwner->RuntimeSpawnPools[PoolIndex];
+	const FTBSpawnPoolConfig Config = Entry.Config;
+	Entry.ActiveActors.RemoveAll([](const TObjectPtr<AActor>& Actor) { return !IsValid(Actor); });
+	Entry.AvailableActors.RemoveAll([](const TObjectPtr<AActor>& Actor) { return !IsValid(Actor); });
+	if (Entry.ActiveActors.Num() >= FMath::Min(Config.MaxActiveCount, Config.PoolSize)) return nullptr;
+
+	AActor* Actor = nullptr;
+	bool bSpawnedNewActor = false;
+	if (!Entry.AvailableActors.IsEmpty())
+	{
+		Actor = Entry.AvailableActors.Pop();
+		if (!IsValid(Actor) || !Actor->SetActorLocationAndRotation(
+			Transform.GetLocation(), Transform.Rotator(), false, nullptr, ETeleportType::TeleportPhysics))
+		{
+			if (IsValid(Actor)) PoolOwner->RuntimeSpawnPools[PoolIndex].AvailableActors.Add(Actor);
+			return nullptr;
+		}
+	}
+	else if (Entry.ActiveActors.Num() < Config.PoolSize)
+	{
+		FActorSpawnParameters Params;
+		// The explosion caller checks the final scaled capsule before acquiring a summon.
+		Params.SpawnCollisionHandlingOverride = SummonScale.IsSet()
+			? ESpawnActorCollisionHandlingMethod::AlwaysSpawn : ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
+		FTransform SpawnTransform = Transform;
+		if (SummonScale.IsSet()) SpawnTransform.SetScale3D(FVector(SummonScale.GetValue()));
+		Actor = World->SpawnActor<AActor>(Config.ActorClass, SpawnTransform, Params);
+		bSpawnedNewActor = true;
+	}
+	if (!IsValid(Actor)) return nullptr;
+
+	if (SummonScale.IsSet())
+	{
+		CastChecked<ATBMonster>(Actor)->PrepareSummonedSpawn(
+			SummonScale.GetValue(), SummonWalkSpeedMultiplier, bSpawnedNewActor);
+	}
+	UTBPoolStateComponent* PoolState = Actor->FindComponentByClass<UTBPoolStateComponent>();
+	if (!PoolState)
+	{
+		PoolState = NewObject<UTBPoolStateComponent>(Actor);
+		Actor->AddInstanceComponent(PoolState);
+		PoolState->RegisterComponent();
+	}
+	PoolOwner->RuntimeSpawnPools[PoolIndex].ActiveActors.Add(Actor);
+	ITBPoolInterface::Execute_OnPoolActivated(Actor);
+	if (!IsValid(Actor) || !IsValid(PoolState) || !PoolOwner->RuntimeSpawnPools[PoolIndex].ActiveActors.Contains(Actor)) return nullptr;
+	PoolState->SetPoolActive(true);
+	// Collision restoration may dispatch overlap callbacks that return the actor.
+	if (!IsValid(Actor) || !PoolOwner->RuntimeSpawnPools[PoolIndex].ActiveActors.Contains(Actor)) return nullptr;
+	if (ITBPoolInterface* NativePoolActor = Cast<ITBPoolInterface>(Actor)) NativePoolActor->OnPoolReady();
+	if (IsValid(Actor)) Actor->ForceNetUpdate();
+	return IsValid(Actor) && PoolOwner->RuntimeSpawnPools[PoolIndex].ActiveActors.Contains(Actor) ? Actor : nullptr;
 }
 
 UTBSpawnManagerComponent* UTBSpawnManagerComponent::FindForActor(AActor* Actor)
@@ -151,16 +206,18 @@ bool UTBSpawnManagerComponent::ReturnToPool(AActor* Actor)
 		GetWorld()->GetTimerManager().ClearTimer(*Handle);
 		PendingReturns.Remove(TWeakObjectPtr<AActor>(Actor));
 	}
-	for (FTBSpawnPoolRuntime& Entry : PoolOwner->RuntimeSpawnPools)
+	for (int32 Index = 0; Index < PoolOwner->RuntimeSpawnPools.Num(); ++Index)
 	{
-		if (!Entry.ActiveActors.Contains(Actor)) continue;
-		Entry.ActiveActors.Remove(Actor);
+		if (PoolOwner->RuntimeSpawnPools[Index].ActiveActors.RemoveSingle(Actor) == 0) continue;
 		ITBPoolInterface::Execute_OnPoolDeactivated(Actor);
 		if (!IsValid(Actor)) return true;
 		if (UTBPoolStateComponent* PoolState = Actor->FindComponentByClass<UTBPoolStateComponent>())
 		{
 			PoolState->SetPoolActive(false);
-			if (IsValid(Actor)) Entry.AvailableActors.Add(Actor);
+			if (IsValid(Actor) && IsValid(PoolOwner) && PoolOwner->RuntimeSpawnPools.IsValidIndex(Index))
+			{
+				PoolOwner->RuntimeSpawnPools[Index].AvailableActors.Add(Actor);
+			}
 		}
 		else Actor->Destroy();
 		return true;

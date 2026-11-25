@@ -20,6 +20,8 @@ public:
 
 	virtual ETeamAttitude::Type GetTeamAttitudeTowards(const AActor& Other) const override;
 	virtual bool RunBehaviorTree(UBehaviorTree* BTAsset) override;
+	virtual FPathFollowingRequestResult MoveTo(const FAIMoveRequest& MoveRequest, FNavPathSharedPtr* OutPath = nullptr) override;
+	bool WantsCombatRetreat(const AActor& Target) const;
 
 	void InvestigateDamageSource(AActor* DamageSource);
 	void TryStartPendingInvestigation();
@@ -86,4 +88,5 @@ private:
 	bool bDamagePriorityTarget = false;
 	bool bPoolSuspended = false;
 	FTimerHandle SightDebugTimer;
+	double NextCombatRepositionTime = 0.0;
 };

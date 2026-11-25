@@ -16,13 +16,18 @@ public:
 	// Select a reachable actor of the supplied class within the search radius.
 	UFUNCTION(BlueprintCallable, Category = "AI|Patrol")
 	AActor* FindReachablePatrolPoint(TSubclassOf<AActor> PointClass, float SearchRadius) const;
-	AActor* SelectNextPatrolPoint(TSubclassOf<AActor> PointClass, float SearchRadius);
+	AActor* SelectNextPatrolPoint(TSubclassOf<AActor> PointClass, float SearchRadius, float PreferredLegLength = 0.0f);
+	const ATBPatrolPoint* GetReachedPatrolPoint() const { return CurrentPatrolPoint.Get(); }
 	virtual FPathFollowingRequestResult MoveTo(const FAIMoveRequest& MoveRequest, FNavPathSharedPtr* OutPath = nullptr) override;
 	virtual void OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result) override;
 	virtual void OnUnPossess() override;
 
 protected:
 	void ResetPatrolState();
+	bool bPreferPatrolHeading = false;
+	bool bSkipBlockedPatrolPoint = false;
+	TWeakObjectPtr<ATBPatrolPoint> BlockedPatrolPoint;
+	double BlockedPatrolRetryTime = 0.0;
 	TWeakObjectPtr<ATBPatrolPoint> CurrentPatrolPoint;
 	TWeakObjectPtr<ATBPatrolPoint> PreviousPatrolPoint;
 	TWeakObjectPtr<ATBPatrolPoint> PendingPatrolPoint;

@@ -143,6 +143,8 @@ public:
 	// 최종 카메라 시점에 반동 적용
 	virtual void CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult) override;
 
+	bool TryGetFirstPersonCameraLocation(FVector& OutLocation) const;
+
 	// 1인칭 메시 접근 ----------------------
 
 	UFUNCTION(BlueprintPure, Category = "Character|Mesh")

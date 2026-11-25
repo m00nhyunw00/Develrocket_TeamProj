@@ -5,6 +5,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "EnhancedInputComponent.h"
+#include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
@@ -92,6 +93,17 @@ void ATBPlayer::Tick(float DeltaSeconds)
 	CameraLocation.Z = FMath::FInterpTo(CameraLocation.Z, BaseEyeHeight, DeltaSeconds, CameraHeightInterpSpeed);
 
 	FirstPersonCamera->SetRelativeLocation(CameraLocation);
+}
+
+bool ATBPlayer::TryGetFirstPersonCameraLocation(FVector& OutLocation) const
+{
+	if (!IsValid(FirstPersonCamera))
+	{
+		return false;
+	}
+
+	OutLocation = FirstPersonCamera->GetComponentLocation();
+	return true;
 }
 
 bool ATBPlayer::IsDead() const

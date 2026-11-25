@@ -6,6 +6,7 @@
 
 class UAnimSequenceBase;
 class UNiagaraSystem;
+class UTBSpawnManagerComponent;
 
 USTRUCT(BlueprintType)
 struct FTBMonsterBoomSpawnEntry
@@ -58,6 +59,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, AdvancedDisplay, Category = "Boom|Spawn", meta = (ToolTip = "Existing spawn classes. Each entry spawns one actor when Spawn Entries is empty."))
 	TArray<TSubclassOf<AActor>> SpawnActorClasses;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Boom|SmallEye", meta = (ClampMin = "1"))
+	int32 SmallEyePoolCapacity = 24;
+
 private:
 	UFUNCTION()
 	void HandleMovementUpdated(float DeltaSeconds, FVector OldLocation, FVector OldVelocity);
@@ -66,8 +70,8 @@ private:
 	void RecordImpact(const FHitResult& Hit);
 
 	void Detonate(ATBMonster& Monster, const FHitResult& Impact);
-	static void SpawnExplosionActors(UWorld& World, const FTransform& ImpactTransform, const FVector& SurfaceNormal,
-		const TArray<FTBMonsterBoomSpawnEntry>& Entries);
+	void SpawnExplosionActors(UWorld& World, UTBSpawnManagerComponent* SpawnManager,
+		const FTransform& ImpactTransform, const FVector& SurfaceNormal, const TArray<FTBMonsterBoomSpawnEntry>& Entries) const;
 
 	EVisibilityBasedAnimTickOption OriginalAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
 	bool bSavedAnimTickOption = false;

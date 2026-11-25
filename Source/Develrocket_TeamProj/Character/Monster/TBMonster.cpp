@@ -12,6 +12,7 @@
 #include "Character/Player/TBPlayer.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/TBMonsterMovementComponent.h"
+#include "Components/TBMeleeTraceComponent.h"
 #include "Components/TBSpawnManagerComponent.h"
 #include "Components/TBRotationComponent.h"
 #include "Components/TBBloodBarComponent.h"
@@ -25,6 +26,7 @@
 #include "Interface/TBHitInterface.h"
 #include "Interface/TBPoolInterface.h"
 #include "NiagaraFunctionLibrary.h"
+#include "Net/UnrealNetwork.h"
 
 void ATBMonster::MulticastPlayBoomEffect_Implementation(UNiagaraSystem* Effect, FVector_NetQuantize Location)
 {
@@ -194,15 +196,36 @@ const FTBMonsterStatsRow* ATBMonster::FindMonsterStats() const
 	const UDataTable* Table = MonsterStatsTable.LoadSynchronous();
 	if (!Table) return nullptr;
 
-	FName RowName = MonsterStatsRow;
-	if (RowName.IsNone())
+	return Table->FindRow<FTBMonsterStatsRow>(ResolveMonsterStatsRow(), GetName(), !MonsterStatsRow.IsNone());
+}
+
+FName ATBMonster::ResolveMonsterStatsRow() const
+{
+	if (!MonsterStatsRow.IsNone()) return MonsterStatsRow;
+
+	FString ClassName = GetClass()->GetName();
+	ClassName.RemoveFromStart(TEXT("BP_"));
+	ClassName.RemoveFromEnd(TEXT("_C"));
+	return FName(*ClassName);
+}
+
+ETBMonsterBehavior ATBMonster::GetMonsterBehavior() const
+{
+	if (MonsterBehavior != ETBMonsterBehavior::Automatic) return MonsterBehavior;
+
+	static const TMap<FName, ETBMonsterBehavior> BehaviorsByRow = {
+		{TEXT("Boris"), ETBMonsterBehavior::Boris},
+		{TEXT("Demon"), ETBMonsterBehavior::Demon},
+		{TEXT("Anasimus"), ETBMonsterBehavior::Anasimus},
+		{TEXT("SpideEye"), ETBMonsterBehavior::SpideEye},
+		{TEXT("Hunter"), ETBMonsterBehavior::Hunter},
+		{TEXT("VampireHunter"), ETBMonsterBehavior::Hunter}
+	};
+	if (const ETBMonsterBehavior* Behavior = BehaviorsByRow.Find(ResolveMonsterStatsRow()))
 	{
-		FString ClassName = GetClass()->GetName();
-		ClassName.RemoveFromStart(TEXT("BP_"));
-		ClassName.RemoveFromEnd(TEXT("_C"));
-		RowName = FName(*ClassName);
+		return *Behavior;
 	}
-	return Table->FindRow<FTBMonsterStatsRow>(RowName, GetName(), !MonsterStatsRow.IsNone());
+	return ETBMonsterBehavior::Default;
 }
 
 void ATBMonster::ApplyMonsterStats(const FTBMonsterStatsRow& Stats)
@@ -217,6 +240,54 @@ void ATBMonster::ApplyMonsterStats(const FTBMonsterStatsRow& Stats)
 	GetCharacterMovement()->MaxWalkSpeed = FMath::Max(0.0f, Stats.WalkSpeed);
 	MeleeDamage = FMath::Max(0.0f, Stats.MeleeDamage);
 	MeleeAttackRange = FMath::Max(0.0f, Stats.MeleeRange);
+}
+
+void ATBMonster::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ATBMonster, SummonedScale);
+	DOREPLIFETIME(ATBMonster, SummonedWalkSpeed);
+}
+
+void ATBMonster::PrepareSummonedSpawn(float Scale, float WalkSpeedMultiplier, bool bAlreadyScaled)
+{
+	if (!HasAuthority()) return;
+
+	if (!SummonedBaseStats.IsSet())
+	{
+		FTBMonsterStatsRow BaseStats;
+		if (const FTBMonsterStatsRow* Row = FindMonsterStats())
+		{
+			BaseStats = *Row;
+		}
+		else
+		{
+			BaseStats.MaxBlood = MonsterAttributes->GetMaxBlood();
+			BaseStats.MaxStagger = MonsterAttributes->GetMaxStagger();
+			BaseStats.WalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
+			BaseStats.MeleeDamage = MeleeDamage;
+			BaseStats.MeleeRange = MeleeAttackRange;
+			BaseStats.KillRewardScore = KillRewardScore;
+		}
+		SummonedBaseStats = BaseStats;
+		SummonedBaseScale = bAlreadyScaled ? GetActorScale3D() / Scale : GetActorScale3D();
+	}
+
+	SummonScaleMultiplier = Scale;
+	if (UTBMeleeTraceComponent* Trace = GetMeleeTraceComponent())
+	{
+		Trace->SetTraceRadiusScale(Scale);
+	}
+	SummonedScale = SummonedBaseScale * Scale;
+	SummonedWalkSpeed = FMath::Max(0.0f, SummonedBaseStats->WalkSpeed * WalkSpeedMultiplier);
+	OnRep_SummonedSize();
+	GetCharacterMovement()->UpdateNavAgent(*GetCapsuleComponent());
+}
+
+void ATBMonster::OnRep_SummonedSize()
+{
+	if (!SummonedScale.IsZero()) SetActorScale3D(SummonedScale);
+	if (SummonedWalkSpeed >= 0.0f) GetCharacterMovement()->MaxWalkSpeed = SummonedWalkSpeed;
 }
 
 bool ATBMonster::IsDead() const
@@ -448,19 +519,33 @@ void ATBMonster::RestorePoolVisualState()
 
 void ATBMonster::OnPoolActivated_Implementation()
 {
-	if (!HasAuthority() || !bReturnedToPool || !AbilitySystemComponent || !MonsterAttributes) return;
+	const bool bSummoned = SummonedBaseStats.IsSet();
+	if (!HasAuthority() || (!bReturnedToPool && !bSummoned) || !AbilitySystemComponent || !MonsterAttributes) return;
 	SetLifeSpan(0.0f);
 	AbilitySystemComponent->CancelAllAbilities();
-	const FTBMonsterStatsRow* Stats = FindMonsterStats();
-	if (bDeathHandled || Stats)
+	const FTBMonsterStatsRow* Stats = bSummoned ? nullptr : FindMonsterStats();
+	const bool bWasDead = bDeathHandled;
+	if (bWasDead || Stats || bSummoned)
 	{
 		AbilitySystemComponent->RemoveActiveEffects(FGameplayEffectQuery());
 	}
-	if (bDeathHandled)
+	// Removing the death effect can clear bDeathHandled in the tag callback.
+	if (bWasDead)
 	{
 		AbilitySystemComponent->UnBlockAbilitiesWithTags(FGameplayTagContainer(TBGameplayTags::Ability_Combat));
 	}
-	RestorePoolVisualState();
+	if (bReturnedToPool) RestorePoolVisualState();
+	if (bSummoned)
+	{
+		FTBMonsterStatsRow ScaledStats = SummonedBaseStats.GetValue();
+		ScaledStats.MaxBlood *= SummonScaleMultiplier;
+		ScaledStats.MaxStagger *= SummonScaleMultiplier;
+		ScaledStats.MeleeDamage *= SummonScaleMultiplier;
+		ScaledStats.MeleeRange *= SummonScaleMultiplier;
+		ScaledStats.WalkSpeed = SummonedWalkSpeed;
+		ApplyMonsterStats(ScaledStats);
+		return;
+	}
 	if (Stats)
 	{
 		ApplyMonsterStats(*Stats);

@@ -26,6 +26,10 @@ struct FTBSpawnPoolConfig
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pool", meta=(ClampMin="0.1", Units="s"))
 	float SpawnInterval = 1.0f;
 
+	// Event-driven entries only acquire actors when a gameplay system explicitly requests one.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pool")
+	bool bSpawnOnInterval = true;
+
 	// Time between a death notification and returning the actor to the pool.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pool", meta=(ClampMin="0.0", Units="s"))
 	float ReturnDelay = 1.0f;

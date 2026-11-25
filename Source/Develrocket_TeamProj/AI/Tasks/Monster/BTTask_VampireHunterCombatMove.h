@@ -40,6 +40,7 @@ private:
 	enum class EMovementMode : uint8 { Chase, Orbit, Retreat };
 
 	bool UpdateMovement(UBehaviorTreeComponent& OwnerComp);
+	void SearchForFiringAngle(AAIController& Controller, const FVector& Origin);
 	bool FindOrbitGoal(AAIController& Controller, const FVector& From, const FVector& TargetLocation, double MinimumRadius);
 	bool FindLocalGoal(AAIController& Controller, const FVector& From, const FVector& Goal, const FVector& TargetLocation,
 		double MinimumRadius, FVector& OutGoal) const;
@@ -55,14 +56,19 @@ private:
 	FVector ActiveOrbitGoal = FAISystem::InvalidLocation;
 	FVector NextOrbitGoal = FAISystem::InvalidLocation;
 	FVector OrbitPlanTargetLocation = FVector::ZeroVector;
+	FVector LastVisibleTargetLocation = FAISystem::InvalidLocation;
 	FAIRequestID MoveId;
 	EMovementMode MovementMode = EMovementMode::Chase;
 	EMovementMode ActiveMoveMode = EMovementMode::Chase;
 	float TimeUntilUpdate = 0.0f;
+	double NextOrbitPlanTime = 0.0;
+	double NextSightSearchTime = 0.0;
 	float OrbitSide = 1.0f;
 	float NextOrbitSide = 1.0f;
 	int32 OrbitLegsUntilSideChoice = 0;
 	bool bPreviousOrientToMovement = false;
 	bool bPreviousUseControllerDesiredRotation = false;
 	bool bPreviousUseControllerYaw = false;
+	bool bPreviousAllowStrafe = false;
+	bool bHadLineOfSight = false;
 };
