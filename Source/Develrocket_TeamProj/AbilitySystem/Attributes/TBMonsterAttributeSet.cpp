@@ -52,6 +52,7 @@ void UTBMonsterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 	Super::PostGameplayEffectExecute(Data);
 
 	const FGameplayAttribute& Attribute = Data.EvaluatedData.Attribute;
+	bool bAppliedDamage = Attribute == GetBloodAttribute() && Data.EvaluatedData.Magnitude < 0.0f;
 	if (Attribute == GetIncomingDamageAttribute())
 	{
 		const float Damage = GetIncomingDamage();
@@ -59,6 +60,7 @@ void UTBMonsterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 		if (FMath::IsFinite(Damage) && Damage > 0.0f && !HasDied())
 		{
 			SetBlood(FMath::Clamp(GetBlood() - Damage, 0.0f, GetMaxBlood()));
+			bAppliedDamage = true;
 		}
 	}
 	else if (Attribute == GetBloodAttribute() || Attribute == GetMaxBloodAttribute())
@@ -69,7 +71,8 @@ void UTBMonsterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModC
 
 	if (GetBlood() <= 0.0f && GetOwningActor() && GetOwningActor()->HasAuthority() && !HasDied())
 	{
-		OnOutOfBlood.Broadcast();
+		AActor* DamageSource = bAppliedDamage ? Cast<AActor>(Data.EffectSpec.GetContext().GetSourceObject()) : nullptr;
+		OnOutOfBlood.Broadcast(DamageSource);
 	}
 }
 

@@ -3,6 +3,8 @@
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
 #include "GameplayEffect.h"
+#include "GameplayEffectExtension.h"
+#include "Net/UnrealNetwork.h"
 #include "TBGameplayTags.h"
 #include "AbilitySystem/Attributes/TBPlayerAttributeSet.h"
 #include "Character/Player/TBPlayer.h"
@@ -24,6 +26,46 @@ ATBPlayerState::ATBPlayerState()
 UAbilitySystemComponent* ATBPlayerState::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComponent.Get();
+}
+
+void ATBPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ATBPlayerState, MatchStats);
+}
+
+void ATBPlayerState::AddMatchKill(int32 Points)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	++MatchStats.Kills;
+	MatchStats.MatchScore += Points;
+	ForceNetUpdate();
+}
+
+void ATBPlayerState::AddMatchDeath()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	++MatchStats.Deaths;
+	ForceNetUpdate();
+}
+
+void ATBPlayerState::AddMatchScore(int32 Points)
+{
+	if (!HasAuthority() || Points <= 0)
+	{
+		return;
+	}
+
+	MatchStats.MatchScore += Points;
+	ForceNetUpdate();
 }
 
 void ATBPlayerState::InitializeGameplayData()
@@ -145,7 +187,10 @@ void ATBPlayerState::HandleBloodChanged(const FOnAttributeChangeData& Data)
 	if (IsValid(Player)
 		&& Player->GetAbilitySystemComponent() == AbilitySystemComponent.Get())
 	{
-		Player->Die();
+		const ATBPlayer* Attacker = Data.GEModData
+			? Cast<ATBPlayer>(Data.GEModData->EffectSpec.GetContext().GetSourceObject())
+			: nullptr;
+		Player->Die(IsValid(Attacker) ? Attacker->GetPlayerState<ATBPlayerState>() : nullptr);
 	}
 }
 

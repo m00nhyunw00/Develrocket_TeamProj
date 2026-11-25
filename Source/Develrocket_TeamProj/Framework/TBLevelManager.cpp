@@ -1,6 +1,7 @@
 #include "Framework/TBLevelManager.h"
 #include "Components/TBSpawnManagerComponent.h"
 #include "Framework/TBSpawnPoolDataAsset.h"
+#include "Framework/TBPlayerState.h"
 
 #include "Kismet/GameplayStatics.h"
 #include "Components/CapsuleComponent.h"
@@ -144,6 +145,31 @@ bool ATBLevelManager::StartMatch()
 		GetWorldTimerManager().SetTimer(MatchSpawnRetryTimer, this, &ThisClass::RetryMatchSpawn, FMath::Max(0.1f, SpawnRetryInterval), true);
 	}
 	return true;
+}
+
+void ATBLevelManager::RecordPlayerDeath(ATBPlayerState& Victim, ATBPlayerState* Killer)
+{
+	if (!HasAuthority() || !bMatchStarted)
+	{
+		return;
+	}
+
+	Victim.AddMatchDeath();
+
+	if (IsValid(Killer) && Killer != &Victim && !Killer->IsInactive())
+	{
+		Killer->AddMatchKill(PointsPerPlayerKill);
+	}
+}
+
+void ATBLevelManager::RecordMonsterKill(ATBPlayerState& Killer, int32 KillRewardScore)
+{
+	if (!HasAuthority() || !bMatchStarted || Killer.IsInactive())
+	{
+		return;
+	}
+
+	Killer.AddMatchScore(KillRewardScore >= 0 ? KillRewardScore : PointsPerMonsterKill);
 }
 
 void ATBLevelManager::RetryMatchSpawn()

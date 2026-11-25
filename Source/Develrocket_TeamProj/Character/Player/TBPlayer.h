@@ -7,6 +7,7 @@
 class UInputAction;
 class UCameraComponent;
 class UTBInteractionComponent;
+class ATBPlayerState;
 struct FInputActionValue;
 
 UCLASS()
@@ -126,7 +127,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Player|State")
 	bool IsDead() const;
 
-	void Die();
+	void Die(ATBPlayerState* Killer = nullptr);
 
 	// 사망 태그 변화에 따른 캐릭터 상태 갱신
 	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
