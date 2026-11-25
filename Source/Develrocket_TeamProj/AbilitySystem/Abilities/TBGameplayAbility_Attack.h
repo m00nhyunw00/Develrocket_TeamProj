@@ -39,6 +39,10 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Attack", meta = (Categories = "Ability.Combat"))
     FGameplayTag AttackId;
 
+    // 비용 적용 후 남겨야 할 최소 혈액
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Cost", meta = (ClampMin = "0.0"))
+    float MinimumBloodAfterCost = 0.0f;
+    
     // 이번 실행에서 서버가 확정한 피해량
     UPROPERTY(Transient)
     float CurrentAttackDamage = 0.0f;
@@ -58,6 +62,8 @@ protected:
     // 이번 공격의 부착 효과·빔·총구 연출을 처리할 공통 Cue
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Effects", meta = (Categories = "GameplayCue"))
     FGameplayTag AttackVisualCueTag;
+    
+    virtual bool CheckCost(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
 
     virtual void OnActionCommitted() override;
 
