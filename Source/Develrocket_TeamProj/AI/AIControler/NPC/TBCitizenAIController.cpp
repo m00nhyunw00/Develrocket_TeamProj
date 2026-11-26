@@ -113,6 +113,7 @@ void ATBCitizenAIController::OnUnPossess()
 	bPanicked = false;
 	bRunning = false;
 	GetWorldTimerManager().ClearTimer(PanicTimer);
+	SetPanicVision(false);
 
 	Super::OnUnPossess();
 }
@@ -137,6 +138,8 @@ void ATBCitizenAIController::StopFleeing()
 	{
 		Brain->StopLogic(TEXT("Citizen Dead"));   // BT 자체를 정지 (죽은 시민이 다시 움직이지 않게)
 	}
+
+	SetPanicVision(false);                        // 시야 끄기 전에 각도 복구 (ConfigureSense가 시야를 다시 켜지 않도록 순서 유지)
 
 	if (UAIPerceptionComponent* Perception = GetPerceptionComponent())
 	{
@@ -236,8 +239,43 @@ void ATBCitizenAIController::RefreshThreatKey()
 	if (Closest && !bPanicked)
 	{
 		bPanicked = true;
+		SetPanicVision(true);                     // 도망 중엔 어깨 너머로 뒤도 봄
 		EnterRun(Closest);
 		GetWorldTimerManager().SetTimer(PanicTimer, this, &ThisClass::UpdatePanic, 0.3f, true);
+	}
+}
+
+void ATBCitizenAIController::SetPanicVision(bool bPanic)
+{
+	UAIPerceptionComponent* Perception = GetPerceptionComponent();
+	if (!SightConfig || !Perception) return;
+
+	SightConfig->PeripheralVisionAngleDegrees = bPanic ? PanicVisionAngle : PeripheralVisionAngle;
+	Perception->ConfigureSense(*SightConfig);    // BeginPlay와 같은 방식으로 다시 등록
+}
+
+void ATBCitizenAIController::ReportDamage(AActor* DamageSource)
+{
+	if (!HasAuthority() || !IsThreat(DamageSource)) return;   // 위협이 아닌 원인은 무시
+
+	// 지금 시야에 보이는 중인지: 목록에 있고 '잃어버린 시각' 기록이 없으면 보이는 중
+	const bool bCurrentlySeen = VisibleThreats.Contains(DamageSource) && !LostThreatTimes.Contains(DamageSource);
+	if (!bCurrentlySeen)
+	{
+		// 보지 못한 공격자: 맞은 순간부터 ThreatMemorySeconds 동안 기억 (나중에 실제로 보이면 Perception이 기록을 지움)
+		VisibleThreats.AddUnique(DamageSource);
+		LostThreatTimes.Add(DamageSource, GetWorld()->GetTimeSeconds());
+		if (!GetWorldTimerManager().IsTimerActive(ForgetTimer))
+		{
+			GetWorldTimerManager().SetTimer(ForgetTimer, this, &ThisClass::ForgetExpiredThreats, 0.5f, true);
+		}
+	}
+
+	RefreshThreatKey();                           // 아직 안 놀랐으면 여기서 놀람 + 뛰기 + 넓은 시야
+
+	if (bPanicked && !bRunning)
+	{
+		EnterRun(DamageSource);                   // 이미 놀란 뒤 걷던 중이면 다시 뛰기
 	}
 }
 
@@ -411,6 +449,7 @@ void ATBCitizenAIController::ReactivateFromPool()
 	bRunning = false;
 	LastStartleTime = -1.0e9;                     // 새 시민으로 재사용 → 쿨타임 초기화
 	GetWorldTimerManager().ClearTimer(PanicTimer);
+	SetPanicVision(false);
 
 	if (UBlackboardComponent* BB = GetBlackboardComponent())
 	{

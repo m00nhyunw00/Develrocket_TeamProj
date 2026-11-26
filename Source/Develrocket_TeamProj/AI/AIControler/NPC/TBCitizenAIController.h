@@ -28,6 +28,8 @@ public:
 	
 	void GetKnownThreats(TArray<const AActor*>& OutThreats) const;   // EQS Context용: 지금 알고 있는 위협 목록
 
+	void ReportDamage(AActor* DamageSource);      // 피격 시 시민이 호출: 공격자를 위협으로 기억하고 도망
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void OnPossess(APawn* InPawn) override;
@@ -75,6 +77,11 @@ protected:
 	void UpdatePanic();                           // 0.3초마다: 거리로 걷기/뛰기/재놀람 결정
 	void EnterRun(AActor* Threat);                // 뛰기 시작 (쿨타임 지났으면 놀람)
 	float GetNearestThreat(AActor*& OutThreat) const;   // 알고 있는 위협 중 가장 가까운 것까지 거리 (없으면 MAX)
+
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception", meta = (ClampMin = "0.0", ClampMax = "180.0", Units = "deg"))
+	float PanicVisionAngle = 160.f;               // 도망 중 시야 반각 (160 → 앞뒤 합쳐 320°, 바로 뒤 40°만 사각)
+
+	void SetPanicVision(bool bPanic);             // 시야각을 평상시/도망 중으로 전환
 
 private:
 	bool bPanicked = false;                       // 한 번 놀랐으면 죽을 때까지 도망 분기 유지

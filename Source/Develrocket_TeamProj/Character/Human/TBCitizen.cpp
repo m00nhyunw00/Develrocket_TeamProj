@@ -443,6 +443,15 @@ TSubclassOf<UGameplayEffect> ATBCitizen::GetAttackDamageEffect() const
 void ATBCitizen::OnAttackApplied(float Damage, AActor* DamageSource)
 {
     StartBleeding();
+
+    // 살아서 평상시 상태일 때만 (흡혈 중이거나 이번 공격으로 이미 죽었으면 무시)
+    if (CitizenState == ETBCitizenState::Idle)
+    {
+        if (ATBCitizenAIController* AIC = Cast<ATBCitizenAIController>(GetController()))
+        {
+            AIC->ReportDamage(DamageSource);
+        }
+    }
 }
 
 void ATBCitizen::ResetVitals()
