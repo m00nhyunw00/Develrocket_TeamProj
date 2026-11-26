@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
 #include "AttributeSet.h"
+#include "GameplayTagContainer.h"
 #include "UI/InGame/TBLeaderboardTypes.h"
 #include "TBPlayerHUD.generated.h"
 
@@ -70,6 +71,8 @@ protected:
 private:
 	void HandleAttributeChanged(const FOnAttributeChangeData& Data);
 	void RefreshResourceHUD();
+	void HandleSkillCooldownTagChanged(const FGameplayTag Tag, int32 NewCount);
+	void RefreshSkillCooldownHUD();
 	void NotifyShotFired();
 	
 	void HandleFocusedActorChanged(AActor* NewFocus);
@@ -77,6 +80,8 @@ private:
 	TWeakObjectPtr<UAbilitySystemComponent> BoundASC;
 
 	TArray<TPair<FGameplayAttribute, FDelegateHandle>> AttributeBindings;
+	TArray<TPair<FGameplayTag, FDelegateHandle>> SkillCooldownBindings;
+	FTimerHandle SkillCooldownRefreshTimer;
 
 	FDelegateHandle ShotFiredHandle;
 	

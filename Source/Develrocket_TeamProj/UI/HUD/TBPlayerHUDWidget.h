@@ -28,7 +28,7 @@ public:
 	void SetShowHitMarker(bool bIsKill);
 	void SetAmmo(int32 CurrentAmmo, int32 AmmoAtLastReload, int32 MagazineSize, bool bCanReload);
 	void SetSkill(int32 Index, UTexture2D* Icon, const FText& Key);
-	void StartSkillCooldown(int32 Index, float Duration);
+	void SetSkillCooldownRemaining(int32 Index, float RemainingSeconds);
 	void ShowInteractPrompt(const FText& Key, const FText& Prompt);
 	void HideInteractPrompt();
 	

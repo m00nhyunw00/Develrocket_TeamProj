@@ -8,8 +8,8 @@ class UInputAction;
 class UCameraComponent;
 class UTBInteractionComponent;
 class ATBPlayerState;
-class ULineBatchComponent;
-class UNiagaraSystem;
+class UMaterialInterface;
+class UMaterialInstanceDynamic;
 struct FInputActionValue;
 
 USTRUCT()
@@ -319,15 +319,15 @@ private:
 	void UpdateBloodPulseVisual();
 
 	UPROPERTY(EditDefaultsOnly, Category = "Combat|Blood Pulse")
-	TObjectPtr<UNiagaraSystem> BloodPulseEffect;
+	TObjectPtr<UMaterialInterface> BloodPulseMaterial;
 
 	UPROPERTY(Transient)
-	TObjectPtr<ULineBatchComponent> BloodPulseRing;
+	TObjectPtr<UMaterialInstanceDynamic> BloodPulseMaterialInstance;
 
-	FVector BloodPulseOrigin = FVector::ZeroVector;
 	double BloodPulseServerStart = 0.0;
 	float BloodPulseExpansionSeconds = 0.0f;
 	float BloodPulseMaxRadius = 0.0f;
+	bool bBloodPulseReachedMaxRadius = false;
 
 	// GAS 및 HUD 연결 ----------------------
 

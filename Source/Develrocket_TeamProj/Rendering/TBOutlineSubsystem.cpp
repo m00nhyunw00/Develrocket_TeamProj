@@ -115,7 +115,8 @@ void UTBOutlineSubsystem::SetOutline(UTBOutlineComponent* Component, UPrimitiveC
 
 	const float Radius = FMath::Clamp(Style.Thickness, 1, 4);
 	FLinearColor PackedStyle = Style.Color.GetClamped(0.0f, 65504.0f);
-	PackedStyle.A = Style.bShowThroughWalls ? -Radius : Radius;
+	// The post-process material interprets a negative radius as visible through walls.
+	PackedStyle.A = -Radius;
 	Styles[Entry->Stencil] = FFloat16Color(PackedStyle);
 	UploadStyles();
 }
