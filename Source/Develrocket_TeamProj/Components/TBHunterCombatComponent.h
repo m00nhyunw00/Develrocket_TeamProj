@@ -2,6 +2,8 @@
 
 #include "Components/ActorComponent.h"
 #include "Character/Monster/TBHunterAnimationData.h"
+#include "Engine/NetSerialization.h"
+#include "TimerManager.h"
 #include "TBHunterCombatComponent.generated.h"
 
 class ATBMonster;
@@ -9,6 +11,11 @@ class UAnimInstance;
 class UAnimMontage;
 class UAnimSequence;
 class USkeletalMesh;
+class UStaticMesh;
+class UStaticMeshComponent;
+class UMaterialInterface;
+class UMaterialInstanceDynamic;
+class UNiagaraSystem;
 
 UENUM(BlueprintType)
 enum class ETBHunterPhase : uint8 { Rifle, DrawingSword, Sword };
@@ -28,6 +35,27 @@ struct FTBHunterCombatState
 	double AnimationStartTime = 0.0;
 };
 
+USTRUCT()
+struct FTBHunterChargeVisual
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TObjectPtr<AActor> Target;
+
+	UPROPERTY()
+	FName MuzzleSocket;
+
+	UPROPERTY()
+	float Range = 0.f;
+
+	UPROPERTY()
+	float Duration = 0.f;
+
+	UPROPERTY()
+	double StartTime = 0.0;
+};
+
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API UTBHunterCombatComponent : public UActorComponent
 {
@@ -44,15 +72,26 @@ public:
 	float GetSwordHitFraction(ETBHunterSwordAnimation Animation) const;
 	void DeferSwordAttackRetry();
 	UAnimMontage* GetRifleAttackMontage() const { return RifleAttackMontage.Get(); }
+	UAnimMontage* GetRifleNotifyShotMontage() const { return RifleNotifyShotMontage.Get(); }
 	void ResetPhase();
+	void BeginRifleChargeVisual(AActor* Target, FName MuzzleSocket, float Range, float Duration);
+	void EndRifleChargeVisual();
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastPlayChargedShotFlash(FVector_NetQuantize10 Start, FVector_NetQuantize10 End);
+	static bool TryGetRifleShotOrigin(const ATBMonster& Hunter, FName MuzzleSocket, FVector& OutOrigin);
+	static bool TraceRifleShot(const ATBMonster& Hunter, const FVector& Start, const FVector& End, FHitResult& OutHit);
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
 	UFUNCTION()
 	void OnRep_CombatState();
+	UFUNCTION()
+	void OnRep_ChargeVisual();
+	void UpdateChargeBeam();
 	bool IsAtTransitionHealth() const;
 	void SetCombatState(ETBHunterPhase Phase, ETBHunterSwordAnimation Animation);
 	void UpdateSwordVisual();
@@ -64,6 +103,26 @@ private:
 
 	UPROPERTY(ReplicatedUsing = OnRep_CombatState)
 	FTBHunterCombatState CombatState;
+
+	UPROPERTY(ReplicatedUsing = OnRep_ChargeVisual)
+	FTBHunterChargeVisual ChargeVisual;
+
+	UPROPERTY()
+	TObjectPtr<UStaticMesh> ChargeBeamMesh;
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> ChargeBeamMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> ChargeBeam;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> ChargeBeamMaterialInstance;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Hunter|Charge Visual")
+	TObjectPtr<UNiagaraSystem> ChargedShotFlashSystem;
+
+	FTimerHandle ChargeBeamTimer;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USkeletalMesh> LoadedRifleMesh;
@@ -79,6 +138,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UAnimMontage> RifleAttackMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Hunter|Animation")
+	TObjectPtr<UAnimMontage> RifleNotifyShotMontage;
 
 	UPROPERTY(Transient)
 	TMap<ETBHunterSwordAnimation, TObjectPtr<UAnimSequence>> SwordActions;

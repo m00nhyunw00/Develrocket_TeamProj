@@ -192,6 +192,10 @@ bool ATBPlayerState::GetAttackDamage(const FGameplayTag& AttackId, float& OutDam
 	{
 		OutDamage = SecondaryAttackDamage;
 	}
+	else if (AttackId == TBGameplayTags::Ability_Combat_Mobility)
+	{
+		OutDamage = MobilityAttackDamage;
+	}
 	else if (AttackId == TBGameplayTags::Ability_Combat_Melee)
 	{
 		OutDamage = MeleeAttackDamage;
