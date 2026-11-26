@@ -47,6 +47,9 @@ public:
 	ETBCitizenState GetCitizenState() const { return CitizenState; }
 	float PlayStartle();
 	
+	// 걷기/뛰기 -------------------------
+	void SetFleeing(bool bNweFleeing);
+	
 protected:
 	virtual bool CanReceiveAttack(float Damage) const override;
 	virtual TSubclassOf<UGameplayEffect> GetAttackDamageEffect() const override;
@@ -141,6 +144,11 @@ protected:
 	void ChooseAppearance();
 	void ApplyAppearance();
 
+	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Movement", meta=(ClampMin = "0.0", Units = "cm/s"))
+	float WalkSpeed = 180.f;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Movement", meta=(ClampMin = "0.0", Units = "cm/s"))
+	float RunSpeed = 500.f;
 private:
 	void StartDeathSequence();                            // [서버] 사망 GA 실행 + 시체 타이머
 	void HandleCorpseExpired();                           // [서버] 시체 유지 종료
@@ -157,4 +165,7 @@ private:
 	void MulticastPlayStartle(uint8 MontageIndex);
 	
 	int32 LastStartleIndex = INDEX_NONE;
+	
+	void UpdateMoveSpeed();
+	bool bFleeing = false;
 };

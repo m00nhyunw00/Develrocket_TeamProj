@@ -22,6 +22,8 @@ void ATBCitizenAIController::PauseForDrain()
 	{
 		Brain->PauseLogic(TEXT("Citizen Drained"));
 	}
+	
+	GetWorldTimerManager().ClearTimer(StartleTimer);
 }
 
 void ATBCitizenAIController::ResumeFromDrain()
@@ -117,6 +119,11 @@ void ATBCitizenAIController::StopFleeing()
 	{
 		BB->ClearValue(ThreatActorKey);           // 위협 정보 지우기
 	}
+	
+	if (ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn()))
+	{
+		Citizen->SetFleeing(false);
+	}
 
 	StopMovement();                               // 진행 중인 MoveTo 취소
 
@@ -132,6 +139,7 @@ void ATBCitizenAIController::StopFleeing()
 	
 	LostThreatTimes.Reset();
 	GetWorldTimerManager().ClearTimer(ForgetTimer);    // 정리 코드
+	GetWorldTimerManager().ClearTimer(StartleTimer);
 }
 
 void ATBCitizenAIController::HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus)
@@ -189,6 +197,8 @@ void ATBCitizenAIController::RefreshThreatKey()
 	{
 		return;
 	}
+	
+	const bool bHadThreat = BB->GetValueAsObject(ThreatActorKey) != nullptr;
 
 	// 사라진 위협 정리
 	VisibleThreats.RemoveAll([](const TWeakObjectPtr<AActor>& Threat) { return !Threat.IsValid(); });
@@ -213,6 +223,63 @@ void ATBCitizenAIController::RefreshThreatKey()
 	else
 	{
 		BB->ClearValue(ThreatActorKey);                  // 평상시 분기로 복귀
+	}
+	
+	if (ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn()))
+	{
+		Citizen->SetFleeing(Closest != nullptr);
+	}
+	
+	if (!bHadThreat && Closest)
+	{
+		StartStartle();
+	}
+}
+
+void ATBCitizenAIController::StartStartle()
+{
+	ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn());
+	UBrainComponent* Brain = GetBrainComponent();
+	if (!Citizen || !Brain || !Brain -> IsRunning() || Brain->IsPaused()) return;
+	
+	const float Duration = Citizen->PlayStartle();
+	if (Duration <= 0.f)
+	{
+		return;
+	}
+	
+	StopMovement();
+	Brain->PauseLogic(TEXT("Citizen Startled"));
+	GetWorldTimerManager().SetTimer(StartleTimer, this, &ThisClass::FinishStartle, Duration, false);
+}
+
+void ATBCitizenAIController::FinishStartle()
+{
+	const ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn());
+	
+	// 흡혈 등으로 이미 정지 중이면 생략
+	if (!Citizen||Citizen->GetCitizenState() != ETBCitizenState::Idle)
+	{
+		return;
+	}
+	
+	if (UBrainComponent* Brain = GetBrainComponent(); Brain && Brain->IsPaused())
+	{
+		Brain->ResumeLogic(TEXT("Citizen Startle Finished"));
+	}
+
+}
+
+void ATBCitizenAIController::GetKnownThreats(TArray<const AActor*>& OutThreats) const
+{
+	OutThreats.Reset();
+	for (const TWeakObjectPtr<AActor>& Threat : VisibleThreats)
+	{
+		const AActor* Actor = Threat.Get();
+		if (Actor && IsThreat(Actor))   // 죽었거나 위협이 아니게 된 대상은 제외
+		{
+			OutThreats.Add(Actor);
+		}
 	}
 }
 
@@ -248,10 +315,16 @@ void ATBCitizenAIController::ReactivateFromPool()
 	VisibleThreats.Reset();
 	LostThreatTimes.Reset();
 	GetWorldTimerManager().ClearTimer(ForgetTimer);
+	GetWorldTimerManager().ClearTimer(StartleTimer);
 
 	if (UBlackboardComponent* BB = GetBlackboardComponent())
 	{
 		BB->ClearValue(ThreatActorKey);
+	}
+	
+	if (ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn()))
+	{
+		Citizen->SetFleeing(false);
 	}
 
 	// StopFleeing에서 꺼둔 시야를 다시 켜고, 이미 보고 있던 대상도 새로 감지하도록 갱신
