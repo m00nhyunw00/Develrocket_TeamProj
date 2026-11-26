@@ -4,7 +4,7 @@
 void UTBSkillBarWidget::SetSkill(int32 Index, UTexture2D* Icon, const FText& Key)
 {
 	UTBSkillSlotWidget* SkillSlot = GetSlot(Index);
-	if (!Slot)
+	if (!SkillSlot)
 	{
 		return;
 	}
@@ -12,14 +12,14 @@ void UTBSkillBarWidget::SetSkill(int32 Index, UTexture2D* Icon, const FText& Key
 	SkillSlot->SetKey(Key);
 }
 
-void UTBSkillBarWidget::StartSkillCooldown(int32 Index, float Duration)
+void UTBSkillBarWidget::SetSkillCooldownRemaining(int32 Index, float RemainingSeconds)
 {
 	UTBSkillSlotWidget* SkillSlot = GetSlot(Index);
-	if (!Slot)
+	if (!SkillSlot)
 	{
 		return;
 	}
-	SkillSlot->StartCooldown(Duration);
+	SkillSlot->SetCooldownRemaining(RemainingSeconds);
 }
 
 UTBSkillSlotWidget* UTBSkillBarWidget::GetSlot(int32 Index) const

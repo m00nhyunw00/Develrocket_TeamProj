@@ -20,6 +20,13 @@
 #include "InGame/TBLeaderboardWidget.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerState.h"
+#include "TBGameplayTags.h"
+#include "TimerManager.h"
+
+namespace
+{
+    constexpr float SkillCooldownRefreshInterval = 0.1f;
+}
 
 void ATBPlayerHUD::BeginPlay()
 {
@@ -168,6 +175,7 @@ void ATBPlayerHUD::BindAbilitySystem(UAbilitySystemComponent* InASC)
     if (BoundASC.Get() == InASC)
     {
         RefreshResourceHUD();
+        RefreshSkillCooldownHUD();
         return;
     }
 
@@ -194,6 +202,15 @@ void ATBPlayerHUD::BindAbilitySystem(UAbilitySystemComponent* InASC)
         AttributeBindings.Emplace(Attribute, Handle);
     }
 
+    const FGameplayTag SkillCooldownTags[] = {TBGameplayTags::Cooldown_Skill1, TBGameplayTags::Cooldown_Skill2};
+    for (const FGameplayTag& Tag : SkillCooldownTags)
+    {
+        const FDelegateHandle Handle = InASC->RegisterGameplayTagEvent(Tag, EGameplayTagEventType::NewOrRemoved)
+            .AddUObject(this, &ThisClass::HandleSkillCooldownTagChanged);
+        SkillCooldownBindings.Emplace(Tag, Handle);
+    }
+    RefreshSkillCooldownHUD();
+
     // 기본 공격 발사 이벤트 구독
     if (UTBAbilitySystemComponent* ASC = Cast<UTBAbilitySystemComponent>(InASC))
     {
@@ -207,6 +224,48 @@ void ATBPlayerHUD::BindAbilitySystem(UAbilitySystemComponent* InASC)
 void ATBPlayerHUD::HandleAttributeChanged(const FOnAttributeChangeData& Data)
 {
     RefreshResourceHUD();
+}
+
+void ATBPlayerHUD::HandleSkillCooldownTagChanged(const FGameplayTag, int32)
+{
+    RefreshSkillCooldownHUD();
+}
+
+void ATBPlayerHUD::RefreshSkillCooldownHUD()
+{
+    UAbilitySystemComponent* ASC = BoundASC.Get();
+    if (!ASC || !HUDWidget)
+    {
+        GetWorldTimerManager().ClearTimer(SkillCooldownRefreshTimer);
+        return;
+    }
+
+    bool bHasActiveCooldown = false;
+    for (int32 Index = 0; Index < SkillCooldownBindings.Num(); ++Index)
+    {
+        const FGameplayTag Tag = SkillCooldownBindings[Index].Key;
+        float Remaining = 0.0f;
+        if (ASC->HasMatchingGameplayTag(Tag))
+        {
+            bHasActiveCooldown = true;
+            const FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(Tag));
+            for (const float EffectRemaining : ASC->GetActiveEffectsTimeRemaining(Query))
+            {
+                Remaining = FMath::Max(Remaining, EffectRemaining);
+            }
+        }
+        HUDWidget->SetSkillCooldownRemaining(Index, Remaining);
+    }
+
+    FTimerManager& Timers = GetWorldTimerManager();
+    if (!bHasActiveCooldown)
+    {
+        Timers.ClearTimer(SkillCooldownRefreshTimer);
+    }
+    else if (!Timers.IsTimerActive(SkillCooldownRefreshTimer))
+    {
+        Timers.SetTimer(SkillCooldownRefreshTimer, this, &ThisClass::RefreshSkillCooldownHUD, SkillCooldownRefreshInterval, true);
+    }
 }
 
 void ATBPlayerHUD::RefreshResourceHUD()
@@ -278,6 +337,10 @@ void ATBPlayerHUD::UnbindAbilitySystem()
         {
             ASC->GetGameplayAttributeValueChangeDelegate(Binding.Key).Remove(Binding.Value);
         }
+        for (const auto& Binding : SkillCooldownBindings)
+        {
+            ASC->UnregisterGameplayTagEvent(Binding.Value, Binding.Key, EGameplayTagEventType::NewOrRemoved);
+        }
 
         if (UTBAbilitySystemComponent* TBASC = Cast<UTBAbilitySystemComponent>(ASC))
         {
@@ -285,6 +348,15 @@ void ATBPlayerHUD::UnbindAbilitySystem()
         }
     }
 
+    GetWorldTimerManager().ClearTimer(SkillCooldownRefreshTimer);
+    if (HUDWidget)
+    {
+        for (int32 Index = 0; Index < SkillCooldownBindings.Num(); ++Index)
+        {
+            HUDWidget->SetSkillCooldownRemaining(Index, 0.0f);
+        }
+    }
+    SkillCooldownBindings.Reset();
     AttributeBindings.Reset();
     ShotFiredHandle.Reset();
     BoundASC.Reset();

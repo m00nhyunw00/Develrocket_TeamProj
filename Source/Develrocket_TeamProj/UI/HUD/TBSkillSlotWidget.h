@@ -15,10 +15,9 @@ class DEVELROCKET_TEAMPROJ_API UTBSkillSlotWidget : public UUserWidget
 public:
 	void SetIcon(UTexture2D* Icon);
 	void SetKey(const FText& Key);
-	void StartCooldown(float Duration);
+	void SetCooldownRemaining(float RemainingSeconds);
 	
 protected:
-	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 	virtual void NativeConstruct() override;
 	virtual void UpdateReadyVisual(bool bReady);
 	
@@ -38,7 +37,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="UI")
 	TObjectPtr<UTexture2D> ReadyFrame;
 	
-	float RemainingTime = 0.f;
-	bool bIsSkillReady = true;
+	int32 DisplayedCooldownSeconds = 0;
 	
 };

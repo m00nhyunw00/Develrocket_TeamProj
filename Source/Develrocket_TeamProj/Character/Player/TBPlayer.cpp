@@ -21,7 +21,9 @@
 #include "Framework/TBPlayerState.h"
 #include "Framework/TBLevelManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInterface.h"
 #include "Net/UnrealNetwork.h"
+#include "UObject/ConstructorHelpers.h"
 #include "UI/TBPlayerHUD.h"
 #include "Components/TBInteractionComponent.h"
 #include "Interface/TBInteractInterface.h"
@@ -32,6 +34,9 @@ ATBPlayer::ATBPlayer(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	PrimaryActorTick.bCanEverTick = true;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> PulseMaterial(
+		TEXT("/Game/_Game/Materials/Outline/M_PP_BloodPulse.M_PP_BloodPulse"));
+	BloodPulseMaterial = PulseMaterial.Object;
 	
 	
 	// Controller의 좌우 회전만 캐릭터 몸체에 반영
@@ -93,6 +98,7 @@ void ATBPlayer::Tick(float DeltaSeconds)
 	CameraLocation.Z = FMath::FInterpTo(CameraLocation.Z, BaseEyeHeight, DeltaSeconds, CameraHeightInterpSpeed);
 
 	FirstPersonCamera->SetRelativeLocation(CameraLocation);
+	UpdateBloodPulseVisual();
 }
 
 bool ATBPlayer::TryGetFirstPersonCameraLocation(FVector& OutLocation) const
@@ -1056,17 +1062,12 @@ void ATBPlayer::StartMeleeAttack()
 
 void ATBPlayer::StartSkill1()
 {
-    // 스킬 버튼을 눌렀을 때 호출
-    // 추후 스킬 Ability에 입력 시작 전달 또는 활성화 요청
-    // 예: 대시 즉시 실행, 차지 스킬 충전 시작, 유지형 스킬 사용 시작
+    PressAbilityInput(TBGameplayTags::Ability_Combat_Skill1);
 }
 
 void ATBPlayer::StopSkill1()
 {
-    // 스킬 버튼을 놓거나 입력이 취소됐을 때 호출
-    // 추후 스킬 Ability에 입력 해제 전달
-    // 예: 차지 스킬 충전 종료, 유지형 스킬 사용 중단
-    // 입력 해제 이후의 발동 또는 취소는 Ability에서 판단
+    ReleaseAbilityInput(TBGameplayTags::Ability_Combat_Skill1);
 }
 
 void ATBPlayer::StartSkill2()

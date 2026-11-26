@@ -8,7 +8,24 @@ class UInputAction;
 class UCameraComponent;
 class UTBInteractionComponent;
 class ATBPlayerState;
+class UMaterialInterface;
+class UMaterialInstanceDynamic;
 struct FInputActionValue;
+
+USTRUCT()
+struct FTBBloodPulseHit
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TObjectPtr<AActor> Target;
+
+	UPROPERTY()
+	double ServerExpiration = 0.0;
+
+	UPROPERTY()
+	int64 PoolGeneration = -1;
+};
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBPlayer : public ATBCharacterBase
@@ -21,6 +38,12 @@ public:
 	ATBPlayer(const FObjectInitializer& ObjectInitializer);
 
 	virtual void Tick(float DeltaSeconds) override;
+
+	UFUNCTION(Client, Reliable)
+	void ClientStartBloodPulse(FVector_NetQuantize Origin, float MaxRadius, float ExpansionSeconds, double ServerStart);
+
+	UFUNCTION(Client, Reliable)
+	void ClientRevealBloodPulseHits(const TArray<FTBBloodPulseHit>& Hits);
 
 	// 빙의 및 네트워크 초기화 ----------------------
 
@@ -293,6 +316,19 @@ protected:
 	TObjectPtr<UInputAction> PauseAction;
 
 private:
+	void UpdateBloodPulseVisual();
+
+	UPROPERTY(EditDefaultsOnly, Category = "Combat|Blood Pulse")
+	TObjectPtr<UMaterialInterface> BloodPulseMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> BloodPulseMaterialInstance;
+
+	double BloodPulseServerStart = 0.0;
+	float BloodPulseExpansionSeconds = 0.0f;
+	float BloodPulseMaxRadius = 0.0f;
+	bool bBloodPulseReachedMaxRadius = false;
+
 	// GAS 및 HUD 연결 ----------------------
 
 	// PlayerState의 ASC를 현재 캐릭터에 연결

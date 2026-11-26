@@ -74,13 +74,13 @@ void UTBPlayerHUDWidget::SetSkill(int32 Index, UTexture2D* Icon, const FText& Ke
 	SkillBar->SetSkill(Index, Icon, Key);
 }
 
-void UTBPlayerHUDWidget::StartSkillCooldown(int32 Index, float Duration)
+void UTBPlayerHUDWidget::SetSkillCooldownRemaining(int32 Index, float RemainingSeconds)
 {
 	if (!SkillBar)
 	{
 		return;
 	}
-	SkillBar->StartSkillCooldown(Index, Duration);
+	SkillBar->SetSkillCooldownRemaining(Index, RemainingSeconds);
 }
 
 void UTBPlayerHUDWidget::ShowInteractPrompt(const FText& Key, const FText& Prompt)

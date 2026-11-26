@@ -22,41 +22,31 @@ void UTBSkillSlotWidget::SetKey(const FText& Key)
 	KeyText->SetText(Key);
 }
 
-void UTBSkillSlotWidget::StartCooldown(float Duration)
+void UTBSkillSlotWidget::SetCooldownRemaining(float RemainingSeconds)
 {
-	RemainingTime = Duration;
-	bIsSkillReady = false;
-	UpdateReadyVisual(bIsSkillReady);
-}
+	const int32 Seconds = FMath::CeilToInt(FMath::Max(0.0f, RemainingSeconds));
+	if (DisplayedCooldownSeconds == Seconds)
+	{
+		return;
+	}
 
-void UTBSkillSlotWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
-{
-	Super::NativeTick(MyGeometry, InDeltaTime);
-	
-	if (bIsSkillReady)
+	const bool bWasReady = DisplayedCooldownSeconds == 0;
+	const bool bIsReady = Seconds == 0;
+	DisplayedCooldownSeconds = Seconds;
+	if (bWasReady != bIsReady)
 	{
-		return;
+		UpdateReadyVisual(bIsReady);
 	}
-	
-	RemainingTime -= InDeltaTime;
-	
-	if (RemainingTime <= 0.f)
+	if (CooldownText && !bIsReady)
 	{
-		bIsSkillReady = true;
-		UpdateReadyVisual(true);
-		return;
-	}
-	
-	if (CooldownText)
-	{
-		CooldownText->SetText(FText::AsNumber(FMath::CeilToInt(RemainingTime)));
+		CooldownText->SetText(FText::AsNumber(Seconds));
 	}
 }
 
 void UTBSkillSlotWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
-	UpdateReadyVisual(true);
+	UpdateReadyVisual(DisplayedCooldownSeconds == 0);
 }
 
 void UTBSkillSlotWidget::UpdateReadyVisual(bool bReady)

@@ -1,16 +1,12 @@
 #include "Components/TBOutlineComponent.h"
 
+#include "Character/TBCharacterBase.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Rendering/TBOutlineSubsystem.h"
-
-void UTBOutlineComponent::SetOutlineEnabled(bool bEnabled)
-{
-	bOutlineEnabled = bEnabled;
-	RefreshOutline();
-}
+#include "TimerManager.h"
 
 void UTBOutlineComponent::SetOutlineSuppressed(bool bSuppressed)
 {
@@ -20,7 +16,35 @@ void UTBOutlineComponent::SetOutlineSuppressed(bool bSuppressed)
 	}
 
 	bOutlineSuppressed = bSuppressed;
+	if (bOutlineSuppressed) ClearBloodPulseReveal();
 	RefreshOutline();
+}
+
+bool UTBOutlineComponent::CanRevealWithBloodPulse() const
+{
+	return !bOutlineSuppressed
+		&& (bDetectableByBloodPulse || (GetOwner() && GetOwner()->IsA<ATBCharacterBase>()));
+}
+
+void UTBOutlineComponent::RevealWithBloodPulse(float Duration)
+{
+	UWorld* World = GetWorld();
+	if (!World || World->GetNetMode() == NM_DedicatedServer || !CanRevealWithBloodPulse() || Duration <= 0.0f)
+	{
+		return;
+	}
+
+	World->GetTimerManager().SetTimer(BloodPulseRevealTimer, this, &ThisClass::ClearBloodPulseReveal, Duration, false);
+	RefreshOutline();
+}
+
+void UTBOutlineComponent::ClearBloodPulseReveal()
+{
+	if (UWorld* World = GetWorld(); World && BloodPulseRevealTimer.IsValid())
+	{
+		World->GetTimerManager().ClearTimer(BloodPulseRevealTimer);
+		RefreshOutline();
+	}
 }
 
 void UTBOutlineComponent::SetOutlineStyle(const FTBOutlineStyle& NewStyle)
@@ -48,6 +72,7 @@ void UTBOutlineComponent::OnRegister()
 
 void UTBOutlineComponent::OnUnregister()
 {
+	if (UWorld* World = GetWorld()) World->GetTimerManager().ClearTimer(BloodPulseRevealTimer);
 	if (UTBOutlineSubsystem* Subsystem = UWorld::GetSubsystem<UTBOutlineSubsystem>(GetWorld()))
 	{
 		Subsystem->RemoveOutline(this);
@@ -77,7 +102,7 @@ void UTBOutlineComponent::RefreshOutline()
 		return;
 	}
 
-	if (!bOutlineEnabled || bOutlineSuppressed)
+	if (!BloodPulseRevealTimer.IsValid() || !CanRevealWithBloodPulse())
 	{
 		Subsystem->RemoveOutline(this);
 		return;

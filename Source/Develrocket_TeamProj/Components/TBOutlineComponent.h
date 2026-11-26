@@ -16,9 +16,6 @@ struct FTBOutlineStyle
 	/** Linear HDR color. RGB values above 1 can contribute to Bloom. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Outline", meta = (HideAlphaChannel))
 	FLinearColor Color = FLinearColor(0.15f, 1.0f, 3.0f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Outline", meta = (DisplayName = "Show Through Walls"))
-	bool bShowThroughWalls = true;
 };
 
 /** Adds a post-process outline to one skeletal or static mesh on this actor. */
@@ -28,10 +25,10 @@ class DEVELROCKET_TEAMPROJ_API UTBOutlineComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "Outline")
-	void SetOutlineEnabled(bool bEnabled);
-
 	void SetOutlineSuppressed(bool bSuppressed);
+	bool CanRevealWithBloodPulse() const;
+	void RevealWithBloodPulse(float Duration);
+	void ClearBloodPulseReveal();
 
 	UFUNCTION(BlueprintCallable, Category = "Outline")
 	void SetOutlineStyle(const FTBOutlineStyle& NewStyle);
@@ -53,13 +50,14 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Outline", meta = (UseComponentPicker, AllowedClasses = "/Script/Engine.SkeletalMeshComponent,/Script/Engine.StaticMeshComponent"))
 	FComponentReference TargetMesh;
 
-	UPROPERTY(EditAnywhere, Category = "Outline")
-	bool bOutlineEnabled = true;
+	UPROPERTY(EditAnywhere, Category = "Outline", meta = (DisplayName = "Detectable by Blood Pulse"))
+	bool bDetectableByBloodPulse = false;
 
 	UPROPERTY(EditAnywhere, Category = "Outline", meta = (ShowOnlyInnerProperties))
 	FTBOutlineStyle Style;
 
 	bool bOutlineSuppressed = false;
+	FTimerHandle BloodPulseRevealTimer;
 
 	void RefreshOutline();
 };
