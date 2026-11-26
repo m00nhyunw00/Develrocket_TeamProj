@@ -5,6 +5,7 @@
 
 class UAnimSequenceBase;
 class USkeletalMeshComponent;
+class UTBRotationComponent;
 
 UCLASS(Abstract)
 class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_VampireHunter_StationaryShot : public UTBGameplayAbility_VampireHunter_Hitscan
@@ -15,11 +16,17 @@ public:
 	UTBGameplayAbility_VampireHunter_StationaryShot();
 	virtual bool CanUseAgainst(const ATBMonster* Monster, const AActor* Target) const override;
 	virtual bool CanFireDuringCombatMovement() const override { return false; }
+	virtual void EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+		FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
 protected:
-	virtual bool UsesPhaseAttackMontage() const override { return false; }
+	virtual UAnimMontage* GetPhaseShotMontage(const ATBMonster& Monster) const override { return nullptr; }
 	virtual void OnActionCommitted() override;
+	void SetTrackingTarget(bool bTrack);
 	bool FireAtCurrentTarget() const;
+
+private:
+	TWeakObjectPtr<UTBRotationComponent> ShotRotation;
 };
 
 UCLASS(Blueprintable)
@@ -35,6 +42,10 @@ public:
 
 protected:
 	virtual void StartShotSequence() override;
+	virtual void OnShotTraced(ATBMonster& Monster, const FVector& Start, const FVector& End) const override;
+	virtual bool ShouldPlayActionMontagesOnActivate() const override { return false; }
+	virtual bool ShouldWaitForMontageEnd() const override { return true; }
+	virtual bool ShouldAllowMontageInterruptAfterBlendOut() const override { return true; }
 	virtual const FGameplayTagContainer& GetConfiguredSkillCooldownTags() const override;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Hunter|Charge", meta = (ClampMin = "0.01", Units = "s"))
@@ -42,7 +53,9 @@ protected:
 
 private:
 	void FinishCharge();
+	void UpdateChargeDebugRay();
 	FTimerHandle ChargeTimer;
+	FTimerHandle ChargeDebugTimer;
 };
 
 UCLASS(Blueprintable)
@@ -60,6 +73,7 @@ public:
 protected:
 	virtual bool ShouldWaitForMontageEnd() const override { return true; }
 	virtual bool ShouldAllowMontageInterruptAfterBlendOut() const override { return true; }
+	virtual UAnimMontage* GetPhaseShotMontage(const ATBMonster& Monster) const override;
 	virtual void OnActionCommitted() override;
 	virtual void StartShotSequence() override {}
 	virtual const FGameplayTagContainer& GetConfiguredSkillCooldownTags() const override;

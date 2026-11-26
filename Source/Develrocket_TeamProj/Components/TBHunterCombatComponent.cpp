@@ -10,11 +10,18 @@
 #include "Character/Monster/TBVampireHunter.h"
 #include "Character/Monster/TBMonster.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/GameStateBase.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Net/UnrealNetwork.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
 #include "TBGameplayTags.h"
+#include "UObject/ConstructorHelpers.h"
 
 
 namespace
@@ -22,6 +29,10 @@ namespace
 constexpr TCHAR HunterAssets[] = TEXT("/Game/_Assets/Animations/Monster/VampireHunter/");
 constexpr TCHAR HunterMeshes[] = TEXT("/Game/_Assets/_Original/Gothic_Hunter_Vampire/Meshes/base_mesh/");
 constexpr TCHAR HunterSwordSequences[] = TEXT("/Game/_Assets/_Original/Gothic_Hunter_Vampire/animation/sword/");
+constexpr float ChargeBeamUpdateInterval = 1.f / 60.f;
+constexpr float ShotFlashLifetime = 0.14f;
+constexpr ECollisionChannel HunterHitscanTraceChannel = ECC_GameTraceChannel2;
+const FName BeamColorParameter(TEXT("Color"));
 
 FString AssetPath(const TCHAR* Folder, const TCHAR* Name)
 {
@@ -35,6 +46,16 @@ UTBHunterCombatComponent::UTBHunterCombatComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = false;
 	PrimaryComponentTick.TickInterval = 0.08f;
+
+	static const ConstructorHelpers::FObjectFinder<UStaticMesh> BeamMesh(
+		TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	static const ConstructorHelpers::FObjectFinder<UMaterialInterface> BeamMaterial(
+		TEXT("/Engine/EngineMaterials/EmissiveMeshMaterial.EmissiveMeshMaterial"));
+	static const ConstructorHelpers::FObjectFinder<UNiagaraSystem> FlashSystem(
+		TEXT("/Game/_Assets/Particles/NS_BW_PrimaryAttack_Beam.NS_BW_PrimaryAttack_Beam"));
+	ChargeBeamMesh = BeamMesh.Object;
+	ChargeBeamMaterial = BeamMaterial.Object;
+	ChargedShotFlashSystem = FlashSystem.Object;
 }
 
 void UTBHunterCombatComponent::LoadPhaseAnimations(const UTBHunterAnimationData* RifleData,
@@ -101,12 +122,191 @@ void UTBHunterCombatComponent::BeginPlay()
 		VampireHunter ? VampireHunter->GetPhaseAnimationData(true) : nullptr);
 	SetComponentTickEnabled(LoadedSwordMesh && SwordAnimClass);
 	OnRep_CombatState();
+	OnRep_ChargeVisual();
+}
+
+void UTBHunterCombatComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ChargeBeamTimer);
+	}
+	if (ChargeBeam)
+	{
+		ChargeBeam->DestroyComponent();
+	}
+	Super::EndPlay(EndPlayReason);
 }
 
 void UTBHunterCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UTBHunterCombatComponent, CombatState);
+	DOREPLIFETIME(UTBHunterCombatComponent, ChargeVisual);
+}
+
+bool UTBHunterCombatComponent::TryGetRifleShotOrigin(const ATBMonster& Hunter, FName MuzzleSocket, FVector& OutOrigin)
+{
+	if (MuzzleSocket.IsNone())
+	{
+		FRotator EyeRotation;
+		Hunter.GetActorEyesViewPoint(OutOrigin, EyeRotation);
+		return true;
+	}
+
+	const USkeletalMeshComponent* Mesh = Hunter.GetMesh();
+	if (!Mesh || !Mesh->DoesSocketExist(MuzzleSocket))
+	{
+		return false;
+	}
+	OutOrigin = Mesh->GetSocketLocation(MuzzleSocket);
+	return true;
+}
+
+bool UTBHunterCombatComponent::TraceRifleShot(const ATBMonster& Hunter, const FVector& Start, const FVector& End, FHitResult& OutHit)
+{
+	return Hunter.LineTraceByChannel(OutHit, Start, End, HunterHitscanTraceChannel);
+}
+
+void UTBHunterCombatComponent::BeginRifleChargeVisual(AActor* Target, FName MuzzleSocket, float Range, float Duration)
+{
+	if (!GetOwner()->HasAuthority() || !IsValid(Target))
+	{
+		return;
+	}
+	ChargeVisual.Target = Target;
+	ChargeVisual.MuzzleSocket = MuzzleSocket;
+	ChargeVisual.Range = Range;
+	ChargeVisual.Duration = Duration;
+	ChargeVisual.StartTime = GetCombatTime();
+	OnRep_ChargeVisual();
+	GetOwner()->ForceNetUpdate();
+}
+
+void UTBHunterCombatComponent::EndRifleChargeVisual()
+{
+	if (!GetOwner()->HasAuthority() || ChargeVisual.Duration <= 0.f)
+	{
+		return;
+	}
+	ChargeVisual = {};
+	OnRep_ChargeVisual();
+	GetOwner()->ForceNetUpdate();
+}
+
+void UTBHunterCombatComponent::OnRep_ChargeVisual()
+{
+	if (!HasBegunPlay() || GetNetMode() == NM_DedicatedServer)
+	{
+		return;
+	}
+	FTimerManager& Timers = GetWorld()->GetTimerManager();
+	Timers.ClearTimer(ChargeBeamTimer);
+	if (ChargeVisual.Duration > 0.f)
+	{
+		Timers.SetTimer(ChargeBeamTimer, this, &ThisClass::UpdateChargeBeam, ChargeBeamUpdateInterval, true);
+	}
+	UpdateChargeBeam();
+}
+
+void UTBHunterCombatComponent::UpdateChargeBeam()
+{
+	const ATBMonster* Hunter = CastChecked<ATBMonster>(GetOwner());
+	const double Elapsed = GetCombatTime() - ChargeVisual.StartTime;
+	const bool bCharging = ChargeVisual.Duration > 0.f && Elapsed < ChargeVisual.Duration;
+	if (!bCharging)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(ChargeBeamTimer);
+	}
+
+	FVector Start;
+	const AActor* Target = ChargeVisual.Target.Get();
+	if (!bCharging || !IsValid(Target) || Hunter->IsHidden() || GetPhase() != ETBHunterPhase::Rifle
+		|| !TryGetRifleShotOrigin(*Hunter, ChargeVisual.MuzzleSocket, Start))
+	{
+		if (ChargeBeam)
+		{
+			ChargeBeam->SetVisibility(false);
+		}
+		return;
+	}
+
+	FVector End = Start + (Target->GetActorLocation() - Start).GetClampedToMaxSize(ChargeVisual.Range);
+	FHitResult Hit;
+	if (TraceRifleShot(*Hunter, Start, End, Hit))
+	{
+		End = Hit.ImpactPoint;
+	}
+	const FVector Segment = End - Start;
+	const double Length = Segment.Size();
+	if (Length <= UE_KINDA_SMALL_NUMBER || !ChargeBeamMesh || !ChargeBeamMaterial)
+	{
+		if (ChargeBeam)
+		{
+			ChargeBeam->SetVisibility(false);
+		}
+		return;
+	}
+
+	if (!ChargeBeam)
+	{
+		ChargeBeam = NewObject<UStaticMeshComponent>(GetOwner());
+		ChargeBeam->SetMobility(EComponentMobility::Movable);
+		ChargeBeam->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		ChargeBeam->SetGenerateOverlapEvents(false);
+		ChargeBeam->SetCanEverAffectNavigation(false);
+		ChargeBeam->SetCastShadow(false);
+		ChargeBeam->SetStaticMesh(ChargeBeamMesh);
+		ChargeBeam->SetMaterial(0, ChargeBeamMaterial);
+		ChargeBeamMaterialInstance = ChargeBeam->CreateDynamicMaterialInstance(0);
+		ChargeBeam->SetVisibility(false);
+		ChargeBeam->RegisterComponent();
+	}
+
+	const FBoxSphereBounds Bounds = ChargeBeamMesh->GetBounds();
+	const FQuat Rotation = FRotationMatrix::MakeFromZ(Segment).ToQuat();
+	const FVector Scale(1.5 / Bounds.BoxExtent.X, 1.5 / Bounds.BoxExtent.Y, Length / (2.0 * Bounds.BoxExtent.Z));
+	const FVector Center = Start + Segment * 0.5 - Rotation.RotateVector(Bounds.Origin * Scale);
+	ChargeBeam->SetWorldTransform(FTransform(Rotation, Center, Scale));
+	if (ChargeBeamMaterialInstance)
+	{
+		const float Progress = static_cast<float>(FMath::Clamp(Elapsed / ChargeVisual.Duration, 0.0, 1.0));
+		const FLinearColor Color = FLinearColor(1.f, 0.22f, 0.04f) * FMath::Lerp(1.4f, 6.f, Progress);
+		ChargeBeamMaterialInstance->SetVectorParameterValue(BeamColorParameter, FLinearColor(Color.R, Color.G, Color.B, 1.f));
+	}
+	ChargeBeam->SetVisibility(true);
+}
+
+void UTBHunterCombatComponent::MulticastPlayChargedShotFlash_Implementation(FVector_NetQuantize10 Start, FVector_NetQuantize10 End)
+{
+	if (GetNetMode() == NM_DedicatedServer)
+	{
+		return;
+	}
+	GetWorld()->GetTimerManager().ClearTimer(ChargeBeamTimer);
+	if (ChargeBeam)
+	{
+		ChargeBeam->SetVisibility(false);
+	}
+	if (!ChargedShotFlashSystem || FVector::DistSquared(Start, End) <= UE_KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+	UNiagaraComponent* Flash = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		GetWorld(), ChargedShotFlashSystem, Start, (End - Start).Rotation(), FVector::OneVector,
+		true, false, ENCPoolMethod::None, false);
+	if (Flash)
+	{
+		Flash->SetVariablePosition(TEXT("User.TrailStart"), Start);
+		Flash->SetVariablePosition(TEXT("User.TrailEnd"), End);
+		Flash->Activate(true);
+
+		FTimerHandle FlashTimer;
+		GetWorld()->GetTimerManager().SetTimer(FlashTimer, FTimerDelegate::CreateWeakLambda(Flash, [Flash]()
+		{
+			Flash->DestroyComponent();
+		}), ShotFlashLifetime, false);
+	}
 }
 
 bool UTBHunterCombatComponent::IsAtTransitionHealth() const
@@ -215,6 +415,7 @@ void UTBHunterCombatComponent::SetCombatState(ETBHunterPhase Phase, ETBHunterSwo
 
 void UTBHunterCombatComponent::ResetPhase()
 {
+	EndRifleChargeVisual();
 	bTransitionRequested = false;
 	NextSwordAttackTime = 0.0;
 	if (GetPhase() != ETBHunterPhase::Rifle) SetCombatState(ETBHunterPhase::Rifle, ETBHunterSwordAnimation::Idle);

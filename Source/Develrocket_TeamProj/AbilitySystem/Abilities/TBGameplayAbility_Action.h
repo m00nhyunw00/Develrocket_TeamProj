@@ -43,6 +43,9 @@ protected:
 	
 	// 비용·쿨다운 적용 성공 후, 몽타주 재생 전 확장 지점 ----------------------
 	virtual void OnActionCommitted(){}
+	virtual bool ShouldPlayActionMontagesOnActivate() const { return true; }
+	void PlayThirdPersonActionMontage(FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo);
 
 	// 자식 클래스의 완료·중단 처리 ----------------------
 

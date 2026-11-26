@@ -59,6 +59,11 @@ void UTBGameplayAbility_Action::ActivateAbility(const FGameplayAbilitySpecHandle
         }
     }
     
+    if (!ShouldPlayActionMontagesOnActivate())
+    {
+        return;
+    }
+
     const FName StartSection = GetActionMontageStartSection();
 
     const bool bWaitForMontageEnd = ShouldWaitForMontageEnd();
@@ -145,9 +150,17 @@ void UTBGameplayAbility_Action::ActivateAbility(const FGameplayAbilitySpecHandle
         return;
     }
 
+    PlayThirdPersonActionMontage(Handle, ActorInfo, ActivationInfo);
+}
+
+void UTBGameplayAbility_Action::PlayThirdPersonActionMontage(const FGameplayAbilitySpecHandle Handle,
+    const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo)
+{
+    const FName StartSection = GetActionMontageStartSection();
     // 완료를 기다리지 않는 액션은 몽타주 재생 후 자식으로 복귀
-    if (!bWaitForMontageEnd)
+    if (!ShouldWaitForMontageEnd())
     {
+        UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
         const float PlayedDuration = ASC->PlayMontage(this, ActivationInfo, ThirdPersonMontage, 1.0f, StartSection, 0.0f);
 
         if (PlayedDuration <= 0.0f)
