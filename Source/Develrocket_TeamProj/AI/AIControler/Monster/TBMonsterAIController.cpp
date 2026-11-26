@@ -8,6 +8,9 @@
 #include "Perception/AISense_Sight.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
+#include "BehaviorTree/Tasks/BTTask_MoveTo.h"
+#include "Tasks/AITask_MoveTo.h"
+#include "AI/TBCombatTokenSubsystem.h"
 #include "BrainComponent.h"
 #include "Character/Player/TBPlayer.h"
 #include "Character/Monster/TBMonster.h"
@@ -24,6 +27,17 @@
 namespace
 {
 	constexpr EAIFocusPriority::Type AnasimusCombatFocus = EAIFocusPriority::Gameplay + 1;
+	constexpr EAIFocusPriority::Type CombatWaitingFocus = EAIFocusPriority::Gameplay + 2;
+	constexpr double WaitingTargetReplanDistance = 120.0;
+	constexpr int32 WaitingSlotsPerRing = 8;
+	constexpr int32 WaitingRingCount = 2;
+
+	double GetCombatWaitingRadius(const ATBMonster& Monster, const AActor& Target)
+	{
+		const double ContactDistance = Monster.GetSimpleCollisionRadius() + Target.GetSimpleCollisionRadius();
+		const double SafeRadius = FMath::Max3(260.0, ContactDistance + 105.0, Monster.GetMeleeAttackRange() + 75.0);
+		return SafeRadius + Monster.GetCombatWaitingExtraDistance();
+	}
 }
 
 ATBMonsterAIController::ATBMonsterAIController()
@@ -98,6 +112,7 @@ void ATBMonsterAIController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	ClearTrackedTarget();
 	if (ATBMonster* Monster = Cast<ATBMonster>(GetPawn()))
 	{
+		if (UTBCombatTokenSubsystem* Tokens = GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>()) Tokens->ClearAttacker(*Monster);
 		Monster->OnMonsterDied.RemoveDynamic(this, &ThisClass::HandleMonsterDied);
 	}
 	Super::EndPlay(EndPlayReason);
@@ -151,6 +166,7 @@ void ATBMonsterAIController::OnUnPossess()
 	FinishInvestigation(true);
 	if (ATBMonster* Monster = Cast<ATBMonster>(GetPawn()))
 	{
+		if (UTBCombatTokenSubsystem* Tokens = GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>()) Tokens->ClearAttacker(*Monster);
 		Monster->OnMonsterDied.RemoveDynamic(this, &ThisClass::HandleMonsterDied);
 	}
 	GetWorldTimerManager().ClearTimer(TargetMemoryTimer);
@@ -186,6 +202,10 @@ void ATBMonsterAIController::DeactivateForPool()
 	{
 		Perception->SetSenseEnabled(UAISense_Sight::StaticClass(), false);
 		Perception->ForgetAll();
+	}
+	if (ATBMonster* Monster = Cast<ATBMonster>(GetPawn()))
+	{
+		if (UTBCombatTokenSubsystem* Tokens = GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>()) Tokens->ClearAttacker(*Monster);
 	}
 }
 
@@ -303,6 +323,140 @@ bool ATBMonsterAIController::WantsCombatRetreat(const AActor& Target) const
 		&& LineOfSightTo(&Target);
 }
 
+bool ATBMonsterAIController::ShouldUseCombatWaitingMove(const ATBMonster& Monster, const AActor& Target) const
+{
+	const UTBCombatTokenSubsystem* Tokens = GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>();
+	const double WaitingDistance = GetCombatWaitingRadius(Monster, Target) + 290.0;
+	return Tokens && Tokens->IsAttackFull(Target) && Monster.GetMonsterBehavior() != ETBMonsterBehavior::Hunter
+		&& FVector::DistSquared2D(Monster.GetActorLocation(), Target.GetActorLocation()) <= FMath::Square(WaitingDistance)
+		&& LineOfSightTo(&Target);
+}
+
+void ATBMonsterAIController::RefreshCombatPursuit(UBehaviorTreeComponent& Tree, const UBTTask_MoveTo& MoveNode)
+{
+	ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
+	AActor* Target = TrackedTarget.Get();
+	if (!IsValid(Monster) || Monster->IsDead() || Monster->IsMovementBlocked() || !IsValid(Target)
+		|| MoveNode.GetSelectedBlackboardKey() != TEXT("TargetActor")
+		|| !Tree.GetBlackboardComponent() || Tree.GetBlackboardComponent()->GetValueAsObject(TEXT("TargetActor")) != Target) return;
+
+	const bool bShouldWait = ShouldUseCombatWaitingMove(*Monster, *Target);
+	if (bShouldWait)
+	{
+		if (GetWorld()->GetTimeSeconds() < NextWaitingPlanTime) return;
+		if (CombatWaitingMoveID.IsValid() && FVector::DistSquared2D(WaitingPlanTargetLocation, Target->GetActorLocation())
+			< FMath::Square(WaitingTargetReplanDistance)) return;
+	}
+	else if (!bCombatStandOff && !CombatWaitingMoveID.IsValid() && CombatWaitingSlot == INDEX_NONE)
+	{
+		return;
+	}
+
+	// Replan through the existing gameplay task so the BT still owns and observes the move.
+	const auto* Memory = reinterpret_cast<const FBTMoveToTaskMemory*>(Tree.GetNodeMemory(&MoveNode, Tree.GetActiveInstanceIdx()));
+	if (UAITask_MoveTo* MoveTask = Memory ? Memory->Task.Get() : nullptr; MoveTask && MoveTask->IsActive())
+	{
+		MoveTask->GetMoveRequestRef().SetGoalActor(Target);
+		MoveTask->ConditionalPerformMove();
+	}
+}
+
+FPathFollowingRequestResult ATBMonsterAIController::MoveAroundCombatTarget(const FAIMoveRequest& MoveRequest,
+	ATBMonster& Monster, AActor& Target, FNavPathSharedPtr* OutPath)
+{
+	const FVector Origin = GetNavAgentLocation();
+	const FVector Center = Target.GetActorLocation();
+	const UNavigationSystemV1* Navigation = UNavigationSystemV1::GetCurrent(GetWorld());
+	const ANavigationData* NavData = Navigation ? Navigation->GetNavDataForProps(GetNavAgentPropertiesRef(), Origin) : nullptr;
+	UTBCombatTokenSubsystem* Tokens = GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>();
+	if (!NavData || !Tokens) return {};
+
+	const bool bKeepCurrentSlot = CombatWaitingMoveID.IsValid();
+	const double AngleStep = 360.0 / WaitingSlotsPerRing;
+	const FVector Radial = (Origin - Center).GetSafeNormal2D();
+	const int32 NearestAngle = FMath::RoundToInt(Radial.Rotation().Yaw / AngleStep);
+	const int32 StartAngle = CombatWaitingSlot == INDEX_NONE ? NearestAngle : CombatWaitingSlot % WaitingSlotsPerRing;
+	const int32 FirstOffset = CombatWaitingSlot != INDEX_NONE && !bKeepCurrentSlot ? 1 : 0;
+	const double Radius = GetCombatWaitingRadius(Monster, Target);
+	WaitingPlanTargetLocation = Center;
+	for (int32 Ring = 0; Ring < WaitingRingCount; ++Ring)
+	{
+		for (int32 Step = 0; Step < WaitingSlotsPerRing; ++Step)
+		{
+			const int32 Angle = (StartAngle + (Step + FirstOffset) * WaitingOrbitDirection + WaitingSlotsPerRing * 2) % WaitingSlotsPerRing;
+			const int32 Slot = Ring * WaitingSlotsPerRing + Angle;
+			if (!Tokens->IsWaitingSlotAvailable(Target, Monster, Slot)) continue;
+
+			const FVector Direction = FRotator(0.0, Angle * AngleStep, 0.0).Vector();
+			if (FVector::DotProduct(Direction, Radial) < -0.01) continue;
+			const FVector DesiredGoal = Center + Direction * (Radius + 150.0 * Ring);
+			FNavLocation Goal;
+			if (!Navigation->ProjectPointToNavigation(DesiredGoal, Goal, FVector(55.0, 55.0, 140.0), NavData)
+				|| FVector::DistSquared2D(Goal.Location, Origin) < FMath::Square(75.0)) continue;
+
+			FAIMoveRequest WaitMove(Goal.Location);
+			WaitMove.SetAcceptanceRadius(36.0f).SetAllowPartialPath(false).SetCanStrafe(true).SetReachTestIncludesAgentRadius(false)
+				.SetNavigationFilter(MoveRequest.GetNavigationFilter());
+			FPathFindingQuery Query;
+			FNavPathSharedPtr Path;
+			if (!BuildPathfindingQuery(WaitMove, Query)) continue;
+			FindPathForMoveRequest(WaitMove, Query, Path);
+			if (!Path.IsValid() || !Path->IsValid() || Path->IsPartial()) continue;
+
+			FPathFollowingRequestResult Result;
+			Result.MoveId = RequestMove(WaitMove, Path);
+			if (!Result.MoveId.IsValid()) continue;
+
+			CombatWaitingMoveID = Result.MoveId;
+			CombatWaitingSlot = Slot;
+			Tokens->SetWaitingSlot(Target, Monster, Slot);
+			UCharacterMovementComponent* Movement = Monster.GetCharacterMovement();
+			bPreviousWaitingOrientToMovement = Movement->bOrientRotationToMovement;
+			bPreviousWaitingUseControllerRotation = Movement->bUseControllerDesiredRotation;
+			bPreviousWaitingUseControllerYaw = Monster.bUseControllerRotationYaw;
+			bPreviousWaitingAllowStrafe = bAllowStrafe;
+			Movement->bOrientRotationToMovement = false;
+			Movement->bUseControllerDesiredRotation = true;
+			Monster.bUseControllerRotationYaw = false;
+			SetFocus(&Target, CombatWaitingFocus);
+			bAllowStrafe = true;
+			Result.Code = EPathFollowingRequestResult::RequestSuccessful;
+			if (OutPath) *OutPath = Path;
+			return Result;
+		}
+	}
+	return {};
+}
+
+void ATBMonsterAIController::FinishCombatWaitingMove(bool bAbortMove)
+{
+	if (!CombatWaitingMoveID.IsValid()) return;
+	const FAIRequestID FinishedID = CombatWaitingMoveID;
+	CombatWaitingMoveID = FAIRequestID::InvalidRequest;
+	ClearFocus(CombatWaitingFocus);
+	bAllowStrafe = bPreviousWaitingAllowStrafe;
+	if (ACharacter* ControlledCharacter = GetCharacter())
+	{
+		UCharacterMovementComponent* Movement = ControlledCharacter->GetCharacterMovement();
+		Movement->bOrientRotationToMovement = bPreviousWaitingOrientToMovement;
+		Movement->bUseControllerDesiredRotation = bPreviousWaitingUseControllerRotation;
+		ControlledCharacter->bUseControllerRotationYaw = bPreviousWaitingUseControllerYaw;
+	}
+	if (bAbortMove && GetCurrentMoveRequestID() == FinishedID) StopMovement();
+}
+
+void ATBMonsterAIController::ClearCombatWaitingSlot()
+{
+	if (CombatWaitingSlot == INDEX_NONE) return;
+	CombatWaitingSlot = INDEX_NONE;
+	ATBMonster* Monster = Cast<ATBMonster>(GetPawn());
+	AActor* Target = TrackedTarget.Get();
+	if (UTBCombatTokenSubsystem* Tokens = GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>(); Tokens && Target && Monster)
+	{
+		Tokens->ClearWaitingSlot(*Target, *Monster);
+	}
+}
+
 FPathFollowingRequestResult ATBMonsterAIController::MoveTo(const FAIMoveRequest& MoveRequest, FNavPathSharedPtr* OutPath)
 {
 	AActor* Target = MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor() : nullptr;
@@ -312,6 +466,27 @@ FPathFollowingRequestResult ATBMonsterAIController::MoveTo(const FAIMoveRequest&
 	{
 		return Super::MoveTo(MoveRequest, OutPath);
 	}
+
+	if (ShouldUseCombatWaitingMove(*Monster, *Target))
+	{
+		bCombatStandOff = false;
+		const double Now = GetWorld()->GetTimeSeconds();
+		if (Now >= NextWaitingPlanTime)
+		{
+			NextWaitingPlanTime = Now + 0.45;
+			const FPathFollowingRequestResult Result = MoveAroundCombatTarget(MoveRequest, *Monster, *Target, OutPath);
+			if (Result.Code == EPathFollowingRequestResult::RequestSuccessful) return Result;
+		}
+		const float WaitingRadius = GetCombatWaitingRadius(*Monster, *Target);
+		FAIMoveRequest StandOff(MoveRequest);
+		StandOff.SetAcceptanceRadius(WaitingRadius).SetReachTestIncludesAgentRadius(false).SetReachTestIncludesGoalRadius(false);
+		bCombatStandOff = true;
+		return Super::MoveTo(StandOff, OutPath);
+	}
+
+	bCombatStandOff = false;
+	FinishCombatWaitingMove(false);
+	ClearCombatWaitingSlot();
 
 	if (Monster->IsSummonedMonster() && Monster->GetMeleeAttackRange() > 0.0f)
 	{
@@ -484,6 +659,7 @@ void ATBMonsterAIController::FinishAnasimusMove(bool bAbortMove)
 
 void ATBMonsterAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
 {
+	if (CombatWaitingMoveID.IsValid() && RequestID == CombatWaitingMoveID) FinishCombatWaitingMove(false);
 	if (AnasimusMoveID.IsValid() && RequestID == AnasimusMoveID) FinishAnasimusMove(false);
 	Super::OnMoveCompleted(RequestID, Result);
 	if (InvestigationRequestID.IsValid() && RequestID == InvestigationRequestID) FinishInvestigation(false);
@@ -579,6 +755,10 @@ void ATBMonsterAIController::RefreshTargetAfterStagger()
 
 void ATBMonsterAIController::ClearTrackedTarget()
 {
+	FinishCombatWaitingMove(true);
+	bCombatStandOff = false;
+	CombatWaitingSlot = INDEX_NONE;
+	NextWaitingPlanTime = 0.0;
 	FinishAnasimusMove(true);
 	if (ACharacter* ControlledCharacter = GetCharacter())
 	{
@@ -598,7 +778,12 @@ void ATBMonsterAIController::ClearTrackedTarget()
 	}
 	TargetDeadTagHandle.Reset();
 	TrackedTargetASC.Reset();
+	const TWeakObjectPtr<AActor> PreviousTarget = TrackedTarget;
 	TrackedTarget.Reset();
+	if (ATBMonster* Monster = Cast<ATBMonster>(GetPawn()))
+	{
+		if (UTBCombatTokenSubsystem* Tokens = GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>()) Tokens->ClearTarget(*Monster, PreviousTarget);
+	}
 }
 
 void ATBMonsterAIController::SetTrackedTarget(AActor* Target)
@@ -608,6 +793,7 @@ void ATBMonsterAIController::SetTrackedTarget(AActor* Target)
 	TrackedTarget = Target;
 	if (IsValid(Target))
 	{
+		WaitingOrbitDirection = FMath::RandBool() ? 1 : -1;
 		Target->OnDestroyed.AddUniqueDynamic(this, &ThisClass::HandleTargetDestroyed);
 		UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
 		TrackedTargetASC = ASC;

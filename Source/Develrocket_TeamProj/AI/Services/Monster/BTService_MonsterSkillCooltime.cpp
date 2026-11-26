@@ -3,6 +3,7 @@
 #include "AI/Tasks/Monster/BTTask_MonsterSkill.h"
 #include "AI/Tasks/Monster/BTTask_MonsterAttack.h"
 #include "AI/Tasks/Monster/BTTask_VampireHunterCombatMove.h"
+#include "AI/AIControler/Monster/TBMonsterAIController.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "BehaviorTree/Composites/BTComposite_Selector.h"
 #include "BehaviorTree/Tasks/BTTask_MoveTo.h"
@@ -27,8 +28,9 @@ void UBTService_MonsterSkillCooltime::UpdateCombatDuringPursuit(UBehaviorTreeCom
 {
 	const UBTNode* ActiveNode = OwnerComp.GetActiveNode();
 	const UBTComposite_Selector* Selector = Cast<UBTComposite_Selector>(GetParentNode());
+	const auto* MoveNode = Cast<UBTTask_MoveTo>(ActiveNode);
 	const bool bIsHunterMoving = ActiveNode && ActiveNode->IsA<UBTTask_VampireHunterCombatMove>();
-	const bool bIsPursuing = bIsHunterMoving || Cast<UBTTask_MoveTo>(ActiveNode);
+	const bool bIsPursuing = bIsHunterMoving || MoveNode;
 	if (!Selector || !bIsPursuing || ActiveNode->GetParentNode() != Selector)
 	{
 		RequestedChildIndex = INDEX_NONE;
@@ -75,6 +77,10 @@ void UBTService_MonsterSkillCooltime::UpdateCombatDuringPursuit(UBehaviorTreeCom
 	}
 
 	RequestedChildIndex = INDEX_NONE;
+	if (auto* Controller = Cast<ATBMonsterAIController>(OwnerComp.GetAIOwner()); Controller && MoveNode)
+	{
+		Controller->RefreshCombatPursuit(OwnerComp, *MoveNode);
+	}
 }
 
 void UBTService_MonsterSkillCooltime::OnCeaseRelevant(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)

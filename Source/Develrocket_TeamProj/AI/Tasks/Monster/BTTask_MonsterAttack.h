@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AI/TBCombatTokenSubsystem.h"
 #include "GameplayAbilitySpec.h"
 #include "BehaviorTree/Tasks/BTTask_BlackboardBase.h"
 #include "BTTask_MonsterAttack.generated.h"
@@ -23,6 +24,7 @@ protected:
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	virtual void TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds) override;
 	virtual EBTNodeResult::Type AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
+	virtual void OnTaskFinished(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTNodeResult::Type TaskResult) override;
 
 private:
 	FGameplayAbilitySpecHandle FindUsableAttack(const ATBMonster* Monster, const UBlackboardComponent* Blackboard) const;
@@ -35,6 +37,8 @@ private:
 	TWeakObjectPtr<class UAbilitySystemComponent> ActiveASC;
 	TWeakObjectPtr<UBehaviorTreeComponent> ActiveTree;
 	FGameplayAbilitySpecHandle ActiveHandle;
+	FGameplayAbilitySpecHandle PreparedHandle;
+	FTBCombatToken AttackToken;
 	FDelegateHandle AbilityEndedHandle;
 	TWeakObjectPtr<AActor> PreparationTarget;
 	TWeakObjectPtr<const AActor> AttackTarget;
