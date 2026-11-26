@@ -13,5 +13,5 @@ class DEVELROCKET_TEAMPROJ_API UTBCitizenAppearanceData : public UPrimaryDataAss
 	
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Appearance")
-	TObjectPtr<USkeletalMesh> SkeletalMesh;
+	TArray<TObjectPtr<USkeletalMesh>> SkeletalMesh;
 };
