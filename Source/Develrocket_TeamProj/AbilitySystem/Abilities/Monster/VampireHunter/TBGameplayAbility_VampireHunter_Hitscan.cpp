@@ -4,6 +4,7 @@
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Monster/TBMonster.h"
+#include "Components/TBHunterCombatComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "DrawDebugHelpers.h"
 #include "HAL/IConsoleManager.h"
@@ -23,6 +24,7 @@ AActor* GetHunterTarget(const ATBMonster* Monster)
 	const UBlackboardComponent* Blackboard = Controller ? Controller->GetBlackboardComponent() : nullptr;
 	return Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(TargetActorKey)) : nullptr;
 }
+
 
 #if ENABLE_DRAW_DEBUG
 TAutoConsoleVariable<int32> CVarDebugHunterShot(
@@ -61,12 +63,17 @@ void UTBGameplayAbility_VampireHunter_Hitscan::ActivateAbility(FGameplayAbilityS
 	ATBMonster* Monster = ActorInfo ? Cast<ATBMonster>(ActorInfo->AvatarActor.Get()) : nullptr;
 	AActor* Target = GetHunterTarget(Monster);
 	const USkeletalMeshComponent* Mesh = IsValid(Monster) ? Monster->GetMesh() : nullptr;
-	if (!CanUseAgainst(Monster, Target) || (!MuzzleSocketName.IsNone() && (!Mesh || !Mesh->DoesSocketExist(MuzzleSocketName))))
+	if (!CanUseAgainst(Monster, Target) || !Monster->GetHunterCombatComponent()->CanStartRifleAttack()
+		|| (!MuzzleSocketName.IsNone() && (!Mesh || !Mesh->DoesSocketExist(MuzzleSocketName))))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
+	if (UAnimMontage* PhaseMontage = Monster->GetHunterCombatComponent()->GetRifleAttackMontage())
+	{
+		ThirdPersonMontage = PhaseMontage;
+	}
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 	if (!IsActive())
 	{

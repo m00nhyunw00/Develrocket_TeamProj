@@ -1,15 +1,19 @@
 #include "AI/Tasks/Monster/BTTask_VampireHunterCombatMove.h"
 
 #include "AIController.h"
+#include "AbilitySystemComponent.h"
+#include "AI/TBCombatTokenSubsystem.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Monster/TBMonster.h"
+#include "Components/TBHunterCombatComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "NavigationData.h"
 #include "NavigationPath.h"
 #include "NavigationSystem.h"
+#include "TBGameplayTags.h"
 
 namespace
 {
@@ -117,6 +121,38 @@ bool UBTTask_VampireHunterCombatMove::UpdateMovement(UBehaviorTreeComponent& Own
 	{
 		StopOwnedMove(*Controller);
 		return true;
+	}
+	UTBHunterCombatComponent& Combat = *Monster->GetHunterCombatComponent();
+	if (Combat.GetPhase() == ETBHunterPhase::DrawingSword)
+	{
+		StopOwnedMove(*Controller);
+		return true;
+	}
+	if (Combat.GetPhase() == ETBHunterPhase::Sword)
+	{
+		if (Monster->GetAbilitySystemComponent()->HasMatchingGameplayTag(TBGameplayTags::State_Combat)
+			|| Combat.TryStartSwordAttack(*Target))
+		{
+			StopOwnedMove(*Controller);
+			return true;
+		}
+		const auto* Tokens = Monster->GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>();
+		if (!Tokens || !Tokens->IsAttackFull(*Target))
+		{
+			Controller->SetFocus(Target);
+			MovementMode = EMovementMode::Chase;
+			const UPathFollowingComponent* Path = Controller->GetPathFollowingComponent();
+			const float ApproachDistance = Monster->GetSimpleCollisionRadius() + Target->GetSimpleCollisionRadius() + 35.f;
+			const bool bChasing = Path && MoveId.IsValid() && Path->GetCurrentRequestId() == MoveId
+				&& Path->GetStatus() != EPathFollowingStatus::Idle && Path->GetMoveGoal() == Target;
+			if (!bChasing && FVector::DistSquared2D(Monster->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(ApproachDistance))
+			{
+				FAIMoveRequest Chase(Target);
+				Chase.SetAcceptanceRadius(ApproachDistance).SetAllowPartialPath(true);
+				StartMove(*Controller, Chase);
+			}
+			return true;
+		}
 	}
 
 	const FVector Origin = Monster->GetActorLocation();

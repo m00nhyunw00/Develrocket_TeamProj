@@ -7,6 +7,7 @@
 class UAnimSequenceBase;
 class UNiagaraSystem;
 class UTBSpawnManagerComponent;
+class ATBCharacterBase;
 
 USTRUCT(BlueprintType)
 struct FTBMonsterBoomSpawnEntry
@@ -41,8 +42,11 @@ protected:
 	virtual bool ShouldAllowMontageInterruptAfterBlendOut() const override { return true; }
 	virtual void HandleActionMontageCompleted() override;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Boom|Jump", meta = (ClampMin = "0.05", Units = "s"))
+	UPROPERTY(EditDefaultsOnly, Category = "Boom|Jump", meta = (ClampMin = "0.05", Units = "s", ToolTip = "Minimum flight time. A higher apex can increase the actual flight time."))
 	float JumpTravelTime = 0.55f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Boom|Jump", meta = (ClampMin = "1.0", Units = "cm", ToolTip = "Minimum jump height above the higher of the takeoff and landing positions."))
+	float JumpApexHeight = 140.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Boom", meta = (ClampMin = "1.0", Units = "cm"))
 	float ExplosionRadius = 500.f;
@@ -77,5 +81,6 @@ private:
 	bool bSavedAnimTickOption = false;
 	bool bDetonated = false;
 	bool bJumped = false;
+	TWeakObjectPtr<const ATBCharacterBase> JumpTarget;
 	TOptional<FHitResult> BlockingImpact;
 };

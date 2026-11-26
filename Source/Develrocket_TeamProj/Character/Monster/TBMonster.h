@@ -13,6 +13,7 @@ class UTBMonsterAttributeSet;
 class UTBMonsterMovementComponent;
 class ATBMonster;
 class UTBRotationComponent;
+class UTBHunterCombatComponent;
 class UNiagaraSystem;
 struct FAbilityEndedData;
 struct FGameplayTag;
@@ -87,6 +88,7 @@ public:
 	ETBMonsterBehavior GetMonsterBehavior() const;
 	UTBMonsterMovementComponent* GetMonsterMovement() const;
 	UTBRotationComponent* GetAttackRotationComponent() const { return AttackRotationComponent.Get(); }
+	UTBHunterCombatComponent* GetHunterCombatComponent() const { return HunterCombatComponent.Get(); }
 
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastPlayBoomEffect(UNiagaraSystem* Effect, FVector_NetQuantize Location);
@@ -122,6 +124,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|Rotation")
 	TObjectPtr<UTBRotationComponent> AttackRotationComponent;
+
+	UPROPERTY(VisibleAnywhere, Category = "AI|Combat")
+	TObjectPtr<UTBHunterCombatComponent> HunterCombatComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
 	TObjectPtr<UTBMonsterAttributeSet> MonsterAttributes;
