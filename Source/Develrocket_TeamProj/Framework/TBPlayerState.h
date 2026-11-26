@@ -75,6 +75,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|SecondaryAttack", meta = (ClampMin = "0.0"))
 	float SecondaryAttackDamage = 0.0f;
 	
+	// 이동 중 타격하는 이동기의 피해량
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|Mobility", meta = (ClampMin = "0.0"))
+	float MobilityAttackDamage = 0.0f;
+	
 	// F키 근접 공격 피해량
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|MeleeAttack", meta = (ClampMin = "0.0"))
 	float MeleeAttackDamage = 20.0f;

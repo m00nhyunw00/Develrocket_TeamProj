@@ -704,7 +704,7 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 	if (SecondaryAction)
 	{
-		EnhancedInput->BindAction(SecondaryAction, ETriggerEvent::Started, this, &ATBPlayer::StartSecondaryAction);
+		EnhancedInput->BindAction(SecondaryAction, ETriggerEvent::Started, this, &ATBPlayer::StartSecond#### aryAction);
 
 		EnhancedInput->BindAction(SecondaryAction, ETriggerEvent::Completed, this, &ATBPlayer::StopSecondaryAction);
 
