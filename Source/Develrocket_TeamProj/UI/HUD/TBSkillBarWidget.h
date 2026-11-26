@@ -13,7 +13,7 @@ class DEVELROCKET_TEAMPROJ_API UTBSkillBarWidget : public UUserWidget
 	
 public:
 	void SetSkill(int32 Index, UTexture2D* Icon, const FText& Key);
-	void StartSkillCooldown(int32 Index, float Duration);
+	void SetSkillCooldownRemaining(int32 Index, float RemainingSeconds);
 	
 protected:
 	UPROPERTY(meta=(BindWidget))

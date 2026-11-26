@@ -21,7 +21,9 @@
 #include "Framework/TBPlayerState.h"
 #include "Framework/TBLevelManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInterface.h"
 #include "Net/UnrealNetwork.h"
+#include "UObject/ConstructorHelpers.h"
 #include "UI/TBPlayerHUD.h"
 #include "Components/TBInteractionComponent.h"
 #include "Interface/TBInteractInterface.h"
@@ -32,6 +34,9 @@ ATBPlayer::ATBPlayer(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	PrimaryActorTick.bCanEverTick = true;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> PulseMaterial(
+		TEXT("/Game/_Game/Materials/Outline/M_PP_BloodPulse.M_PP_BloodPulse"));
+	BloodPulseMaterial = PulseMaterial.Object;
 	
 	
 	// Controller의 좌우 회전만 캐릭터 몸체에 반영

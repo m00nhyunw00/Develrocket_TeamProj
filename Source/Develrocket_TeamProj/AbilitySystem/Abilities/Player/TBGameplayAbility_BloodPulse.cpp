@@ -3,13 +3,16 @@
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
 #include "AbilitySystemComponent.h"
 #include "Character/Player/TBPlayer.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/TBOutlineComponent.h"
 #include "Components/TBPoolStateComponent.h"
+#include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameplayEffectComponents/TargetTagsGameplayEffectComponent.h"
+#include "HAL/IConsoleManager.h"
 #include "TBGameplayTags.h"
 #include "TimerManager.h"
 
@@ -17,7 +20,26 @@ namespace
 {
 	const FName CostMagnitudeName(TEXT("BloodPulse.BloodCost"));
 	constexpr float PulseUpdateInterval = 0.05f;
-	constexpr float MovingTargetLookAhead = 120.0f;
+
+#if ENABLE_DRAW_DEBUG
+	TAutoConsoleVariable<int32> CVarDebugBloodPulse(
+		TEXT("tb.Debug.BloodPulse"), 1, TEXT("Draw the server's Blood Pulse radius and hit collision in PIE (0: off, 1: on)."));
+
+	void DrawBloodPulseHit(const UWorld* World, const UPrimitiveComponent& Collision)
+	{
+		constexpr float HitMarkerLifetime = 0.35f;
+		if (const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(&Collision))
+		{
+			DrawDebugCapsule(World, Capsule->GetComponentLocation(), Capsule->GetScaledCapsuleHalfHeight(),
+				Capsule->GetScaledCapsuleRadius(), Capsule->GetComponentQuat(), FColor::Green, false, HitMarkerLifetime, SDPG_Foreground, 1.5f);
+		}
+		else
+		{
+			const FBox Bounds = Collision.Bounds.GetBox();
+			DrawDebugBox(World, Bounds.GetCenter(), Bounds.GetExtent(), FColor::Green, false, HitMarkerLifetime, SDPG_Foreground, 1.5f);
+		}
+	}
+#endif
 }
 
 UTBGameplayEffect_BloodPulseCost::UTBGameplayEffect_BloodPulseCost()
@@ -50,8 +72,6 @@ UTBGameplayAbility_BloodPulse::UTBGameplayAbility_BloodPulse()
 	ActivationBlockedTags.AddTag(TBGameplayTags::State_Dead);
 	ActivationBlockedTags.AddTag(TBGameplayTags::State_Stunned);
 	ActivationBlockedTags.AddTag(TBGameplayTags::State_Draining);
-	CostGameplayEffectClass = UTBGameplayEffect_BloodPulseCost::StaticClass();
-	CooldownGameplayEffectClass = UTBGameplayEffect_BloodPulseCooldown::StaticClass();
 }
 
 bool UTBGameplayAbility_BloodPulse::CheckCost(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
@@ -93,6 +113,7 @@ void UTBGameplayAbility_BloodPulse::ActivateAbility(FGameplayAbilitySpecHandle H
 	ATBPlayer* Player = ActorInfo ? Cast<ATBPlayer>(ActorInfo->AvatarActor.Get()) : nullptr;
 	UWorld* World = IsValid(Player) ? Player->GetWorld() : nullptr;
 	if (!World || !Player->HasAuthority() || Player->IsDead()
+		|| !CostGameplayEffectClass || !CooldownGameplayEffectClass
 		|| !FMath::IsFinite(MaxRadius) || MaxRadius <= 0.0f
 		|| !FMath::IsFinite(ExpansionSeconds) || ExpansionSeconds <= 0.0f
 		|| !FMath::IsFinite(CooldownSeconds) || CooldownSeconds <= 0.0f
@@ -103,12 +124,9 @@ void UTBGameplayAbility_BloodPulse::ActivateAbility(FGameplayAbilitySpecHandle H
 	}
 
 	Origin = Player->GetActorLocation();
-	StartTime = World->GetTimeSeconds();
-	PreviousElapsed = 0.0;
-	PreviousRadius = 0.0f;
 	const AGameStateBase* GameState = World->GetGameState();
-	Player->ClientStartBloodPulse(Origin, MaxRadius, ExpansionSeconds,
-		GameState ? GameState->GetServerWorldTimeSeconds() : StartTime);
+	StartTime = GameState ? GameState->GetServerWorldTimeSeconds() : World->GetTimeSeconds();
+	Player->ClientStartBloodPulse(Origin, MaxRadius, ExpansionSeconds, StartTime);
 	World->GetTimerManager().SetTimer(WaveTimer, this, &ThisClass::AdvanceWave, PulseUpdateInterval, true);
 }
 
@@ -122,18 +140,23 @@ void UTBGameplayAbility_BloodPulse::AdvanceWave()
 		return;
 	}
 
-	const double Elapsed = World->GetTimeSeconds() - StartTime;
-	const float Radius = MaxRadius * FMath::Clamp(Elapsed / ExpansionSeconds, 0.0, 1.0);
-	const float QueryRadius = FMath::Min(MaxRadius, Radius + MovingTargetLookAhead);
-	TArray<FOverlapResult> Overlaps;
-	World->OverlapMultiByObjectType(Overlaps, Origin, FQuat::Identity,
-		FCollisionObjectQueryParams::AllObjects, FCollisionShape::MakeSphere(QueryRadius),
-		FCollisionQueryParams(SCENE_QUERY_STAT(BloodPulse), false, Player));
-
 	const AGameStateBase* GameState = World->GetGameState();
 	const double ServerNow = GameState ? GameState->GetServerWorldTimeSeconds() : World->GetTimeSeconds();
-	// Use the nearest collision of each actor, even when the actor has multiple overlapping components.
-	TMap<TWeakObjectPtr<AActor>, double> TargetDistances;
+	const double Elapsed = ServerNow - StartTime;
+	const float Radius = MaxRadius * FMath::Clamp(Elapsed / ExpansionSeconds, 0.0, 1.0);
+#if ENABLE_DRAW_DEBUG
+	const bool bDrawDebug = World->WorldType == EWorldType::PIE && CVarDebugBloodPulse.GetValueOnGameThread() != 0;
+	if (bDrawDebug)
+	{
+		DrawDebugSphere(World, Origin, Radius, 24, FColor::Cyan, false, PulseUpdateInterval, SDPG_Foreground, 1.0f);
+	}
+#endif
+	TArray<FOverlapResult> Overlaps;
+	World->OverlapMultiByObjectType(Overlaps, Origin, FQuat::Identity,
+		FCollisionObjectQueryParams::AllObjects, FCollisionShape::MakeSphere(Radius),
+		FCollisionQueryParams(SCENE_QUERY_STAT(BloodPulse), false, Player));
+
+	TArray<FTBBloodPulseHit> Hits;
 	for (const FOverlapResult& Overlap : Overlaps)
 	{
 		AActor* Target = Overlap.GetActor();
@@ -142,38 +165,19 @@ void UTBGameplayAbility_BloodPulse::AdvanceWave()
 		const UTBOutlineComponent* Outline = Target->FindComponentByClass<UTBOutlineComponent>();
 		if (!Outline || !Outline->CanRevealWithBloodPulse()) continue;
 
-		FVector ClosestPoint;
-		const float Distance = Collision->GetClosestPointOnCollision(Origin, ClosestPoint);
-		const double DistanceSquared = Distance > 0.0f ? FMath::Square(static_cast<double>(Distance))
-			: Collision->Bounds.GetBox().ComputeSquaredDistanceToPoint(Origin);
-		double& Nearest = TargetDistances.FindOrAdd(Target, TNumericLimits<double>::Max());
-		Nearest = FMath::Min(Nearest, DistanceSquared);
-	}
-
-	TArray<FTBBloodPulseHit> Hits;
-	for (const auto& [WeakTarget, DistanceSquared] : TargetDistances)
-	{
-		AActor* Target = WeakTarget.Get();
-		if (!Target || DistanceSquared > FMath::Square(Radius)) continue;
-		const double Distance = FMath::Sqrt(DistanceSquared);
-		const double* PreviouslyMeasured = PreviousDistances.Find(WeakTarget);
-		const double PreviousGap = (PreviouslyMeasured ? FMath::Sqrt(*PreviouslyMeasured) : Distance) - PreviousRadius;
-		if (PreviousRadius > 0.0f && PreviousGap <= 0.0) continue;
 		const UTBPoolStateComponent* Pool = Target->FindComponentByClass<UTBPoolStateComponent>();
 		if (Pool && !Pool->IsPoolActive()) continue;
 		RevealedActors.Add(Target);
-		const double SweptGap = PreviousGap + Radius - Distance;
-		const double Arrival = SweptGap > UE_SMALL_NUMBER
-			? FMath::Lerp(PreviousElapsed, FMath::Min<double>(Elapsed, ExpansionSeconds), PreviousGap / SweptGap)
-			: PreviousElapsed;
 		const float RevealSeconds = Target->IsA<ATBPlayer>() ? PlayerRevealSeconds : OtherRevealSeconds;
-		const double Expiration = ServerNow + FMath::Max(0.0, RevealSeconds - (Elapsed - Arrival));
-		Hits.Add({Target, Expiration, Pool ? static_cast<int64>(Pool->GetPoolGeneration()) : -1});
+		Hits.Add({Target, ServerNow + RevealSeconds, Pool ? static_cast<int64>(Pool->GetPoolGeneration()) : -1});
+#if ENABLE_DRAW_DEBUG
+		if (bDrawDebug)
+		{
+			DrawBloodPulseHit(World, *Collision);
+		}
+#endif
 	}
 
-	PreviousRadius = Radius;
-	PreviousElapsed = Elapsed;
-	PreviousDistances = MoveTemp(TargetDistances);
 	// Limit the size of one reliable RPC in crowded areas.
 	constexpr int32 MaxHitsPerRPC = 32;
 	for (int32 Offset = 0; Offset < Hits.Num(); Offset += MaxHitsPerRPC)
@@ -192,6 +196,5 @@ void UTBGameplayAbility_BloodPulse::EndAbility(FGameplayAbilitySpecHandle Handle
 {
 	if (UWorld* World = GetWorld()) World->GetTimerManager().ClearTimer(WaveTimer);
 	RevealedActors.Reset();
-	PreviousDistances.Reset();
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

@@ -22,7 +22,7 @@ public:
 	UTBGameplayEffect_BloodPulseCooldown();
 };
 
-UCLASS()
+UCLASS(Abstract, Blueprintable)
 class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_BloodPulse : public UGameplayAbility
 {
 	GENERATED_BODY()
@@ -65,8 +65,5 @@ private:
 	FTimerHandle WaveTimer;
 	FVector Origin = FVector::ZeroVector;
 	double StartTime = 0.0;
-	double PreviousElapsed = 0.0;
-	float PreviousRadius = 0.0f;
-	TMap<TWeakObjectPtr<AActor>, double> PreviousDistances;
 	TSet<TWeakObjectPtr<AActor>> RevealedActors;
 };

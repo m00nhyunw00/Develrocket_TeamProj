@@ -8,12 +8,6 @@
 #include "Rendering/TBOutlineSubsystem.h"
 #include "TimerManager.h"
 
-void UTBOutlineComponent::SetOutlineEnabled(bool bEnabled)
-{
-	bOutlineEnabled = bEnabled;
-	RefreshOutline();
-}
-
 void UTBOutlineComponent::SetOutlineSuppressed(bool bSuppressed)
 {
 	if (bOutlineSuppressed == bSuppressed)
@@ -40,9 +34,7 @@ void UTBOutlineComponent::RevealWithBloodPulse(float Duration)
 		return;
 	}
 
-	FTimerManager& Timers = World->GetTimerManager();
-	const float Remaining = Timers.GetTimerRemaining(BloodPulseRevealTimer);
-	Timers.SetTimer(BloodPulseRevealTimer, this, &ThisClass::ClearBloodPulseReveal, FMath::Max(Duration, Remaining), false);
+	World->GetTimerManager().SetTimer(BloodPulseRevealTimer, this, &ThisClass::ClearBloodPulseReveal, Duration, false);
 	RefreshOutline();
 }
 
@@ -110,8 +102,7 @@ void UTBOutlineComponent::RefreshOutline()
 		return;
 	}
 
-	const bool bPulseRevealed = BloodPulseRevealTimer.IsValid();
-	if ((!bOutlineEnabled && !bPulseRevealed) || bOutlineSuppressed)
+	if (!BloodPulseRevealTimer.IsValid() || !CanRevealWithBloodPulse())
 	{
 		Subsystem->RemoveOutline(this);
 		return;
