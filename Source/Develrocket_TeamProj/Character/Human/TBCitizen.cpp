@@ -24,7 +24,7 @@ ATBCitizen::ATBCitizen(const FObjectInitializer& ObjectInitializer) : Super(Obje
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-	MoveComp->MaxWalkSpeed = 450.f;
+	MoveComp->MaxWalkSpeed = WalkSpeed;
 	MoveComp->bOrientRotationToMovement = true;
 	bUseControllerRotationYaw = false;
 
@@ -82,6 +82,8 @@ void ATBCitizen::BeginPlay()
 	}
 
 	ResetVitals();
+	
+	UpdateMoveSpeed();
 
 	if (!CurrentAppearance)                          // 레벨에 직접 배치된 시민용 (풀이 이미 골랐으면 건너뜀)
 	{
@@ -271,6 +273,22 @@ void ATBCitizen::RestoreAliveState()
 		GetMesh()->SetCollisionEnabled(Defaults->GetMesh()->GetCollisionEnabled());
 	}
 	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+}
+
+void ATBCitizen::UpdateMoveSpeed()
+{
+	float NewSpeed = WalkSpeed;
+	if (IsInjured())
+	{
+		NewSpeed = InjuredWalkSpeed;
+	}
+	else if (bFleeing)
+	{
+		NewSpeed = RunSpeed;
+	}
+	
+	GetCharacterMovement()->MaxWalkSpeed = NewSpeed;
+	ForceNetUpdate();
 }
 
 void ATBCitizen::ChooseAppearance()
@@ -484,14 +502,7 @@ void ATBCitizen::HandleOutOfBlood()
 
 void ATBCitizen::HandleBleedingTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
-	// 부상 감속은 출혈 태그 기준, 해제 시 BP 기본값(CDO)으로 복구
-	if (const ATBCitizen* Defaults = GetClass()->GetDefaultObject<ATBCitizen>())
-	{
-		GetCharacterMovement()->MaxWalkSpeed = NewCount > 0
-			? InjuredWalkSpeed
-			: Defaults->GetCharacterMovement()->MaxWalkSpeed;
-	}
-	ForceNetUpdate();                                // 부상 애니메이션·속도가 바로 보이도록
+	UpdateMoveSpeed();
 }
 
 float ATBCitizen::PlayStartle()
@@ -532,5 +543,25 @@ void ATBCitizen::MulticastPlayStartle_Implementation(uint8 MontageIndex)
 	if (StartleMontages.IsValidIndex(MontageIndex) && StartleMontages[MontageIndex])
 	{
 		PlayAnimMontage(StartleMontages[MontageIndex]);
+	}
+}
+
+void ATBCitizen::SetFleeing(bool bNewFleeing)
+{
+	if (!HasAuthority() || bFleeing == bNewFleeing) return;
+	bFleeing = bNewFleeing;
+	UpdateMoveSpeed();
+}
+
+void ATBCitizenAIController::GetKnownThreats(TArray<const AActor*>& OutThreats) const
+{
+	OutThreats.Reset();
+	for (const TWeakObjectPtr<AActor>& Threat : VisibleThreats)
+	{
+		const AActor* Actor = Threat.Get();
+		if (Actor && IsThreat(Actor))   // 죽었거나 위협이 아니게 된 대상은 제외
+		{
+			OutThreats.Add(Actor);
+		}
 	}
 }
