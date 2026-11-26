@@ -110,6 +110,9 @@ void ATBCitizenAIController::OnUnPossess()
 	GetWorldTimerManager().ClearTimer(ForgetTimer);
 	GetWorldTimerManager().ClearTimer(StartleTimer);
 	EndStartleFacing();                           // Super 전에: 아직 폰이 있을 때 회전 모드 복구
+	bPanicked = false;
+	bRunning = false;
+	GetWorldTimerManager().ClearTimer(PanicTimer);
 
 	Super::OnUnPossess();
 }
@@ -144,6 +147,9 @@ void ATBCitizenAIController::StopFleeing()
 	GetWorldTimerManager().ClearTimer(ForgetTimer);    // 정리 코드
 	GetWorldTimerManager().ClearTimer(StartleTimer);
 	EndStartleFacing();
+	bPanicked = false;
+	bRunning = false;
+	GetWorldTimerManager().ClearTimer(PanicTimer);
 }
 
 void ATBCitizenAIController::HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus)
@@ -202,8 +208,6 @@ void ATBCitizenAIController::RefreshThreatKey()
 		return;
 	}
 	
-	const bool bHadThreat = BB->GetValueAsObject(ThreatActorKey) != nullptr;
-
 	// 사라진 위협 정리
 	VisibleThreats.RemoveAll([](const TWeakObjectPtr<AActor>& Threat) { return !Threat.IsValid(); });
 
@@ -224,19 +228,79 @@ void ATBCitizenAIController::RefreshThreatKey()
 	{
 		BB->SetValueAsObject(ThreatActorKey, Closest);   // 도망 분기 활성화
 	}
-	else
+	else if (!bPanicked)
 	{
-		BB->ClearValue(ThreatActorKey);                  // 평상시 분기로 복귀
+		BB->ClearValue(ThreatActorKey);                  // 놀란 적 없을 때만 평상시로 복귀 (놀란 뒤엔 마지막 위협 유지)
 	}
-	
-	if (ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn()))
+
+	if (Closest && !bPanicked)
 	{
-		Citizen->SetFleeing(Closest != nullptr);
+		bPanicked = true;
+		EnterRun(Closest);
+		GetWorldTimerManager().SetTimer(PanicTimer, this, &ThisClass::UpdatePanic, 0.3f, true);
 	}
-	
-	if (!bHadThreat && Closest)
+}
+
+float ATBCitizenAIController::GetNearestThreat(AActor*& OutThreat) const
+{
+	OutThreat = nullptr;
+	const APawn* MyPawn = GetPawn();
+	if (!MyPawn) return TNumericLimits<float>::Max();
+
+	float BestDistSq = TNumericLimits<float>::Max();
+	for (const TWeakObjectPtr<AActor>& Threat : VisibleThreats)
 	{
-		StartStartle(Closest);
+		AActor* Actor = Threat.Get();
+		if (!Actor || !IsThreat(Actor)) continue;
+
+		const float DistSq = FVector::DistSquared2D(MyPawn->GetActorLocation(), Actor->GetActorLocation());
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			OutThreat = Actor;
+		}
+	}
+	return OutThreat ? FMath::Sqrt(BestDistSq) : TNumericLimits<float>::Max();
+}
+
+void ATBCitizenAIController::EnterRun(AActor* Threat)
+{
+	ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn());
+	if (!Citizen) return;
+
+	bRunning = true;
+	Citizen->SetFleeing(true);
+
+	if (Threat)
+	{
+		if (UBlackboardComponent* BB = GetBlackboardComponent())
+		{
+			BB->SetValueAsObject(ThreatActorKey, Threat);   // 지금 가장 위험한 대상으로 갱신
+		}
+
+		if (GetWorld()->GetTimeSeconds() - LastStartleTime >= StartleCooldown)
+		{
+			StartStartle(Threat);                 // 쿨타임 중이면 놀람 없이 바로 뜀
+		}
+	}
+}
+
+void ATBCitizenAIController::UpdatePanic()
+{
+	ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn());
+	if (!Citizen) return;
+
+	AActor* Nearest = nullptr;
+	const float Dist = GetNearestThreat(Nearest);
+
+	if (bRunning && Dist > CalmDistance)
+	{
+		bRunning = false;
+		Citizen->SetFleeing(false);               // 충분히 멀어짐 → 걷기 (방향은 EQS가 계속 결정)
+	}
+	else if (!bRunning && Dist < DangerDistance)
+	{
+		EnterRun(Nearest);                        // 걷다가 위협이 다가옴 → 다시 뛰기(+놀람)
 	}
 }
 
@@ -252,6 +316,8 @@ void ATBCitizenAIController::StartStartle(AActor* Threat)
 	{
 		return;
 	}
+
+	LastStartleTime = GetWorld()->GetTimeSeconds();
 
 	StopMovement();
 
@@ -341,6 +407,10 @@ void ATBCitizenAIController::ReactivateFromPool()
 	GetWorldTimerManager().ClearTimer(ForgetTimer);
 	GetWorldTimerManager().ClearTimer(StartleTimer);
 	EndStartleFacing();
+	bPanicked = false;
+	bRunning = false;
+	LastStartleTime = -1.0e9;                     // 새 시민으로 재사용 → 쿨타임 초기화
+	GetWorldTimerManager().ClearTimer(PanicTimer);
 
 	if (UBlackboardComponent* BB = GetBlackboardComponent())
 	{
