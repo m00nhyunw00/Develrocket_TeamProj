@@ -58,6 +58,8 @@ void UTBGameplayAbility_Action::ActivateAbility(const FGameplayAbilitySpecHandle
             return;
         }
     }
+    
+    const FName StartSection = GetActionMontageStartSection();
 
     const bool bWaitForMontageEnd = ShouldWaitForMontageEnd();
     const bool bWaitForFirstPersonMontage = !ThirdPersonMontage && FirstPersonMontage && bWaitForMontageEnd;
@@ -85,6 +87,11 @@ void UTBGameplayAbility_Action::ActivateAbility(const FGameplayAbilitySpecHandle
 
             if (PlayedDuration > 0.0f)
             {
+                if (!StartSection.IsNone())
+                {
+                    AnimInstance->Montage_JumpToSection(StartSection, FirstPersonMontage);
+                }
+                
                 if (FAnimMontageInstance* MontageInstance = AnimInstance->GetActiveInstanceForMontage(FirstPersonMontage))
                 {
                     PlayingFirstPersonAnimInstance = AnimInstance;
@@ -141,7 +148,7 @@ void UTBGameplayAbility_Action::ActivateAbility(const FGameplayAbilitySpecHandle
     // 완료를 기다리지 않는 액션은 몽타주 재생 후 자식으로 복귀
     if (!bWaitForMontageEnd)
     {
-        const float PlayedDuration = ASC->PlayMontage(this, ActivationInfo, ThirdPersonMontage, 1.0f, NAME_None, 0.0f);
+        const float PlayedDuration = ASC->PlayMontage(this, ActivationInfo, ThirdPersonMontage, 1.0f, StartSection, 0.0f);
 
         if (PlayedDuration <= 0.0f)
         {
@@ -153,7 +160,7 @@ void UTBGameplayAbility_Action::ActivateAbility(const FGameplayAbilitySpecHandle
 
     // ASC를 통한 공통 전신 몽타주 재생
     MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, ThirdPersonMontage,
-        1.0f, NAME_None, true, 1.0f, 0.0f, ShouldAllowMontageInterruptAfterBlendOut());
+        1.0f, StartSection, true, 1.0f, 0.0f, ShouldAllowMontageInterruptAfterBlendOut());
 
     if (!MontageTask)
     {

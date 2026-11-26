@@ -1,5 +1,6 @@
 ﻿#include "AbilitySystem/Abilities/TBGameplayAbility_Melee.h"
 
+#include "AbilitySystemComponent.h"
 #include "Character/TBCharacterBase.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/TBMeleeTraceComponent.h"
@@ -32,6 +33,28 @@ void UTBGameplayAbility_Melee::ActivateAbility(
     {
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
+    }
+    
+    if (SequenceAvatar.Get() != Character)
+    {
+        SequenceAvatar = Character;
+        NextSectionIndex = 0;
+    }
+
+    const int32 PlayedIndex = NextSectionIndex;
+    LocalPlayedIndex = PlayedIndex;
+
+    if (!AttackSections.IsEmpty())
+    {
+        const FName Section = GetActionMontageStartSection();
+
+        if (Section.IsNone()
+            || ThirdPersonMontage->GetSectionIndex(Section) == INDEX_NONE
+            || (FirstPersonMontage && FirstPersonMontage->GetSectionIndex(Section) == INDEX_NONE))
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+            return;
+        }
     }
 
     // 서버에서만 판정 준비 및 타격 결과 구독
@@ -68,8 +91,23 @@ void UTBGameplayAbility_Melee::ActivateAbility(
 
     // 부모 Attack의 피해량 확정 및 Action의 몽타주 재생
     // 실제 판정 시작은 몽타주의 ANS에서 요청
-    Super::ActivateAbility(
-        Handle, ActorInfo, ActivationInfo, TriggerEventData);
+    Super::ActivateAbility(  Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
+
+    if (AttackSections.IsEmpty() || !ActorInfo->IsNetAuthority() || !IsActive()
+        || !IsValid(ASC) || ASC->GetAnimatingAbility() != this
+        || ASC->GetCurrentMontage() != ThirdPersonMontage)
+    {
+        return;
+    }
+
+    NextSectionIndex = (PlayedIndex + 1) % AttackSections.Num();
+
+    if (!ActorInfo->IsLocallyControlled() && Character->GetNetConnection())
+    {
+        ClientConfirmAttackSection(Character, ActivationInfo.GetActivationPredictionKey(), PlayedIndex);
+    }
 }
 
 void UTBGameplayAbility_Melee::HandleMeleeHit(const FHitResult& HitResult)
@@ -125,3 +163,47 @@ void UTBGameplayAbility_Melee::EndAbility(
         Handle, ActorInfo, ActivationInfo,
         bReplicateEndAbility, bWasCancelled);
 }
+
+FName UTBGameplayAbility_Melee::GetActionMontageStartSection() const
+{
+    return AttackSections.IsValidIndex(NextSectionIndex) ? AttackSections[NextSectionIndex] : NAME_None;
+}
+
+void UTBGameplayAbility_Melee::ClientConfirmAttackSection_Implementation(AActor* Avatar, FPredictionKey PredictionKey, int32 PlayedIndex)
+{
+    if (!CurrentActorInfo || !IsValid(Avatar)
+        || CurrentActorInfo->AvatarActor.Get() != Avatar
+        || !AttackSections.IsValidIndex(PlayedIndex))
+    {
+        return;
+    }
+
+    SequenceAvatar = Avatar;
+    NextSectionIndex = (PlayedIndex + 1) % AttackSections.Num();
+
+    // 늦게 도착한 확인은 다음 타수만 갱신한다.
+    // 현재 실행의 예측이 달랐을 때만 재생 중인 섹션을 보정한다.
+    if (!IsActive() || LocalPlayedIndex == PlayedIndex
+        || !(GetCurrentActivationInfo().GetActivationPredictionKey() == PredictionKey))
+    {
+        return;
+    }
+
+    LocalPlayedIndex = PlayedIndex;
+    const FName Section = AttackSections[PlayedIndex];
+
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+    UAnimInstance* BodyAnim = CurrentActorInfo->GetAnimInstance();
+    if (IsValid(ASC) && ASC->GetAnimatingAbility() == this
+        && BodyAnim && BodyAnim->Montage_IsPlaying(ThirdPersonMontage))
+    {
+        BodyAnim->Montage_JumpToSection(Section, ThirdPersonMontage);
+    }
+
+    UAnimInstance* ArmsAnim = GetFirstPersonAnimInstance();
+    if (FirstPersonMontage && ArmsAnim && ArmsAnim->Montage_IsPlaying(FirstPersonMontage))
+    {
+        ArmsAnim->Montage_JumpToSection(Section, FirstPersonMontage);
+    }
+}
+

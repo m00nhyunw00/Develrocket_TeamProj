@@ -1,13 +1,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "AbilitySystemInterface.h"
+#include "ActiveGameplayEffectHandle.h"  
 #include "GameFramework/Character.h"
+#include "AbilitySystemInterface.h"
 #include "Interface/TBPoolInterface.h"
 #include "Interface/TBHitInterface.h"
 #include "Interface/TBCombatInterface.h"
 #include "TBCharacterBase.generated.h"
 
+struct FActiveGameplayEffectHandle;
 class ATBProjectile;
 struct FTBAttackData;
 class UTBMeleeTraceComponent;
@@ -35,6 +37,19 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	
 	UTBAbilitySystemComponent* GetTBAbilitySystemComponent() const;
+	
+	// 무적 상태 처리 ----------------------
+	
+	// 자신에게 무적 GE를 적용하고 이번 효과의 핸들을 반환
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Combat|Invulnerability")
+	FActiveGameplayEffectHandle ApplyInvulnerability();
+
+	// 전달받은 핸들에 해당하는 무적만 해제
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Combat|Invulnerability")
+	void RemoveInvulnerability(FActiveGameplayEffectHandle Handle);
+
+	// 서버의 3인칭 몽타주에서 발생한 무적 구간 시작·종료 처리
+	void SetMontageInvulnerability(const FBranchingPointNotifyPayload& Payload, const UAnimNotifyState* Window, bool bBegin);
 	
 	// 공통 행동 상태 조회 ----------------------
 
@@ -110,6 +125,10 @@ protected:
 	// 몬스터는 직접 생성하고 플레이어는 PlayerState에서 연결하는 공통 ASC 참조
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
 	TObjectPtr<UTBAbilitySystemComponent> AbilitySystemComponent;
+	
+	// 이 캐릭터의 무적 부여에 사용할 공용 GE
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Invulnerability")
+	TSubclassOf<UGameplayEffect> InvulnerabilityEffectClass;
 
 	// 공통 피격 처리 및 자식 클래스 확장 ----------------------
 
@@ -153,4 +172,12 @@ protected:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Heal")
 	TObjectPtr<UTBHealComponent> HealComponent;
+	
+private:
+	// 같은 몽타주를 다시 재생해도 이전 재생의 종료 알림과 구분
+	using FInvulnerabilityWindowKey = TPair<int32, const UAnimNotifyState*>;
+
+	TMap<FInvulnerabilityWindowKey, FActiveGameplayEffectHandle> InvulnerabilityWindows;
+
+	void CloseInvulnerabilityWindow(const FInvulnerabilityWindowKey& Key);
 };

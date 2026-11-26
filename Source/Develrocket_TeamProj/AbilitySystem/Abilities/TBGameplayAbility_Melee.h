@@ -32,8 +32,24 @@ public:
 		FGameplayAbilityActivationInfo ActivationInfo,
 		bool bReplicateEndAbility,
 		bool bWasCancelled) override;
+	
+protected:
+	// 기본 공격을 사용할 때마다 순환할 몽타주 섹션
+	UPROPERTY(EditDefaultsOnly, Category = "Combat|Attack")
+	TArray<FName> AttackSections;
+
+	virtual FName GetActionMontageStartSection() const override;
 
 private:
+	// 서버에서 실제 재생한 타수를 소유 클라이언트에 전달
+	UFUNCTION(Client, Reliable)
+	void ClientConfirmAttackSection(AActor* Avatar, FPredictionKey PredictionKey, int32 PlayedIndex);
+
+	// 같은 PlayerState에서 새 캐릭터로 교체된 경우 첫 타부터 시작
+	TWeakObjectPtr<AActor> SequenceAvatar;
+	int32 NextSectionIndex = 0;
+	int32 LocalPlayedIndex = INDEX_NONE;
+	
 	void HandleMeleeHit(const FHitResult& HitResult);
 
 	TWeakObjectPtr<UTBMeleeTraceComponent> ActiveTrace;
