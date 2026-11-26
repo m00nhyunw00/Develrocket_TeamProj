@@ -80,6 +80,7 @@ public:
 
 	TSubclassOf<UGameplayAbility> GetMeleeAbilityClass() const { return MeleeAbilityClass; }
 	float GetMeleeAttackRange() const { return MeleeAttackRange; }
+	float GetCombatWaitingExtraDistance() const { return CombatWaitingExtraDistance; }
 	bool IsSummonedMonster() const { return SummonedBaseStats.IsSet(); }
 	double GetMeleeDistanceSquaredTo(const AActor& Target) const;
 	const UTBMonsterSkillSet* GetSkillSet() const { return SkillSet; }
@@ -137,6 +138,10 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Behavior")
 	ETBMonsterBehavior MonsterBehavior = ETBMonsterBehavior::Automatic;
+
+	// Added to the safe waiting radius while the target's attack tokens are occupied.
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Combat", meta = (ClampMin = "0.0", Units = "cm"))
+	float CombatWaitingExtraDistance = 100.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Abilities")
 	TArray<TSubclassOf<UGameplayAbility>> StartupAbilities;

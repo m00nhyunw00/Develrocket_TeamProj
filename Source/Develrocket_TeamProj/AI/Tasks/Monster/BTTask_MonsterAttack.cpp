@@ -25,6 +25,7 @@ UBTTask_MonsterAttack::UBTTask_MonsterAttack()
 	NodeName = TEXT("TB Monster Attack");
 	bCreateNodeInstance = true;
 	bNotifyTick = true;
+	bNotifyTaskFinished = true;
 	BlackboardKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(ThisClass, BlackboardKey), AActor::StaticClass());
 	BlackboardKey.SelectedKeyName = TEXT("TargetActor");
 }
@@ -32,8 +33,13 @@ UBTTask_MonsterAttack::UBTTask_MonsterAttack()
 bool UBTTask_MonsterAttack::HasUsableAttack(UBehaviorTreeComponent& OwnerComp) const
 {
 	const AAIController* Controller = OwnerComp.GetAIOwner();
-	const ATBMonster* Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
-	return FindUsableAttack(Monster, OwnerComp.GetBlackboardComponent()).IsValid();
+	ATBMonster* Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
+	const UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
+	if (!FindUsableAttack(Monster, Blackboard).IsValid()) return false;
+
+	AActor* Target = CastChecked<AActor>(Blackboard->GetValueAsObject(BlackboardKey.SelectedKeyName));
+	UTBCombatTokenSubsystem* Tokens = Monster->GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>();
+	return Tokens && Tokens->CanRequestAttack(*Monster, *Target);
 }
 
 FGameplayAbilitySpecHandle UBTTask_MonsterAttack::FindUsableAttack(const ATBMonster* Monster, const UBlackboardComponent* Blackboard) const
@@ -84,7 +90,14 @@ EBTNodeResult::Type UBTTask_MonsterAttack::ExecuteTask(UBehaviorTreeComponent& O
 	const FGameplayAbilitySpecHandle Handle = FindUsableAttack(Monster, OwnerComp.GetBlackboardComponent());
 	if (!Handle.IsValid()) return EBTNodeResult::Failed;
 
-	PreparationTarget = Cast<AActor>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BlackboardKey.SelectedKeyName));
+	AActor* Target = CastChecked<AActor>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BlackboardKey.SelectedKeyName));
+	UTBCombatTokenSubsystem* Tokens = Monster->GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>();
+	if (!Tokens) return EBTNodeResult::Failed;
+	AttackToken = Tokens->TryAcquire(*Monster, *Target, *Monster->GetAbilitySystemComponent(), Handle);
+	if (!AttackToken.Id) return EBTNodeResult::Failed;
+
+	PreparationTarget = Target;
+	PreparedHandle = Handle;
 	PreparationTimeRemaining = AttackPreparationSeconds;
 	if (UPathFollowingComponent* PathFollowing = Controller->GetPathFollowingComponent())
 	{
@@ -143,7 +156,8 @@ void UBTTask_MonsterAttack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* N
 
 	const FGameplayAbilitySpecHandle Handle = FindUsableAttack(Monster, Blackboard);
 	PreparationTarget.Reset();
-	const EBTNodeResult::Type Result = Handle.IsValid()
+	const UTBCombatTokenSubsystem* Tokens = Monster->GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>();
+	const EBTNodeResult::Type Result = Handle == PreparedHandle && Tokens && Tokens->IsHeld(AttackToken)
 		? StartAttack(OwnerComp, *Monster, *Target, Handle) : EBTNodeResult::Failed;
 	if (Result != EBTNodeResult::InProgress) FinishLatentTask(OwnerComp, Result);
 }
@@ -251,6 +265,17 @@ EBTNodeResult::Type UBTTask_MonsterAttack::AbortTask(UBehaviorTreeComponent& Own
 	ClearAbilityBinding();
 	if (IsValid(ASC) && Handle.IsValid()) ASC->CancelAbilityHandle(Handle);
 	return EBTNodeResult::Aborted;
+}
+
+void UBTTask_MonsterAttack::OnTaskFinished(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTNodeResult::Type TaskResult)
+{
+	UWorld* World = OwnerComp.GetWorld();
+	if (UTBCombatTokenSubsystem* Tokens = World ? World->GetSubsystem<UTBCombatTokenSubsystem>() : nullptr)
+	{
+		Tokens->ReleaseIfInactive(AttackToken);
+	}
+	AttackToken = {};
+	Super::OnTaskFinished(OwnerComp, NodeMemory, TaskResult);
 }
 
 void UBTTask_MonsterAttack::ClearAbilityBinding()

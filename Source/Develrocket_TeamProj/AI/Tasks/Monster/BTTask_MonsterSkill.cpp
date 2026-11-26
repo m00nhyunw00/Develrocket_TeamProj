@@ -8,6 +8,7 @@
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Leap.h"
 #include "AbilitySystem/Abilities/Monster/VampireHunter/TBGameplayAbility_VampireHunter_Hitscan.h"
 #include "AI/TBMonsterSkillSet.h"
+#include "AI/TBCombatTokenSubsystem.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Monster/TBMonster.h"
@@ -23,6 +24,7 @@ struct FSkillContext
 	AActor* Target = nullptr;
 	UAbilitySystemComponent* ASC = nullptr;
 	const UTBMonsterSkillSet* SkillSet = nullptr;
+	UTBCombatTokenSubsystem* Tokens = nullptr;
 	double DistanceSquared = 0.0;
 
 	bool Initialize(UBehaviorTreeComponent& OwnerComp, FName TargetKey)
@@ -47,7 +49,8 @@ struct FSkillContext
 			return false;
 		}
 		DistanceSquared = FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation());
-		return true;
+		Tokens = Monster->GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>();
+		return Tokens != nullptr;
 	}
 };
 
@@ -124,11 +127,12 @@ bool UBTTask_MonsterSkill::HasUsableSkill(UBehaviorTreeComponent& OwnerComp) con
 		return false;
 	}
 
-	return Context.SkillSet->Skills.ContainsByPredicate([&Context](const FTBMonsterSkillEntry& Skill)
+	const bool bHasUsableSkill = Context.SkillSet->Skills.ContainsByPredicate([&Context](const FTBMonsterSkillEntry& Skill)
 	{
 		return IsSkillInRange(Skill, Context.DistanceSquared)
 			&& FindUsableSpec(*Context.ASC, Skill, Context.Monster, Context.Target);
 	});
+	return bHasUsableSkill && Context.Tokens->CanRequestAttack(*Context.Monster, *Context.Target);
 }
 
 UBTTask_MonsterSkill::EMovingSkillResult UBTTask_MonsterSkill::TryUseSkillDuringHunterMovement(UBehaviorTreeComponent& OwnerComp) const
@@ -148,12 +152,16 @@ UBTTask_MonsterSkill::EMovingSkillResult UBTTask_MonsterSkill::TryUseSkillDuring
 		}
 		if (Skill->bStopMovement || !Spec->Ability->IsA<UTBGameplayAbility_VampireHunter_Hitscan>())
 		{
-			return EMovingSkillResult::RequiresTask;
+			return Context.Tokens->CanRequestAttack(*Context.Monster, *Context.Target)
+				? EMovingSkillResult::RequiresTask : EMovingSkillResult::Unavailable;
 		}
+		const FTBCombatToken Token = Context.Tokens->TryAcquire(*Context.Monster, *Context.Target, *Context.ASC, Spec->Handle);
+		if (!Token.Id) return EMovingSkillResult::Unavailable;
 		if (ActivateSkill(Context, *Skill, Spec->Handle))
 		{
 			return EMovingSkillResult::Activated;
 		}
+		Context.Tokens->ReleaseIfInactive(Token);
 	}
 	return EMovingSkillResult::Unavailable;
 }
@@ -173,6 +181,8 @@ EBTNodeResult::Type UBTTask_MonsterSkill::ExecuteTask(UBehaviorTreeComponent& Ow
 		FGameplayAbilitySpec* Spec = FindUsableSpec(*ASC, *Skill, Context.Monster, Context.Target);
 		if (!Spec)
 			continue;
+		const FTBCombatToken Token = Context.Tokens->TryAcquire(*Context.Monster, *Context.Target, *ASC, Spec->Handle);
+		if (!Token.Id) return EBTNodeResult::Failed;
 		if (Skill->bStopMovement)
 		{
 			Context.Controller->StopMovement();
@@ -198,6 +208,7 @@ EBTNodeResult::Type UBTTask_MonsterSkill::ExecuteTask(UBehaviorTreeComponent& Ow
 		const bool bActivated = ActivateSkill(Context, *Skill, ActiveHandle);
 		bActivating = false;
 		if (bActivated && !bEndedDuringActivation) return EBTNodeResult::InProgress;
+		Context.Tokens->ReleaseIfInactive(Token);
 		const bool bSuccess = bActivated && bEndedDuringActivation && !bCancelledDuringActivation;
 		ClearAbilityBinding();
 		if (bSuccess && RecoveryAfterSkill > 0.0f)

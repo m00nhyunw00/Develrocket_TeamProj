@@ -8,6 +8,8 @@
 class UAISenseConfig_Sight;
 class ATBMonster;
 class UAbilitySystemComponent;
+class UBehaviorTreeComponent;
+class UBTTask_MoveTo;
 struct FGameplayTag;
 
 UCLASS()
@@ -21,6 +23,7 @@ public:
 	virtual ETeamAttitude::Type GetTeamAttitudeTowards(const AActor& Other) const override;
 	virtual bool RunBehaviorTree(UBehaviorTree* BTAsset) override;
 	virtual FPathFollowingRequestResult MoveTo(const FAIMoveRequest& MoveRequest, FNavPathSharedPtr* OutPath = nullptr) override;
+	void RefreshCombatPursuit(UBehaviorTreeComponent& Tree, const UBTTask_MoveTo& MoveNode);
 	bool WantsCombatRetreat(const AActor& Target) const;
 	bool TryAnasimusBackstep(AActor& Target);
 	bool IsAnasimusBackstepping() const { return AnasimusMoveID.IsValid() && PreviousBackstepSpeed.IsSet(); }
@@ -82,6 +85,11 @@ protected:
 	float SightDebugInterval = 0.2f;
 
 private:
+	bool ShouldUseCombatWaitingMove(const ATBMonster& Monster, const AActor& Target) const;
+	FPathFollowingRequestResult MoveAroundCombatTarget(const FAIMoveRequest& MoveRequest, ATBMonster& Monster,
+		AActor& Target, FNavPathSharedPtr* OutPath);
+	void FinishCombatWaitingMove(bool bAbortMove);
+	void ClearCombatWaitingSlot();
 	FPathFollowingRequestResult MoveAnasimusTowardTarget(const FAIMoveRequest& MoveRequest, AActor& Target,
 		ATBMonster& Monster, FNavPathSharedPtr* OutPath);
 	FPathFollowingRequestResult RequestAnasimusMove(FAIMoveRequest Request, AActor& Target, FNavPathSharedPtr* OutPath);
@@ -95,6 +103,16 @@ private:
 	bool bDamagePriorityTarget = false;
 	bool bPoolSuspended = false;
 	FTimerHandle SightDebugTimer;
+	FAIRequestID CombatWaitingMoveID;
+	FVector WaitingPlanTargetLocation = FVector::ZeroVector;
+	double NextWaitingPlanTime = 0.0;
+	int32 CombatWaitingSlot = INDEX_NONE;
+	int32 WaitingOrbitDirection = 1;
+	bool bCombatStandOff = false;
+	bool bPreviousWaitingAllowStrafe = false;
+	bool bPreviousWaitingOrientToMovement = false;
+	bool bPreviousWaitingUseControllerRotation = false;
+	bool bPreviousWaitingUseControllerYaw = false;
 	double NextCombatRepositionTime = 0.0;
 	FAIRequestID AnasimusMoveID;
 	TOptional<float> PreviousBackstepSpeed;
