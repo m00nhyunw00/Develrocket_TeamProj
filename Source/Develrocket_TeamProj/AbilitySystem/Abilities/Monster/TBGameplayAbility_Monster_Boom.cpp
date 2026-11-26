@@ -1,11 +1,10 @@
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Boom.h"
-#include "AIController.h"
 
 #include "AbilitySystemComponent.h"
+#include "AbilitySystem/Attributes/TBMonsterAttributeSet.h"
 #include "AI/TBAIMovementVisibilitySubsystem.h"
 #include "AIController.h"
 #include "Animation/AnimMontage.h"
-#include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Human/TBCitizen.h"
 #include "Character/Monster/TBMonster.h"
 #include "Character/Player/TBPlayer.h"
@@ -20,9 +19,17 @@
 
 namespace
 {
+constexpr float BoomHealthThreshold = 0.4f;
+
 bool IsBoomVictim(const AActor* Actor)
 {
 	return IsValid(Actor) && (Actor->IsA<ATBPlayer>() || Actor->IsA<ATBMonster>() || Actor->IsA<ATBCitizen>());
+}
+
+bool IsLivingBoomTarget(const ATBCharacterBase* Target)
+{
+	const UAbilitySystemComponent* ASC = IsBoomVictim(Target) ? Target->GetAbilitySystemComponent() : nullptr;
+	return IsValid(ASC) && ASC->GetAvatarActor() == Target && !ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
 }
 }
 
@@ -36,19 +43,24 @@ UTBGameplayAbility_Monster_Boom::UTBGameplayAbility_Monster_Boom()
 
 bool UTBGameplayAbility_Monster_Boom::CanUseAgainst(const ATBMonster* Monster, const AActor* Target) const
 {
-	const ATBPlayer* Player = Cast<ATBPlayer>(Target);
-	const UAbilitySystemComponent* TargetASC = IsValid(Player) ? Player->GetAbilitySystemComponent() : nullptr;
-	const bool bCanJump = IsValid(Monster) && Monster->HasAuthority() && !Monster->IsDead() && IsValid(TargetASC)
-		&& TargetASC->GetAvatarActor() == Player && !TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-		&& Monster->GetWorld() == Player->GetWorld() && Monster->GetMesh()->GetAnimInstance()
-		&& ThirdPersonMontage && FMath::IsFinite(ExplosionRadius) && ExplosionRadius > 0.f
-		&& FMath::IsFinite(ExplosionDamage) && ExplosionDamage > 0.f;
-	if (!bCanJump) return false;
+	if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead() || Target == Monster
+		|| !IsLivingBoomTarget(Cast<ATBCharacterBase>(Target)) || Monster->GetWorld() != Target->GetWorld()
+		|| !Monster->GetMesh()->GetAnimInstance() || !ThirdPersonMontage
+		|| !FMath::IsFinite(ExplosionRadius) || ExplosionRadius <= 0.f
+		|| !FMath::IsFinite(ExplosionDamage) || ExplosionDamage <= 0.f)
+	{
+		return false;
+	}
+
+	const UAbilitySystemComponent* ASC = Monster->GetAbilitySystemComponent();
+	const UTBMonsterAttributeSet* Attributes = IsValid(ASC) ? ASC->GetSet<UTBMonsterAttributeSet>() : nullptr;
+	if (!Attributes) return false;
+	const float Blood = Attributes->GetBlood();
+	const float MaxBlood = Attributes->GetMaxBlood();
+	if (!(MaxBlood > 0.f && Blood > 0.f && Blood <= MaxBlood * BoomHealthThreshold)) return false;
 
 	const AAIController* Controller = Cast<AAIController>(Monster->GetController());
-	return Controller && Controller->LineOfSightTo(Player)
-		&& (Monster->GetMonsterBehavior() != ETBMonsterBehavior::SpideEye
-			|| FVector::DistSquared2D(Monster->GetActorLocation(), Player->GetActorLocation()) >= FMath::Square(230.0));
+	return Controller && Controller->LineOfSightTo(Target);
 }
 
 void UTBGameplayAbility_Monster_Boom::ActivateAbility(FGameplayAbilitySpecHandle Handle,
@@ -56,7 +68,8 @@ void UTBGameplayAbility_Monster_Boom::ActivateAbility(FGameplayAbilitySpecHandle
 	const FGameplayEventData* TriggerEventData)
 {
 	ATBMonster* Monster = ActorInfo ? Cast<ATBMonster>(ActorInfo->AvatarActor.Get()) : nullptr;
-	if (!CanUseAgainst(Monster, TriggerEventData ? TriggerEventData->Target.Get() : nullptr))
+	const auto* Target = TriggerEventData ? Cast<ATBCharacterBase>(TriggerEventData->Target.Get()) : nullptr;
+	if (!CanUseAgainst(Monster, Target))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
@@ -64,6 +77,7 @@ void UTBGameplayAbility_Monster_Boom::ActivateAbility(FGameplayAbilitySpecHandle
 
 	bDetonated = false;
 	bJumped = false;
+	JumpTarget = Target;
 	BlockingImpact.Reset();
 	USkeletalMeshComponent* Mesh = Monster->GetMesh();
 	OriginalAnimTickOption = Mesh->VisibilityBasedAnimTickOption;
@@ -76,16 +90,20 @@ void UTBGameplayAbility_Monster_Boom::JumpForward(const UAnimSequenceBase* Anima
 {
 	ATBMonster* Monster = Cast<ATBMonster>(GetAvatarActorFromActorInfo());
 	if (!IsActive() || bJumped || bDetonated || Animation != ThirdPersonMontage || !IsValid(Monster)
-		|| !FMath::IsFinite(JumpTravelTime) || JumpTravelTime < 0.05f)
+		|| !Monster->HasAuthority() || Monster->IsDead())
 	{
 		return;
 	}
 
-	const AAIController* Controller = Cast<AAIController>(Monster->GetController());
-	const UBlackboardComponent* Blackboard = Controller ? Controller->GetBlackboardComponent() : nullptr;
-	const auto* Target = Blackboard ? Cast<ATBPlayer>(Blackboard->GetValueAsObject(TEXT("TargetActor"))) : nullptr;
+	const ATBCharacterBase* Target = JumpTarget.Get();
 	auto* Movement = Monster->GetMonsterMovement();
-	if (!CanUseAgainst(Monster, Target) || !Movement || Movement->MovementMode == MOVE_None)
+	if (!IsLivingBoomTarget(Target) || Target->GetWorld() != Monster->GetWorld() || !Movement || Movement->MovementMode == MOVE_None)
+	{
+		return;
+	}
+	const double Gravity = -Movement->GetGravityZ();
+	if (!FMath::IsFinite(Gravity) || Gravity <= UE_SMALL_NUMBER || !FMath::IsFinite(JumpTravelTime)
+		|| JumpTravelTime < 0.05f || !FMath::IsFinite(JumpApexHeight) || JumpApexHeight < 1.0f)
 	{
 		return;
 	}
@@ -93,9 +111,16 @@ void UTBGameplayAbility_Monster_Boom::JumpForward(const UAnimSequenceBase* Anima
 	FVector Offset = Target->GetActorLocation() - Monster->GetActorLocation();
 	Offset.Z += Monster->GetCapsuleComponent()->GetScaledCapsuleHalfHeight()
 		- Target->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-	const double HorizontalSpeed = Offset.Size2D() / JumpTravelTime;
-	FVector Velocity = Monster->GetActorForwardVector().GetSafeNormal2D() * HorizontalSpeed;
-	Velocity.Z = Offset.Z / JumpTravelTime - 0.5 * Movement->GetGravityZ() * JumpTravelTime;
+	const double Apex = FMath::Max(0.0, Offset.Z) + JumpApexHeight;
+	const double ApexTravelTime = FMath::Sqrt(2.0 * Apex / Gravity) + FMath::Sqrt(2.0 * (Apex - Offset.Z) / Gravity);
+	const double FlightTime = FMath::Max(static_cast<double>(JumpTravelTime), ApexTravelTime);
+	const FVector Velocity(Offset.X / FlightTime, Offset.Y / FlightTime, Offset.Z / FlightTime + Gravity * FlightTime * 0.5);
+	if (Offset.SizeSquared2D() > UE_SMALL_NUMBER)
+	{
+		FRotator Rotation = Monster->GetActorRotation();
+		Rotation.Yaw = Offset.Rotation().Yaw;
+		Monster->SetActorRotation(Rotation);
+	}
 
 	bJumped = true;
 	Monster->OnCharacterMovementUpdated.AddUniqueDynamic(this, &ThisClass::HandleMovementUpdated);
@@ -143,9 +168,7 @@ void UTBGameplayAbility_Monster_Boom::HandleMovementUpdated(float DeltaSeconds, 
 		FCollisionQueryParams(SCENE_QUERY_STAT(MonsterBoomContact), false, Monster));
 	for (const FHitResult& Contact : Contacts)
 	{
-		const auto* Other = Cast<ATBCharacterBase>(Contact.GetActor());
-		const UAbilitySystemComponent* ASC = IsBoomVictim(Other) ? Other->GetAbilitySystemComponent() : nullptr;
-		if (IsValid(ASC) && ASC->GetAvatarActor() == Other && !ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
+		if (IsLivingBoomTarget(Cast<ATBCharacterBase>(Contact.GetActor())))
 		{
 			Detonate(*Monster, Contact);
 			return;
@@ -338,6 +361,7 @@ void UTBGameplayAbility_Monster_Boom::EndAbility(FGameplayAbilitySpecHandle Hand
 	}
 	bSavedAnimTickOption = false;
 	bJumped = false;
+	JumpTarget.Reset();
 	BlockingImpact.Reset();
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

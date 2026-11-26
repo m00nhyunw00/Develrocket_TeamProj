@@ -7,11 +7,13 @@
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBMonsterAttributeSet.h"
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Stagger.h"
+#include "AbilitySystem/Abilities/Monster/VampireHunter/TBGameplayAbility_VampireHunter_Sword.h"
 #include "BrainComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Player/TBPlayer.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/TBMonsterMovementComponent.h"
+#include "Components/TBHunterCombatComponent.h"
 #include "Components/TBMeleeTraceComponent.h"
 #include "Components/TBSpawnManagerComponent.h"
 #include "Components/TBRotationComponent.h"
@@ -49,6 +51,7 @@ ATBMonster::ATBMonster(const FObjectInitializer& ObjectInitializer)
 	MonsterAttributes = CreateDefaultSubobject<UTBMonsterAttributeSet>(TEXT("MonsterAttributes"));
 	AbilitySystemComponent->AddAttributeSetSubobject(MonsterAttributes.Get());
 	AttackRotationComponent = CreateDefaultSubobject<UTBRotationComponent>(TEXT("MonsterAttackRotation"));
+	HunterCombatComponent = CreateDefaultSubobject<UTBHunterCombatComponent>(TEXT("HunterCombat"));
 
 	// 기본 AIController 사용 및 서버의 자동 빙의 설정
 	AIControllerClass = ATBMonsterAIController::StaticClass();
@@ -189,6 +192,10 @@ void ATBMonster::InitializeGameplayData()
 	}
 
 	AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
+	if (GetMonsterBehavior() == ETBMonsterBehavior::Hunter)
+	{
+		AbilitySystemComponent->AddCharacterAbilities({UTBGameplayAbility_VampireHunter_Sword::StaticClass()});
+	}
 }
 
 const FTBMonsterStatsRow* ATBMonster::FindMonsterStats() const
@@ -212,6 +219,7 @@ FName ATBMonster::ResolveMonsterStatsRow() const
 ETBMonsterBehavior ATBMonster::GetMonsterBehavior() const
 {
 	if (MonsterBehavior != ETBMonsterBehavior::Automatic) return MonsterBehavior;
+	if (AIControllerClass && AIControllerClass->IsChildOf<ATBHunterAIController>()) return ETBMonsterBehavior::Hunter;
 
 	static const TMap<FName, ETBMonsterBehavior> BehaviorsByRow = {
 		{TEXT("Boris"), ETBMonsterBehavior::Boris},
@@ -605,6 +613,7 @@ void ATBMonster::OnPoolDeactivated_Implementation()
 	if (BloodBarComponent) BloodBarComponent->ClearSelectionsForPooledActor();
 	GetCharacterMovement()->StopMovementImmediately();
 	if (AbilitySystemComponent) AbilitySystemComponent->CancelAllAbilities();
+	HunterCombatComponent->ResetPhase();
 }
 
 

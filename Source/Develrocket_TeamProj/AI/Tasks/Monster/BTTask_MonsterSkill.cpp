@@ -12,6 +12,7 @@
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Monster/TBMonster.h"
+#include "Components/TBHunterCombatComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TBGameplayTags.h"
 
@@ -33,7 +34,8 @@ struct FSkillContext
 		Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
 		const UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
 		Target = Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(TargetKey)) : nullptr;
-		if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead() || !IsValid(Target))
+		if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead() || !IsValid(Target)
+			|| !Monster->GetHunterCombatComponent()->CanStartRifleAttack())
 		{
 			return false;
 		}
