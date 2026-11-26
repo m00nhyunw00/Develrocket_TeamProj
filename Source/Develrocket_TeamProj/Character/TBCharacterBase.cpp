@@ -75,6 +75,74 @@ UTBAbilitySystemComponent* ATBCharacterBase::GetTBAbilitySystemComponent() const
     return AbilitySystemComponent.Get();
 }
 
+FActiveGameplayEffectHandle ATBCharacterBase::ApplyInvulnerability()
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    if (!HasAuthority() || !IsValid(ASC) || ASC->GetAvatarActor() != this || !InvulnerabilityEffectClass)
+    {
+        return {};
+    }
+
+    FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+    Context.AddSourceObject(this);
+
+    return ASC->ApplyGameplayEffectToSelf(InvulnerabilityEffectClass.GetDefaultObject(), 1.0f, Context);
+}
+
+void ATBCharacterBase::RemoveInvulnerability(FActiveGameplayEffectHandle Handle)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    if (HasAuthority() && IsValid(ASC) && Handle.IsValid() && Handle.GetOwningAbilitySystemComponent() == ASC)
+    {
+        ASC->RemoveActiveGameplayEffect(Handle);
+    }
+}
+
+void ATBCharacterBase::SetMontageInvulnerability(const FBranchingPointNotifyPayload& Payload, const UAnimNotifyState* Window, bool bBegin)
+{
+    if (!HasAuthority() || !Window || !Payload.SkelMeshComponent
+        || Payload.SkelMeshComponent != GetMesh() || Payload.MontageInstanceID == INDEX_NONE)
+    {
+        return;
+    }
+
+    const FInvulnerabilityWindowKey Key(Payload.MontageInstanceID, Window);
+
+    // 종료 시점에는 몽타주가 이미 중단되었을 수 있으므로 키만으로 정리
+    if (!bBegin)
+    {
+        CloseInvulnerabilityWindow(Key);
+        return;
+    }
+
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    UAnimInstance* Anim = GetMesh()->GetAnimInstance();
+    UAnimMontage* Montage = Cast<UAnimMontage>(Payload.SequenceAsset);
+    UGameplayAbility* Ability = IsValid(ASC) ? ASC->GetAnimatingAbility() : nullptr;
+    FAnimMontageInstance* Instance = Anim && Montage ? Anim->GetActiveInstanceForMontage(Montage) : nullptr;
+
+    // 현재 이 캐릭터의 어빌리티가 재생하는 몽타주인지 확인
+    if (!IsValid(Ability) || !Ability->IsActive() || ASC->GetCurrentMontage() != Montage
+        || !Instance || Instance->GetInstanceID() != Payload.MontageInstanceID
+        || InvulnerabilityWindows.Contains(Key))
+    {
+        return;
+    }
+
+    const FActiveGameplayEffectHandle Handle = ApplyInvulnerability();
+    if (!Handle.IsValid())
+    {
+        return;
+    }
+
+    InvulnerabilityWindows.Add(Key, Handle);
+    Ability->OnGameplayAbilityEnded.AddWeakLambda(this,
+        [this, Key](UGameplayAbility*)
+        {
+            CloseInvulnerabilityWindow(Key);
+        });
+}
+
 UTBMeleeTraceComponent* ATBCharacterBase::GetMeleeTraceComponent() const
 {
     return MeleeTraceComponent.Get();
@@ -175,6 +243,14 @@ void ATBCharacterBase::InitializeAbilitySystem(UAbilitySystemComponent* InASC, A
 void ATBCharacterBase::UninitializeAbilitySystem()
 {
     if (BloodBarComponent) BloodBarComponent->UnbindAbilitySystem();
+    
+    TArray<FInvulnerabilityWindowKey> WindowKeys;
+    InvulnerabilityWindows.GetKeys(WindowKeys);
+    for (const FInvulnerabilityWindowKey& Key : WindowKeys)
+    {
+        CloseInvulnerabilityWindow(Key);
+    }
+    
     if (IsValid(AbilitySystemComponent.Get()) && AbilitySystemComponent->GetAvatarActor() == this)
     {
         // 이전 Pawn에서 실행 중인 전투 Ability 취소
@@ -198,7 +274,10 @@ bool ATBCharacterBase::ReceiveAttackHit_Implementation(float Damage, AActor* Dam
     UAbilitySystemComponent* TargetASC = GetAbilitySystemComponent();
     const TSubclassOf<UGameplayEffect> EffectClass = GetAttackDamageEffect();
     
-    if (!HasAuthority() || !IsValid(TargetASC) || !EffectClass || !FMath::IsFinite(Damage) || Damage <= 0.0f || !CanReceiveAttack(Damage))
+    if (!HasAuthority() || !IsValid(TargetASC) || !EffectClass
+        || !FMath::IsFinite(Damage) || Damage <= 0.0f
+        || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable)
+        || !CanReceiveAttack(Damage))
     {
         return false;
     }
@@ -287,6 +366,15 @@ void ATBCharacterBase::ClearHitImpactDecals_Implementation()
         {
             Decal->DestroyComponent();
         }
+    }
+}
+
+void ATBCharacterBase::CloseInvulnerabilityWindow(const FInvulnerabilityWindowKey& Key)
+{
+    FActiveGameplayEffectHandle Handle;
+    if (InvulnerabilityWindows.RemoveAndCopyValue(Key, Handle))
+    {
+        RemoveInvulnerability(Handle);
     }
 }
 

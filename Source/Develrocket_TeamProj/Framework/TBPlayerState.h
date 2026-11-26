@@ -71,6 +71,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|PrimaryAttack", meta = (ClampMin = "0.0"))
 	float PrimaryAttackDamage = 10.0f;
 
+	// 우클릭을 공격으로 사용하는 캐릭터의 피해량
+	UPROPERTY(EditDefaultsOnly, Category = "GAS|SecondaryAttack", meta = (ClampMin = "0.0"))
+	float SecondaryAttackDamage = 0.0f;
+	
 	// F키 근접 공격 피해량
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|MeleeAttack", meta = (ClampMin = "0.0"))
 	float MeleeAttackDamage = 20.0f;

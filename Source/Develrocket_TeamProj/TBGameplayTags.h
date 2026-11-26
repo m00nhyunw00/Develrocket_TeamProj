@@ -20,9 +20,9 @@ namespace TBGameplayTags
 	// 쿨다운 ----------------------
 	
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_PrimaryAttack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_SecondaryAction);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Skill1);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Skill2);
-	// 도약 쿨다운 Gameplay Effect가 부여하는 재사용 제한 태그
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_MonsterSkill);
 
 	// 전투 Ability ----------------------

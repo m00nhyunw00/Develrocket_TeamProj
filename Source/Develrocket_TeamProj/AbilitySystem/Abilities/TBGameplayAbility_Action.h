@@ -35,6 +35,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Animation")
 	TObjectPtr<UAnimMontage> FirstPersonMontage;
 	
+	// 이번 실행에서 1인칭·3인칭 몽타주가 함께 사용할 시작 섹션
+	virtual FName GetActionMontageStartSection() const
+	{
+		return NAME_None;
+	}
+	
 	// 비용·쿨다운 적용 성공 후, 몽타주 재생 전 확장 지점 ----------------------
 	virtual void OnActionCommitted(){}
 
