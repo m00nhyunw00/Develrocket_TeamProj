@@ -98,7 +98,6 @@ private:
 	double NextCombatRepositionTime = 0.0;
 	FAIRequestID AnasimusMoveID;
 	TOptional<float> PreviousBackstepSpeed;
-	bool bAnasimusApproachLeft = true;
 	bool bPreviousAnasimusOrientToMovement = false;
 	bool bPreviousAnasimusUseControllerRotation = false;
 };

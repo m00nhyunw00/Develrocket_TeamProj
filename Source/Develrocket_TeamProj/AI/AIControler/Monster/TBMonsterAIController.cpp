@@ -384,39 +384,6 @@ FPathFollowingRequestResult ATBMonsterAIController::MoveTo(const FAIMoveRequest&
 FPathFollowingRequestResult ATBMonsterAIController::MoveAnasimusTowardTarget(const FAIMoveRequest& MoveRequest,
 	AActor& Target, ATBMonster& Monster, FNavPathSharedPtr* OutPath)
 {
-	const FVector Origin = GetNavAgentLocation();
-	const FVector ToTarget = Target.GetActorLocation() - Origin;
-	const double Distance = ToTarget.Size2D();
-	const double MeleeRange = Monster.GetMeleeAttackRange();
-	const double ForwardStep = FMath::Clamp(Distance - MeleeRange + 35.0, 0.0, 200.0);
-	const UNavigationSystemV1* Navigation = UNavigationSystemV1::GetCurrent(GetWorld());
-	const ANavigationData* NavData = Navigation ? Navigation->GetNavDataForProps(GetNavAgentPropertiesRef(), Origin) : nullptr;
-	if (NavData && Distance > MeleeRange + 25.0 && LineOfSightTo(&Target))
-	{
-		const FVector Forward = ToTarget.GetSafeNormal2D();
-		const FVector Sideways = FVector::CrossProduct(FVector::UpVector, Forward);
-		const double PreferredSide = bAnasimusApproachLeft ? -1.0 : 1.0;
-		for (const double Side : {PreferredSide, -PreferredSide})
-		{
-			FNavLocation Goal;
-			const FVector Point = Origin + Forward * ForwardStep + Sideways * (ForwardStep * 0.65 * Side);
-			if (!Navigation->ProjectPointToNavigation(Point, Goal, FVector(45.0, 45.0, 100.0), NavData)
-				|| FVector::Dist2D(Goal.Location, Target.GetActorLocation()) >= Distance - 25.0)
-			{
-				continue;
-			}
-
-			FAIMoveRequest Step(Goal.Location);
-			Step.SetAcceptanceRadius(18.0f).SetNavigationFilter(MoveRequest.GetNavigationFilter());
-			const FPathFollowingRequestResult Result = RequestAnasimusMove(Step, Target, OutPath);
-			if (Result.Code == EPathFollowingRequestResult::RequestSuccessful)
-			{
-				bAnasimusApproachLeft = Side > 0.0;
-				return Result;
-			}
-		}
-	}
-
 	FAIMoveRequest DirectMove(MoveRequest);
 	const float ContactDistance = Monster.GetSimpleCollisionRadius() + Target.GetSimpleCollisionRadius() + 5.0f;
 	const float ApproachDistance = FMath::Max(ContactDistance, Monster.GetMeleeAttackRange() - 20.0f);
@@ -613,7 +580,13 @@ void ATBMonsterAIController::RefreshTargetAfterStagger()
 void ATBMonsterAIController::ClearTrackedTarget()
 {
 	FinishAnasimusMove(true);
-	bAnasimusApproachLeft = true;
+	if (ACharacter* ControlledCharacter = GetCharacter())
+	{
+		if (UTBMonsterMovementComponent* Movement = Cast<UTBMonsterMovementComponent>(ControlledCharacter->GetCharacterMovement()))
+		{
+			Movement->ResetAnasimusEvasion();
+		}
+	}
 	bDamagePriorityTarget = false;
 	if (AActor* PreviousTarget = TrackedTarget.Get())
 	{
