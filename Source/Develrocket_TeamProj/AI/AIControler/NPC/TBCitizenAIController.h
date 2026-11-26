@@ -79,7 +79,10 @@ protected:
 	float GetNearestThreat(AActor*& OutThreat) const;   // 알고 있는 위협 중 가장 가까운 것까지 거리 (없으면 MAX)
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception", meta = (ClampMin = "0.0", ClampMax = "180.0", Units = "deg"))
-	float PanicVisionAngle = 160.f;               // 도망 중 시야 반각 (160 → 앞뒤 합쳐 320°, 바로 뒤 40°만 사각)
+	float PanicVisionAngle = 180.f;               // 도망 중 시야 반각 (180 → 360° 시야)
+
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception", meta = (ClampMin = "0.0", Units = "cm"))
+	float PanicLoseSightRadius = 2500.f;          // 도망 중엔 한 번 본 위협을 더 멀리까지 놓치지 않음
 
 	void SetPanicVision(bool bPanic);             // 시야각을 평상시/도망 중으로 전환
 

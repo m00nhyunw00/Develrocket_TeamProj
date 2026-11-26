@@ -251,6 +251,7 @@ void ATBCitizenAIController::SetPanicVision(bool bPanic)
 	if (!SightConfig || !Perception) return;
 
 	SightConfig->PeripheralVisionAngleDegrees = bPanic ? PanicVisionAngle : PeripheralVisionAngle;
+	SightConfig->LoseSightRadius = bPanic ? PanicLoseSightRadius : LoseSightRadius;
 	Perception->ConfigureSense(*SightConfig);    // BeginPlay와 같은 방식으로 다시 등록
 }
 
