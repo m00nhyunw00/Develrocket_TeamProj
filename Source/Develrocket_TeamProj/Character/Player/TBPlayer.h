@@ -45,6 +45,10 @@ public:
 	UFUNCTION(Client, Reliable)
 	void ClientRevealBloodPulseHits(const TArray<FTBBloodPulseHit>& Hits);
 
+	// 피격 방향 표시용: 맞은 본인에게만 공격 원점 전달 (연출이므로 Unreliable)
+	UFUNCTION(Client, Unreliable)
+	void ClientNotifyDamageTaken(FVector_NetQuantize Origin, AActor* DamageSource);
+
 	// 빙의 및 네트워크 초기화 ----------------------
 
 	// 서버 빙의 및 클라이언트의 PlayerState·Controller 갱신 처리
@@ -194,6 +198,7 @@ protected:
 	virtual void BeginPlay() override;
 	virtual bool CanReceiveAttack(float Damage) const override;
 	virtual TSubclassOf<UGameplayEffect> GetAttackDamageEffect() const override;
+	virtual void OnAttackApplied(float Damage, AActor* DamageSource) override;
 
 	// 세 공격 방식에서 공유하는 플레이어 피해 전달
 	bool ApplyAttackDamage(const FHitResult& HitResult, float Damage);
