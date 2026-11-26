@@ -552,16 +552,3 @@ void ATBCitizen::SetFleeing(bool bNewFleeing)
 	bFleeing = bNewFleeing;
 	UpdateMoveSpeed();
 }
-
-void ATBCitizenAIController::GetKnownThreats(TArray<const AActor*>& OutThreats) const
-{
-	OutThreats.Reset();
-	for (const TWeakObjectPtr<AActor>& Threat : VisibleThreats)
-	{
-		const AActor* Actor = Threat.Get();
-		if (Actor && IsThreat(Actor))   // 죽었거나 위협이 아니게 된 대상은 제외
-		{
-			OutThreats.Add(Actor);
-		}
-	}
-}
