@@ -1,9 +1,9 @@
 ﻿#include "AI/Services/Human/BTService_UpdateFleeLocation.h"
 
-#include "AIController.h"                         // OwnerComp.GetAIOwner()
-#include "BehaviorTree/BlackboardComponent.h"     // 블랙보드 값 읽기/쓰기
-#include "BehaviorTree/BlackboardData.h"          // ResolveSelectedKey에 넘길 블랙보드 에셋 타입
-#include "NavigationSystem.h"                     // NavMesh 위 지점 찾기
+#include "AIController.h"                         
+#include "BehaviorTree/BlackboardComponent.h" 
+#include "BehaviorTree/BlackboardData.h" 
+#include "NavigationSystem.h"
 
 UBTService_UpdateFleeLocation::UBTService_UpdateFleeLocation()
 {
