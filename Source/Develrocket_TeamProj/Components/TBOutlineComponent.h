@@ -53,9 +53,6 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Outline", meta = (DisplayName = "Detectable by Blood Pulse"))
 	bool bDetectableByBloodPulse = false;
 
-	UPROPERTY(EditAnywhere, Category = "Outline", meta = (DisplayName = "Detectable by Blood Pulse"))
-	bool bDetectableByBloodPulse = false;
-
 	UPROPERTY(EditAnywhere, Category = "Outline", meta = (ShowOnlyInnerProperties))
 	FTBOutlineStyle Style;
 
