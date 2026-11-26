@@ -7,6 +7,14 @@
 
 class UGameplayAbility;
 
+UENUM(BlueprintType)
+enum class ETBMonsterSkillPhase : uint8
+{
+	Any,
+	HunterRifle,
+	HunterSword
+};
+
 USTRUCT(BlueprintType)
 struct FTBMonsterSkillEntry
 {
@@ -14,6 +22,9 @@ struct FTBMonsterSkillEntry
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Skill")
 	TSubclassOf<UGameplayAbility> AbilityClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Skill")
+	ETBMonsterSkillPhase RequiredPhase = ETBMonsterSkillPhase::Any;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Skill", meta=(ClampMin="0", Units="cm"))
 	float MinRange = 0.f;

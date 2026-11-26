@@ -19,6 +19,7 @@ public:
 
 protected:
 	bool HasConfiguredSkillCooldown() const;
+	virtual const FGameplayTagContainer& GetConfiguredSkillCooldownTags() const;
 
 	// The shared effect receives its granted tags and duration from the spec at application time.
 	UPROPERTY(EditDefaultsOnly, Category = "Cooldown")

@@ -34,10 +34,25 @@ struct FSkillContext
 		Monster = Controller ? Cast<ATBMonster>(Controller->GetPawn()) : nullptr;
 		const UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
 		Target = Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(TargetKey)) : nullptr;
-		if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead() || !IsValid(Target)
-			|| !Monster->GetHunterCombatComponent()->CanStartRifleAttack())
+		if (!IsValid(Monster) || !Monster->HasAuthority() || Monster->IsDead() || !IsValid(Target))
 		{
 			return false;
+		}
+		if (Monster->GetMonsterBehavior() == ETBMonsterBehavior::Hunter)
+		{
+			const UTBHunterCombatComponent* Combat = Monster->GetHunterCombatComponent();
+			if (Combat->CanStartRifleAttack())
+			{
+				HunterPhase = ETBMonsterSkillPhase::HunterRifle;
+			}
+			else if (Combat->GetPhase() == ETBHunterPhase::Sword)
+			{
+				HunterPhase = ETBMonsterSkillPhase::HunterSword;
+			}
+			else
+			{
+				return false;
+			}
 		}
 		const UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
 		if (!IsValid(TargetASC) || TargetASC->GetAvatarActor() != Target || TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
@@ -54,13 +69,16 @@ struct FSkillContext
 		Tokens = Monster->GetWorld()->GetSubsystem<UTBCombatTokenSubsystem>();
 		return Tokens != nullptr;
 	}
+
+	ETBMonsterSkillPhase HunterPhase = ETBMonsterSkillPhase::Any;
 };
 
-bool IsSkillInRange(const FTBMonsterSkillEntry& Skill, double DistanceSquared)
+bool IsSkillEligible(const FTBMonsterSkillEntry& Skill, const FSkillContext& Context)
 {
 	return Skill.AbilityClass && FMath::IsFinite(Skill.MinRange) && FMath::IsFinite(Skill.MaxRange)
 		&& Skill.MinRange >= 0.f && Skill.MaxRange > 0.f && Skill.MinRange <= Skill.MaxRange
-		&& DistanceSquared >= FMath::Square(Skill.MinRange) && DistanceSquared <= FMath::Square(Skill.MaxRange)
+		&& Context.DistanceSquared >= FMath::Square(Skill.MinRange) && Context.DistanceSquared <= FMath::Square(Skill.MaxRange)
+		&& (Skill.RequiredPhase == ETBMonsterSkillPhase::Any || Skill.RequiredPhase == Context.HunterPhase)
 		&& (!Skill.bUseTargetEvent || Skill.EventTag.IsValid());
 }
 
@@ -87,7 +105,7 @@ TArray<const FTBMonsterSkillEntry*> GetSkillsInPriorityOrder(const FSkillContext
 	TArray<const FTBMonsterSkillEntry*> Candidates;
 	for (const FTBMonsterSkillEntry& Skill : Context.SkillSet->Skills)
 	{
-		if (IsSkillInRange(Skill, Context.DistanceSquared))
+		if (IsSkillEligible(Skill, Context))
 		{
 			Candidates.Add(&Skill);
 		}
@@ -131,7 +149,7 @@ bool UBTTask_MonsterSkill::HasUsableSkill(UBehaviorTreeComponent& OwnerComp) con
 
 	const bool bHasUsableSkill = Context.SkillSet->Skills.ContainsByPredicate([&Context](const FTBMonsterSkillEntry& Skill)
 	{
-		return IsSkillInRange(Skill, Context.DistanceSquared)
+		return IsSkillEligible(Skill, Context)
 			&& FindUsableSpec(*Context.ASC, Skill, Context.Monster, Context.Target);
 	});
 	return bHasUsableSkill && Context.Tokens->CanRequestAttack(*Context.Monster, *Context.Target);
@@ -152,7 +170,8 @@ UBTTask_MonsterSkill::EMovingSkillResult UBTTask_MonsterSkill::TryUseSkillDuring
 		{
 			continue;
 		}
-		if (Skill->bStopMovement || !Spec->Ability->IsA<UTBGameplayAbility_VampireHunter_Hitscan>())
+		const auto* Hitscan = Cast<UTBGameplayAbility_VampireHunter_Hitscan>(Spec->Ability);
+		if (Skill->bStopMovement || !Hitscan || !Hitscan->CanFireDuringCombatMovement())
 		{
 			return Context.Tokens->CanRequestAttack(*Context.Monster, *Context.Target)
 				? EMovingSkillResult::RequiresTask : EMovingSkillResult::Unavailable;
