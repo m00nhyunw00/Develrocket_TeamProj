@@ -1,6 +1,7 @@
 #include "Framework/TBPlayerState.h"
 
 #include "AbilitySystem/TBAbilitySystemComponent.h"
+#include "AbilitySystem/Abilities/Player/TBGameplayAbility_BloodPulse.h"
 #include "AbilitySystem/Attributes/TBAttributeSetBase.h"
 #include "GameplayEffect.h"
 #include "GameplayEffectExtension.h"
@@ -105,6 +106,15 @@ void ATBPlayerState::InitializeGameplayData()
 
 	// BP에서 지정한 초기 어빌리티 부여
 	AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
+	const bool bHasSkill1 = AbilitySystemComponent->GetActivatableAbilities().ContainsByPredicate(
+		[](const FGameplayAbilitySpec& Spec)
+		{
+			return Spec.Ability && Spec.Ability->GetAssetTags().HasTagExact(TBGameplayTags::Ability_Combat_Skill1);
+		});
+	if (!bHasSkill1)
+	{
+		AbilitySystemComponent->AddCharacterAbilities({UTBGameplayAbility_BloodPulse::StaticClass()});
+	}
 
 	bGameplayDataInitialized = true;
 }
