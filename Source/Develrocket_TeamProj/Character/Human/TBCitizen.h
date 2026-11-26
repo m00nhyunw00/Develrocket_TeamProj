@@ -13,6 +13,18 @@ class UGameplayEffect;
 class UTBCitizenAttributeSet;
 class UTBCitizenAppearanceData;
 
+USTRUCT(BlueprintType)
+struct FTBStartleAnim
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<UAnimMontage> Montage;
+	
+	UPROPERTY(EditAnywhere, meta = (Units = "deg", ClampMin = "-180.0", ClampMax = "180.0"))
+	float LookYawOffset = 0.f;
+};
+
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBCitizen : public ATBCharacterBase, public ITBInteractInterface
 {
@@ -45,10 +57,12 @@ public:
 	virtual void OnPoolReady() override;
 	
 	ETBCitizenState GetCitizenState() const { return CitizenState; }
-	float PlayStartle();
+	float PlayStartle(float& OutLookYawOffset);
+	void SetFaceFocus(bool bEnable);
 	
 	// 걷기/뛰기 -------------------------
 	void SetFleeing(bool bNweFleeing);
+
 	
 protected:
 	virtual bool CanReceiveAttack(float Damage) const override;
@@ -130,7 +144,7 @@ protected:
 	void SetCitizenState(ETBCitizenState NewState);       // [서버] 상태 변경의 유일한 입구
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Animation")
-	TArray<TObjectPtr<UAnimMontage>> StartleMontages;
+	TArray<FTBStartleAnim> StartleAnims;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Appearance")
 	TObjectPtr<UTBCitizenAppearanceData> AppearanceCandidates;

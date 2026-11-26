@@ -22,8 +22,9 @@ void ATBCitizenAIController::PauseForDrain()
 	{
 		Brain->PauseLogic(TEXT("Citizen Drained"));
 	}
-	
+
 	GetWorldTimerManager().ClearTimer(StartleTimer);
+	EndStartleFacing();
 }
 
 void ATBCitizenAIController::ResumeFromDrain()
@@ -107,8 +108,10 @@ void ATBCitizenAIController::OnUnPossess()
 	VisibleThreats.Reset();
 	LostThreatTimes.Reset();
 	GetWorldTimerManager().ClearTimer(ForgetTimer);
-	
-	Super::OnUnPossess();	
+	GetWorldTimerManager().ClearTimer(StartleTimer);
+	EndStartleFacing();                           // Super 전에: 아직 폰이 있을 때 회전 모드 복구
+
+	Super::OnUnPossess();
 }
 
 void ATBCitizenAIController::StopFleeing()
@@ -140,6 +143,7 @@ void ATBCitizenAIController::StopFleeing()
 	LostThreatTimes.Reset();
 	GetWorldTimerManager().ClearTimer(ForgetTimer);    // 정리 코드
 	GetWorldTimerManager().ClearTimer(StartleTimer);
+	EndStartleFacing();
 }
 
 void ATBCitizenAIController::HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus)
@@ -232,29 +236,49 @@ void ATBCitizenAIController::RefreshThreatKey()
 	
 	if (!bHadThreat && Closest)
 	{
-		StartStartle();
+		StartStartle(Closest);
 	}
 }
 
-void ATBCitizenAIController::StartStartle()
+void ATBCitizenAIController::StartStartle(AActor* Threat)
 {
 	ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn());
 	UBrainComponent* Brain = GetBrainComponent();
-	if (!Citizen || !Brain || !Brain -> IsRunning() || Brain->IsPaused()) return;
-	
-	const float Duration = Citizen->PlayStartle();
+	if (!Citizen || !Threat || !Brain || !Brain->IsRunning() || Brain->IsPaused()) return;
+
+	float LookYawOffset = 0.f;
+	const float Duration = Citizen->PlayStartle(LookYawOffset);
 	if (Duration <= 0.f)
 	{
 		return;
 	}
-	
+
 	StopMovement();
+
+	// 애니의 시선이 오른쪽으로 Offset만큼 틀어져 있으면, 몸은 위협 방향에서 그만큼 왼쪽을 봐야 시선이 위협에 맞음
+	const FVector MyLocation = Citizen->GetActorLocation();
+	const FVector ToThreat = (Threat->GetActorLocation() - MyLocation).GetSafeNormal2D();
+	const FVector BodyDir = ToThreat.RotateAngleAxis(-LookYawOffset, FVector::UpVector);
+	SetFocalPoint(MyLocation + BodyDir * 500.f, EAIFocusPriority::Gameplay);   // 고정 지점: 놀라는 동안 위협을 따라 돌지 않음
+	Citizen->SetFaceFocus(true);
+
 	Brain->PauseLogic(TEXT("Citizen Startled"));
 	GetWorldTimerManager().SetTimer(StartleTimer, this, &ThisClass::FinishStartle, Duration, false);
 }
 
+void ATBCitizenAIController::EndStartleFacing()
+{
+	ClearFocus(EAIFocusPriority::Gameplay);
+	if (ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn()))
+	{
+		Citizen->SetFaceFocus(false);
+	}
+}
+
 void ATBCitizenAIController::FinishStartle()
 {
+	EndStartleFacing();                           // 상태 검사보다 먼저: 일찍 빠져나가도 회전 모드는 복구
+
 	const ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn());
 	
 	// 흡혈 등으로 이미 정지 중이면 생략
@@ -316,6 +340,7 @@ void ATBCitizenAIController::ReactivateFromPool()
 	LostThreatTimes.Reset();
 	GetWorldTimerManager().ClearTimer(ForgetTimer);
 	GetWorldTimerManager().ClearTimer(StartleTimer);
+	EndStartleFacing();
 
 	if (UBlackboardComponent* BB = GetBlackboardComponent())
 	{

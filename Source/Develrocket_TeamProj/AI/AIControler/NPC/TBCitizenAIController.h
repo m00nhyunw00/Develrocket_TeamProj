@@ -59,8 +59,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Flee", meta = (ClampMin = "0.0", Units = "s"))
 	float ThreatMemorySeconds = 3.f;              // 시야에서 사라진 뒤에도 이 시간 동안은 계속 도망 
 	
-	void StartStartle();
+	void StartStartle(AActor* Threat);            // 놀람 몽타주 재생 + 시선이 위협을 향하도록 몸 회전
 	void FinishStartle();
+	void EndStartleFacing();                      // 놀람 회전 해제 (이동 방향 바라보기로 복귀)
 
 private:
 	TArray<TWeakObjectPtr<AActor>> VisibleThreats;    // 지금 보이는 위협 목록

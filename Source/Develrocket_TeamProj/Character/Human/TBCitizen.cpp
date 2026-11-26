@@ -496,17 +496,18 @@ void ATBCitizen::HandleBleedingTagChanged(const FGameplayTag Tag, int32 NewCount
 	UpdateMoveSpeed();
 }
 
-float ATBCitizen::PlayStartle()
+float ATBCitizen::PlayStartle(float& OutLookYawOffset)
 {
+	OutLookYawOffset = 0.f;
 	if (!HasAuthority())
 	{
 		return 0.f;
 	}
-	
+
 	TArray<int32> Candidates;
-	for (int32 Index = 0; Index < StartleMontages.Num(); ++Index)
+	for (int32 Index = 0; Index < StartleAnims.Num(); ++Index)
 	{
-		if (StartleMontages[Index])
+		if (StartleAnims[Index].Montage)
 		{
 			Candidates.Add(Index);
 		}
@@ -525,16 +526,24 @@ float ATBCitizen::PlayStartle()
 	const int32 Chosen = Candidates[FMath::RandRange(0, Candidates.Num() - 1)];
 	LastStartleIndex = Chosen;
 	
+	OutLookYawOffset = StartleAnims[Chosen].LookYawOffset;
 	MulticastPlayStartle(static_cast<uint8>(Chosen));
-	return StartleMontages[Chosen]->GetPlayLength();	
+	return StartleAnims[Chosen].Montage->GetPlayLength();
 }
 
 void ATBCitizen::MulticastPlayStartle_Implementation(uint8 MontageIndex)
 {
-	if (StartleMontages.IsValidIndex(MontageIndex) && StartleMontages[MontageIndex])
+	if (StartleAnims.IsValidIndex(MontageIndex) && StartleAnims[MontageIndex].Montage)
 	{
-		PlayAnimMontage(StartleMontages[MontageIndex]);
+		PlayAnimMontage(StartleAnims[MontageIndex].Montage);
 	}
+}
+
+void ATBCitizen::SetFaceFocus(bool bEnable)
+{
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	MoveComp->bOrientRotationToMovement = !bEnable;      // 평소: 이동 방향을 바라봄
+	MoveComp->bUseControllerDesiredRotation = bEnable;   // 놀람 중: 컨트롤러 Focus 방향으로 회전
 }
 
 void ATBCitizen::SetFleeing(bool bNewFleeing)
