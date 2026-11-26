@@ -10,7 +10,7 @@ UBTService_RunEQSInstant::UBTService_RunEQSInstant()
 	NodeName = TEXT("TB Run EQS Instant");
 	Interval = 0.4f;
 	RandomDeviation = 0.1f;
-	bCallTickOnSearchStart = true;                // 분기 진입 즉시 계산 → MoveTo 전에 FleeLocation 채움
+	bCallTickOnSearchStart = true;                // 분기 진입 즉시 계산해 MoveTo 시작 전에 목적지 기록
 	BlackboardKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(ThisClass, BlackboardKey));
 }
 
@@ -27,12 +27,12 @@ void UBTService_RunEQSInstant::TickNode(UBehaviorTreeComponent& OwnerComp, uint8
 		return;
 	}
 
-	FEnvQueryRequest Request(QueryTemplate, Pawn);   // Querier = 시민 폰 (Context가 Owner로 컨트롤러를 찾음)
+	FEnvQueryRequest Request(QueryTemplate, Pawn);   // Querier를 시민 폰으로 지정 (Context가 폰에서 컨트롤러 조회)
 	const TSharedPtr<FEnvQueryResult> Result = EQSManager->RunInstantQuery(Request, EEnvQueryRunMode::SingleResult);
 
 	if (Result.IsValid() && Result->IsSuccessful() && Result->Items.Num() > 0)
 	{
 		BB->SetValueAsVector(GetSelectedBlackboardKey(), Result->GetItemAsLocation(0));
 	}
-	// 실패하면 이전 값 유지 (Option 2까지 모두 실패한 경우)
+	// 모든 Option 실패 시 이전 목적지 유지
 }

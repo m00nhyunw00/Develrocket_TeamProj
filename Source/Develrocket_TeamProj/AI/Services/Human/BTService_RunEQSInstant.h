@@ -6,8 +6,8 @@
 
 class UEnvQuery;
 
-// EQS를 동기로 실행해 결과 위치를 블랙보드에 기록 (분기 진입 즉시 + 주기적으로)
-// 엔진 Run EQS는 비동기라 노드가 끝나면 쿼리가 중단되어, 도착 직후 FleeLocation이 갱신되지 않는 문제가 있었음
+// EQS를 동기 실행해 결과 위치를 블랙보드에 기록 (분기 진입 시와 주기적으로)
+// 엔진 Run EQS는 비동기라 노드 종료 시 쿼리가 중단되어, 목적지 도착 후 갱신이 끊기는 문제 대응
 UCLASS(meta = (DisplayName = "TB Run EQS Instant"))
 class DEVELROCKET_TEAMPROJ_API UBTService_RunEQSInstant : public UBTService_BlackboardBase
 {
