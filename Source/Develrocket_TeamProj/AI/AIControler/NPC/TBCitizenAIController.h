@@ -6,6 +6,7 @@
 #include "TBCitizenAIController.generated.h"
 
 class UAISenseConfig_Sight;
+class UAISenseConfig_Hearing;
 class UBehaviorTree;
 
 UCLASS()
@@ -41,7 +42,7 @@ protected:
 	void HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
 
 	bool IsThreat(const AActor* Actor) const;
-	void RefreshThreatKey();                      // 보이는 위협 중 가장 가까운 것을 블랙보드에 기록
+	void RefreshThreatKey(bool bAllowStartle = true);   // 보이는 위협 중 가장 가까운 것을 블랙보드에 기록 (false: 첫 패닉 때 놀람 생략)
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI")
 	TObjectPtr<UBehaviorTree> BehaviorTreeAsset;  // BP 컨트롤러에서 BT_Citizen 지정
@@ -50,10 +51,10 @@ protected:
 	TObjectPtr<UAISenseConfig_Sight> SightConfig;
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception")
-	float SightRadius = 1200.f;
+	float SightRadius = 2000.f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception")
-	float LoseSightRadius = 1500.f;
+	float LoseSightRadius = 2400.f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception")
 	float PeripheralVisionAngle = 70.f;
@@ -66,25 +67,36 @@ protected:
 	void EndStartleFacing();                      // 놀람 회전 해제 (이동 방향 바라보기로 복귀)
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Flee", meta = (ClampMin = "0.0", Units = "cm"))
-	float CalmDistance = 1400.f;                  // 뛰는 중: 가장 가까운 위협이 이보다 멀어지면 걷기
+	float CalmDistance = 2200.f;                 // 뛰는 중: 가장 가까운 위협이 이보다 멀어지면 걷기
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Flee", meta = (ClampMin = "0.0", Units = "cm"))
-	float DangerDistance = 1000.f;                // 걷는 중: 위협이 이보다 가까워지면 다시 뛰기(+놀람)
+	float DangerDistance = 1200.f;               // 걷는 중: 위협이 이보다 가까워지면 다시 뛰기(+놀람)
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Flee", meta = (ClampMin = "0.0", Units = "s"))
 	float StartleCooldown = 6.f;                  // 다시 놀라기까지 최소 간격
 
 	void UpdatePanic();                           // 0.3초마다: 거리로 걷기/뛰기/재놀람 결정
-	void EnterRun(AActor* Threat);                // 뛰기 시작 (쿨타임 지났으면 놀람)
+	void EnterRun(AActor* Threat, bool bAllowStartle = true);   // 뛰기 시작 (멀리 있고 쿨타임 지났으면 놀람)
+
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Flee", meta = (ClampMin = "0.0", Units = "cm"))
+	float NoStartleDistance = 500.f;              // 위협이 이보다 가까우면 놀람 없이 바로 도망
 	float GetNearestThreat(AActor*& OutThreat) const;   // 알고 있는 위협 중 가장 가까운 것까지 거리 (없으면 MAX)
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception", meta = (ClampMin = "0.0", ClampMax = "180.0", Units = "deg"))
 	float PanicVisionAngle = 180.f;               // 도망 중 시야 반각 (180 → 360° 시야)
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception", meta = (ClampMin = "0.0", Units = "cm"))
-	float PanicLoseSightRadius = 2500.f;          // 도망 중엔 한 번 본 위협을 더 멀리까지 놓치지 않음
+	float PanicLoseSightRadius = 3000.f;         // 도망 중엔 한 번 본 위협을 더 멀리까지 놓치지 않음
 
 	void SetPanicVision(bool bPanic);             // 시야각을 평상시/도망 중으로 전환
+
+	UPROPERTY(VisibleAnywhere, Category = "AI|Perception")
+	TObjectPtr<UAISenseConfig_Hearing> HearingConfig;
+
+	UPROPERTY(EditDefaultsOnly, Category = "AI|Perception", meta = (ClampMin = "0.0", Units = "cm"))
+	float HearingRange = 4000.f;                  // 총소리를 듣는 거리
+
+	void RememberThreat(AActor* Threat, bool bAllowStartle);   // 보지 못한 위협도 기억하고 도망 (피격·총소리 공용)
 
 private:
 	bool bPanicked = false;                       // 한 번 놀랐으면 죽을 때까지 도망 분기 유지

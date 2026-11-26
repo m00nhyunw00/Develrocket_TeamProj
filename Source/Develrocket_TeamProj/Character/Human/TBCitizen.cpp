@@ -548,11 +548,11 @@ void ATBCitizen::MulticastPlayStartle_Implementation(uint8 MontageIndex)
 	}
 }
 
-void ATBCitizen::SetFaceFocus(bool bEnable)
+void ATBCitizen::SetRotationLocked(bool bLocked)
 {
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-	MoveComp->bOrientRotationToMovement = !bEnable;      // 평소: 이동 방향을 바라봄
-	MoveComp->bUseControllerDesiredRotation = bEnable;   // 놀람 중: 컨트롤러 Focus 방향으로 회전
+	MoveComp->bOrientRotationToMovement = !bLocked;   // 평소: 이동 방향을 바라봄
+	MoveComp->bUseControllerDesiredRotation = false;  // 컨트롤러 방향으로는 돌지 않음
 }
 
 void ATBCitizen::SetFleeing(bool bNewFleeing)

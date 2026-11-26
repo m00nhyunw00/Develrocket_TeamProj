@@ -3,6 +3,8 @@
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
 #include "Perception/AISense_Sight.h"
+#include "Perception/AISenseConfig_Hearing.h"
+#include "Perception/AISense_Hearing.h"
 #include "BehaviorTree/BehaviorTree.h"            // RunBehaviorTree에 넘길 에셋 타입
 #include "BehaviorTree/BlackboardComponent.h"     // 블랙보드 값 쓰기
 #include "BrainComponent.h"                       // StopLogic
@@ -45,6 +47,10 @@ ATBCitizenAIController::ATBCitizenAIController()
 	SightConfig = CreateDefaultSubobject<UAISenseConfig_Sight>(TEXT("SightConfig"));
 	PerceptionComp->ConfigureSense(*SightConfig);
 
+	// 청각: 총소리처럼 보이지 않는 위협을 감지 (보는 방향과 무관)
+	HearingConfig = CreateDefaultSubobject<UAISenseConfig_Hearing>(TEXT("HearingConfig"));
+	PerceptionComp->ConfigureSense(*HearingConfig);
+
 	// 여러 감각 중 시야를 대표 감각으로 지정
 	PerceptionComp->SetDominantSense(UAISense_Sight::StaticClass());
 }
@@ -76,6 +82,12 @@ void ATBCitizenAIController::BeginPlay()
 	SightConfig->DetectionByAffiliation.bDetectFriendlies = false;
 
 	GetPerceptionComponent()->ConfigureSense(*SightConfig);    // 바뀐 수치를 다시 등록
+
+	HearingConfig->HearingRange = HearingRange;
+	HearingConfig->DetectionByAffiliation.bDetectEnemies = true;     // 플레이어·몬스터(Hostile)의 소리만
+	HearingConfig->DetectionByAffiliation.bDetectNeutrals = false;
+	HearingConfig->DetectionByAffiliation.bDetectFriendlies = false;
+	GetPerceptionComponent()->ConfigureSense(*HearingConfig);
 
 	// "무언가 보였다/사라졌다" 이벤트에 내 함수를 연결
 	GetPerceptionComponent()->OnTargetPerceptionUpdated.AddDynamic(this, &ThisClass::HandleTargetPerceptionUpdated);
@@ -164,6 +176,15 @@ void ATBCitizenAIController::HandleTargetPerceptionUpdated(AActor* Actor, FAISti
 		return;
 	}
 
+	if (Stimulus.Type == UAISense::GetSenseID<UAISense_Hearing>())
+	{
+		if (Stimulus.WasSuccessfullySensed())
+		{
+			RememberThreat(Actor, true);          // 총소리: 쏜 쪽을 돌아보고(놀람) 도망
+		}
+		return;                                   // 청각 만료 이벤트는 무시 (시야 기록을 건드리지 않음)
+	}
+
 	if (Stimulus.WasSuccessfullySensed())         // 다시 보임
 	{
 		VisibleThreats.AddUnique(Actor);
@@ -202,7 +223,7 @@ bool ATBCitizenAIController::IsThreat(const AActor* Actor) const
 	return false; 
 }
 
-void ATBCitizenAIController::RefreshThreatKey()
+void ATBCitizenAIController::RefreshThreatKey(bool bAllowStartle)
 {
 	UBlackboardComponent* BB = GetBlackboardComponent();
 	const APawn* MyPawn = GetPawn();
@@ -240,7 +261,7 @@ void ATBCitizenAIController::RefreshThreatKey()
 	{
 		bPanicked = true;
 		SetPanicVision(true);                     // 도망 중엔 어깨 너머로 뒤도 봄
-		EnterRun(Closest);
+		EnterRun(Closest, bAllowStartle);
 		GetWorldTimerManager().SetTimer(PanicTimer, this, &ThisClass::UpdatePanic, 0.3f, true);
 	}
 }
@@ -255,29 +276,34 @@ void ATBCitizenAIController::SetPanicVision(bool bPanic)
 	Perception->ConfigureSense(*SightConfig);    // BeginPlay와 같은 방식으로 다시 등록
 }
 
-void ATBCitizenAIController::ReportDamage(AActor* DamageSource)
+void ATBCitizenAIController::RememberThreat(AActor* Threat, bool bAllowStartle)
 {
-	if (!HasAuthority() || !IsThreat(DamageSource)) return;   // 위협이 아닌 원인은 무시
+	if (!HasAuthority() || !IsThreat(Threat)) return;   // 위협이 아닌 원인은 무시
 
 	// 지금 시야에 보이는 중인지: 목록에 있고 '잃어버린 시각' 기록이 없으면 보이는 중
-	const bool bCurrentlySeen = VisibleThreats.Contains(DamageSource) && !LostThreatTimes.Contains(DamageSource);
+	const bool bCurrentlySeen = VisibleThreats.Contains(Threat) && !LostThreatTimes.Contains(Threat);
 	if (!bCurrentlySeen)
 	{
-		// 보지 못한 공격자: 맞은 순간부터 ThreatMemorySeconds 동안 기억 (나중에 실제로 보이면 Perception이 기록을 지움)
-		VisibleThreats.AddUnique(DamageSource);
-		LostThreatTimes.Add(DamageSource, GetWorld()->GetTimeSeconds());
+		// 보지 못한 위협: 지금부터 ThreatMemorySeconds 동안 기억 (나중에 실제로 보이면 Perception이 기록을 지움)
+		VisibleThreats.AddUnique(Threat);
+		LostThreatTimes.Add(Threat, GetWorld()->GetTimeSeconds());
 		if (!GetWorldTimerManager().IsTimerActive(ForgetTimer))
 		{
 			GetWorldTimerManager().SetTimer(ForgetTimer, this, &ThisClass::ForgetExpiredThreats, 0.5f, true);
 		}
 	}
 
-	RefreshThreatKey();                           // 아직 안 놀랐으면 여기서 놀람 + 뛰기 + 넓은 시야
+	RefreshThreatKey(bAllowStartle);              // 아직 안 놀랐으면 여기서 패닉 시작 + 넓은 시야
 
 	if (bPanicked && !bRunning)
 	{
-		EnterRun(DamageSource);                   // 이미 놀란 뒤 걷던 중이면 다시 뛰기
+		EnterRun(Threat, bAllowStartle);          // 걷던 중이면 다시 뛰기
 	}
+}
+
+void ATBCitizenAIController::ReportDamage(AActor* DamageSource)
+{
+	RememberThreat(DamageSource, false);          // 맞았을 땐 놀람 없이 바로 도망
 }
 
 float ATBCitizenAIController::GetNearestThreat(AActor*& OutThreat) const
@@ -302,7 +328,7 @@ float ATBCitizenAIController::GetNearestThreat(AActor*& OutThreat) const
 	return OutThreat ? FMath::Sqrt(BestDistSq) : TNumericLimits<float>::Max();
 }
 
-void ATBCitizenAIController::EnterRun(AActor* Threat)
+void ATBCitizenAIController::EnterRun(AActor* Threat, bool bAllowStartle)
 {
 	ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn());
 	if (!Citizen) return;
@@ -317,9 +343,13 @@ void ATBCitizenAIController::EnterRun(AActor* Threat)
 			BB->SetValueAsObject(ThreatActorKey, Threat);   // 지금 가장 위험한 대상으로 갱신
 		}
 
-		if (GetWorld()->GetTimeSeconds() - LastStartleTime >= StartleCooldown)
+		const float Dist = FVector::Dist2D(Citizen->GetActorLocation(), Threat->GetActorLocation());
+		const bool bTooClose = Dist < NoStartleDistance;                    // 코앞이면 놀랄 틈 없이 도망
+		const bool bCooledDown = GetWorld()->GetTimeSeconds() - LastStartleTime >= StartleCooldown;
+
+		if (bAllowStartle && !bTooClose && bCooledDown)
 		{
-			StartStartle(Threat);                 // 쿨타임 중이면 놀람 없이 바로 뜀
+			StartStartle(Threat);                 // 멀리서 발견 + 쿨타임 지남 → 놀람 후 도망
 		}
 	}
 }
@@ -364,8 +394,9 @@ void ATBCitizenAIController::StartStartle(AActor* Threat)
 	const FVector MyLocation = Citizen->GetActorLocation();
 	const FVector ToThreat = (Threat->GetActorLocation() - MyLocation).GetSafeNormal2D();
 	const FVector BodyDir = ToThreat.RotateAngleAxis(-LookYawOffset, FVector::UpVector);
-	SetFocalPoint(MyLocation + BodyDir * 500.f, EAIFocusPriority::Gameplay);   // 고정 지점: 놀라는 동안 위협을 따라 돌지 않음
-	Citizen->SetFaceFocus(true);
+
+	Citizen->SetActorRotation(FRotator(0.f, BodyDir.Rotation().Yaw, 0.f));   // 놀람 시작 즉시 위협 쪽으로
+	Citizen->SetRotationLocked(true);                                         // 재생 중엔 회전 금지
 
 	Brain->PauseLogic(TEXT("Citizen Startled"));
 	GetWorldTimerManager().SetTimer(StartleTimer, this, &ThisClass::FinishStartle, Duration, false);
@@ -373,10 +404,9 @@ void ATBCitizenAIController::StartStartle(AActor* Threat)
 
 void ATBCitizenAIController::EndStartleFacing()
 {
-	ClearFocus(EAIFocusPriority::Gameplay);
 	if (ATBCitizen* Citizen = Cast<ATBCitizen>(GetPawn()))
 	{
-		Citizen->SetFaceFocus(false);
+		Citizen->SetRotationLocked(false);        // 이동 방향 바라보기로 복귀
 	}
 }
 

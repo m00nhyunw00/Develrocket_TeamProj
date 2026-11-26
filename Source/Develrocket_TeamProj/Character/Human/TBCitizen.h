@@ -58,7 +58,7 @@ public:
 	
 	ETBCitizenState GetCitizenState() const { return CitizenState; }
 	float PlayStartle(float& OutLookYawOffset);
-	void SetFaceFocus(bool bEnable);
+	void SetRotationLocked(bool bLocked);         // true: 어떤 이유로도 회전하지 않음 (놀람 재생 중)
 	
 	// 걷기/뛰기 -------------------------
 	void SetFleeing(bool bNweFleeing);
