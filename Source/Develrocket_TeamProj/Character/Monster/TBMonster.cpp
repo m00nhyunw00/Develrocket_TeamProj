@@ -3,6 +3,7 @@
 #include "AIController.h"
 #include "AI/AIControler/Monster/TBHunterAIController.h"
 #include "AI/AIControler/Monster/TBMonsterAIController.h"
+#include "AI/TBMonsterSkillSet.h"
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 #include "AbilitySystem/Attributes/TBMonsterAttributeSet.h"
@@ -195,6 +196,18 @@ void ATBMonster::InitializeGameplayData()
 	if (GetMonsterBehavior() == ETBMonsterBehavior::Hunter)
 	{
 		AbilitySystemComponent->AddCharacterAbilities({UTBGameplayAbility_VampireHunter_Sword::StaticClass()});
+		if (SkillSet)
+		{
+			TArray<TSubclassOf<UGameplayAbility>> HunterAbilities;
+			for (const FTBMonsterSkillEntry& Skill : SkillSet->Skills)
+			{
+				if (Skill.AbilityClass && !Skill.AbilityClass->HasAnyClassFlags(CLASS_Abstract))
+				{
+					HunterAbilities.Add(Skill.AbilityClass);
+				}
+			}
+			AbilitySystemComponent->AddCharacterAbilities(HunterAbilities);
+		}
 	}
 }
 

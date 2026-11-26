@@ -13,6 +13,7 @@ public:
 	UTBGameplayAbility_VampireHunter_Hitscan();
 
 	virtual bool CanUseAgainst(const ATBMonster* Monster, const AActor* Target) const override;
+	virtual bool CanFireDuringCombatMovement() const { return true; }
 	virtual void ActivateAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 		FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 	virtual void EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
@@ -20,6 +21,11 @@ public:
 
 protected:
 	virtual bool ShouldWaitForMontageEnd() const override { return false; }
+	virtual bool UsesPhaseAttackMontage() const { return true; }
+	virtual void StartShotSequence();
+	ATBMonster* GetHunter() const;
+	AActor* GetCurrentShotTarget(bool bRequireStartingConditions = true) const;
+	bool TraceShot(ATBMonster& Monster, AActor& Target, const FVector& AimLocation) const;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Hunter|Hitscan", meta = (ClampMin = "1.0", Units = "cm"))
 	float TraceRange = 1200.0f;

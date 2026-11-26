@@ -25,6 +25,14 @@ AActor* GetHunterTarget(const ATBMonster* Monster)
 	return Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(TargetActorKey)) : nullptr;
 }
 
+bool IsValidShotTarget(const ATBMonster* Monster, const AActor* Target)
+{
+	const ATBCharacterBase* Character = Cast<ATBCharacterBase>(Target);
+	const UAbilitySystemComponent* ASC = IsValid(Character) ? Character->GetAbilitySystemComponent() : nullptr;
+	return IsValid(Monster) && Monster->HasAuthority() && !Monster->IsActionBlocked()
+		&& IsValid(ASC) && Target != Monster && Target->GetWorld() == Monster->GetWorld()
+		&& ASC->GetAvatarActor() == Target && !ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead);
+}
 
 #if ENABLE_DRAW_DEBUG
 TAutoConsoleVariable<int32> CVarDebugHunterShot(
@@ -39,17 +47,16 @@ UTBGameplayAbility_VampireHunter_Hitscan::UTBGameplayAbility_VampireHunter_Hitsc
 	ActivationBlockedTags.AddTag(TBGameplayTags::State_Dead);
 	ActivationBlockedTags.AddTag(TBGameplayTags::State_Stunned);
 	ActivationBlockedTags.AddTag(TBGameplayTags::State_Draining);
+	ActivationBlockedTags.AddTag(TBGameplayTags::State_Combat);
 }
 
 bool UTBGameplayAbility_VampireHunter_Hitscan::CanUseAgainst(const ATBMonster* Monster, const AActor* Target) const
 {
-	const ATBCharacterBase* Character = Cast<ATBCharacterBase>(Target);
-	const UAbilitySystemComponent* TargetASC = IsValid(Character) ? Character->GetAbilitySystemComponent() : nullptr;
 	const AAIController* Controller = IsValid(Monster) ? Cast<AAIController>(Monster->GetController()) : nullptr;
-	return Controller && Monster->HasAuthority() && !Monster->IsActionBlocked()
-		&& IsValid(TargetASC) && Target != Monster && Target->GetWorld() == Monster->GetWorld()
-		&& TargetASC->GetAvatarActor() == Target && !TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-		&& !TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable)
+	return Controller && IsValidShotTarget(Monster, Target)
+		&& Monster->GetHunterCombatComponent()->CanStartRifleAttack()
+		&& (MuzzleSocketName.IsNone() || (Monster->GetMesh() && Monster->GetMesh()->DoesSocketExist(MuzzleSocketName)))
+		&& !CastChecked<ATBCharacterBase>(Target)->GetAbilitySystemComponent()->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable)
 		&& FMath::IsFinite(ShotDamage) && ShotDamage > 0.0f
 		&& FMath::IsFinite(TraceRange) && TraceRange > 0.0f
 		&& FVector::DistSquared(Monster->GetActorLocation(), Target->GetActorLocation()) <= FMath::Square(TraceRange)
@@ -62,28 +69,53 @@ void UTBGameplayAbility_VampireHunter_Hitscan::ActivateAbility(FGameplayAbilityS
 {
 	ATBMonster* Monster = ActorInfo ? Cast<ATBMonster>(ActorInfo->AvatarActor.Get()) : nullptr;
 	AActor* Target = GetHunterTarget(Monster);
-	const USkeletalMeshComponent* Mesh = IsValid(Monster) ? Monster->GetMesh() : nullptr;
-	if (!CanUseAgainst(Monster, Target) || !Monster->GetHunterCombatComponent()->CanStartRifleAttack()
-		|| (!MuzzleSocketName.IsNone() && (!Mesh || !Mesh->DoesSocketExist(MuzzleSocketName))))
+	if ((TriggerEventData && TriggerEventData->Target && Target != TriggerEventData->Target.Get())
+		|| !CanUseAgainst(Monster, Target))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
-	if (UAnimMontage* PhaseMontage = Monster->GetHunterCombatComponent()->GetRifleAttackMontage())
+	if (UsesPhaseAttackMontage())
 	{
-		ThirdPersonMontage = PhaseMontage;
+		if (UAnimMontage* PhaseMontage = Monster->GetHunterCombatComponent()->GetRifleAttackMontage())
+		{
+			ThirdPersonMontage = PhaseMontage;
+		}
 	}
-	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
-	if (!IsActive())
-	{
-		return;
-	}
-
 	ShotTarget = Target;
-	FTimerManager& Timers = Monster->GetWorld()->GetTimerManager();
+	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+	if (IsActive())
+	{
+		StartShotSequence();
+	}
+}
+
+void UTBGameplayAbility_VampireHunter_Hitscan::StartShotSequence()
+{
+	FTimerManager& Timers = GetWorld()->GetTimerManager();
 	Timers.SetTimer(AimLockTimer, this, &ThisClass::LockAim, AimLockTime, false);
 	Timers.SetTimer(FireTimer, this, &ThisClass::FireShot, FireTime, false);
+}
+
+ATBMonster* UTBGameplayAbility_VampireHunter_Hitscan::GetHunter() const
+{
+	return Cast<ATBMonster>(GetAvatarActorFromActorInfo());
+}
+
+AActor* UTBGameplayAbility_VampireHunter_Hitscan::GetCurrentShotTarget(bool bRequireStartingConditions) const
+{
+	AActor* Target = ShotTarget.Get();
+	const ATBMonster* Monster = GetHunter();
+	if (!IsActive() || !IsValidShotTarget(Monster, Target))
+	{
+		return nullptr;
+	}
+	if (bRequireStartingConditions)
+	{
+		return CanUseAgainst(Monster, Target) && GetHunterTarget(Monster) == Target ? Target : nullptr;
+	}
+	return Monster->GetHunterCombatComponent()->GetPhase() == ETBHunterPhase::Rifle ? Target : nullptr;
 }
 
 void UTBGameplayAbility_VampireHunter_Hitscan::LockAim()
@@ -107,59 +139,61 @@ void UTBGameplayAbility_VampireHunter_Hitscan::LockAim()
 
 void UTBGameplayAbility_VampireHunter_Hitscan::FireShot()
 {
-	ATBMonster* Monster = Cast<ATBMonster>(GetAvatarActorFromActorInfo());
-	AActor* Target = ShotTarget.Get();
-	const USkeletalMeshComponent* Mesh = IsValid(Monster) ? Monster->GetMesh() : nullptr;
-	if (!IsActive() || !LockedAimLocation.IsSet() || !CanUseAgainst(Monster, Target)
-		|| GetHunterTarget(Monster) != Target
-		|| (!MuzzleSocketName.IsNone() && (!Mesh || !Mesh->DoesSocketExist(MuzzleSocketName))))
-	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-		return;
-	}
+	AActor* Target = GetCurrentShotTarget();
+	const bool bFired = Target && LockedAimLocation.IsSet()
+		&& TraceShot(*GetHunter(), *Target, LockedAimLocation.GetValue());
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, !bFired);
+}
 
+bool UTBGameplayAbility_VampireHunter_Hitscan::TraceShot(ATBMonster& Monster, AActor& Target,
+	const FVector& AimLocation) const
+{
 	FVector TraceStart;
 	if (MuzzleSocketName.IsNone())
 	{
 		FRotator EyeRotation;
-		Monster->GetActorEyesViewPoint(TraceStart, EyeRotation);
+		Monster.GetActorEyesViewPoint(TraceStart, EyeRotation);
 	}
 	else
 	{
+		const USkeletalMeshComponent* Mesh = Monster.GetMesh();
+		if (!Mesh || !Mesh->DoesSocketExist(MuzzleSocketName))
+		{
+			return false;
+		}
 		TraceStart = Mesh->GetSocketLocation(MuzzleSocketName);
 	}
 
-	const FVector AimDirection = (LockedAimLocation.GetValue() - TraceStart).GetSafeNormal();
+	const FVector AimDirection = (AimLocation - TraceStart).GetSafeNormal();
 	if (AimDirection.IsNearlyZero())
 	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-		return;
+		return false;
 	}
 
 	const FVector TraceEnd = TraceStart + AimDirection * TraceRange;
 	FHitResult Hit;
-	const bool bBlockingHit = Monster->LineTraceByChannel(Hit, TraceStart, TraceEnd, HunterHitscanTraceChannel);
-	const bool bHitTarget = bBlockingHit && Hit.GetActor() == Target;
+	const bool bBlockingHit = Monster.LineTraceByChannel(Hit, TraceStart, TraceEnd, HunterHitscanTraceChannel);
+	const bool bHitTarget = bBlockingHit && Hit.GetActor() == &Target;
 
 #if ENABLE_DRAW_DEBUG
 	if (CVarDebugHunterShot.GetValueOnGameThread() != 0)
 	{
 		const FColor TraceColor = bHitTarget ? FColor::Green : (bBlockingHit ? FColor::Orange : FColor::Red);
 		const FVector DebugEnd = bBlockingHit ? Hit.ImpactPoint : TraceEnd;
-		DrawDebugLine(Monster->GetWorld(), TraceStart, DebugEnd, TraceColor, false, 2.0f, 0, 2.0f);
+		DrawDebugLine(Monster.GetWorld(), TraceStart, DebugEnd, TraceColor, false, 2.0f, 0, 2.0f);
 		if (bBlockingHit)
 		{
-			DrawDebugPoint(Monster->GetWorld(), DebugEnd, 12.0f, TraceColor, false, 2.0f);
+			DrawDebugPoint(Monster.GetWorld(), DebugEnd, 12.0f, TraceColor, false, 2.0f);
 		}
 	}
 #endif
 
 	if (bHitTarget)
 	{
-		ITBHitInterface::Execute_ReceiveAttackHit(Target, ShotDamage, Monster, Hit);
+		ITBHitInterface::Execute_ReceiveAttackHit(&Target, ShotDamage, &Monster, Hit);
 	}
 
-	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+	return true;
 }
 
 void UTBGameplayAbility_VampireHunter_Hitscan::EndAbility(FGameplayAbilitySpecHandle Handle,
@@ -174,7 +208,7 @@ void UTBGameplayAbility_VampireHunter_Hitscan::EndAbility(FGameplayAbilitySpecHa
 	}
 	ShotTarget.Reset();
 	LockedAimLocation.Reset();
-	if (bWasCancelled && ActorInfo)
+	if (bWasCancelled && ActorInfo && !ShouldWaitForMontageEnd())
 	{
 		UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
 		if (ASC && ASC->GetAnimatingAbility() == this)

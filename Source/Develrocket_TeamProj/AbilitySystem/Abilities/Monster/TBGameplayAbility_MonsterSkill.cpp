@@ -22,8 +22,13 @@ const FGameplayTagContainer* UTBGameplayAbility_MonsterSkill::GetCooldownTags() 
 		return Super::GetCooldownTags();
 	}
 
+	return &GetConfiguredSkillCooldownTags();
+}
+
+const FGameplayTagContainer& UTBGameplayAbility_MonsterSkill::GetConfiguredSkillCooldownTags() const
+{
 	static const FGameplayTagContainer CooldownTags(TBGameplayTags::Cooldown_MonsterSkill);
-	return &CooldownTags;
+	return CooldownTags;
 }
 
 void UTBGameplayAbility_MonsterSkill::ApplyCooldown(FGameplayAbilitySpecHandle Handle,
@@ -44,7 +49,7 @@ void UTBGameplayAbility_MonsterSkill::ApplyCooldown(FGameplayAbilitySpecHandle H
 	if (Spec.IsValid())
 	{
 		Spec.Data->SetDuration(SkillCooldownDuration, true);
-		Spec.Data->DynamicGrantedTags.AddTag(TBGameplayTags::Cooldown_MonsterSkill);
+		Spec.Data->DynamicGrantedTags.AppendTags(GetConfiguredSkillCooldownTags());
 		ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, Spec);
 	}
 }
