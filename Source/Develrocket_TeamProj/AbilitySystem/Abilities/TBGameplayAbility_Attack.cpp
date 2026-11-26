@@ -90,6 +90,11 @@ void UTBGameplayAbility_Attack::ActivateAbility(
     Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 }
 
+bool UTBGameplayAbility_Attack::CheckCost(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayTagContainer* OptionalRelevantTags) const
+{
+    return Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags);
+}
+
 void UTBGameplayAbility_Attack::OnActionCommitted()
 {
     Super::OnActionCommitted();

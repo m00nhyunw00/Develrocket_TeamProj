@@ -62,4 +62,10 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Attack_Fire);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Attack_Melee);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Empowered);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Amanai_Attack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Amanai_Attack_PrimaryAttack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Amanai_Attack_SwordWave);
+	
+	// 이벤트 발생 시점 전달 ----------------------
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Combat_Projectile_Launch);
 }
