@@ -123,9 +123,7 @@ void UTBOutlineComponent::RefreshOutline()
 
 	if (IsValid(Mesh) && (Mesh->IsA<USkeletalMeshComponent>() || Mesh->IsA<UStaticMeshComponent>()))
 	{
-		FTBOutlineStyle EffectiveStyle = Style;
-		if (CanRevealWithBloodPulse()) EffectiveStyle.bShowThroughWalls = bPulseRevealed;
-		Subsystem->SetOutline(this, Mesh, EffectiveStyle);
+		Subsystem->SetOutline(this, Mesh, Style);
 	}
 	else
 	{
