@@ -24,6 +24,8 @@ class UTBPoolStateComponent : public UActorComponent
 public:
 	UTBPoolStateComponent();
 	void SetPoolActive(bool bActive);
+	bool IsPoolActive() const { return PoolState.bActive; }
+	uint32 GetPoolGeneration() const { return PoolState.Generation; }
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:

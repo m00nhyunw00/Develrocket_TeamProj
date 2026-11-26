@@ -1,5 +1,6 @@
 #include "Components/TBPoolStateComponent.h"
 
+#include "Components/TBOutlineComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Interface/TBPoolInterface.h"
@@ -43,6 +44,10 @@ void UTBPoolStateComponent::ApplyPoolState()
 {
 	AActor* Owner = GetOwner();
 	if (!IsValid(Owner)) return;
+	if (UTBOutlineComponent* Outline = Owner->FindComponentByClass<UTBOutlineComponent>())
+	{
+		Outline->ClearBloodPulseReveal();
+	}
 	ACharacter* Character = Cast<ACharacter>(Owner);
 	UCharacterMovementComponent* Movement = Character ? Character->GetCharacterMovement() : nullptr;
 
