@@ -133,10 +133,10 @@ protected:
 	TArray<TObjectPtr<UAnimMontage>> StartleMontages;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Appearance")
-	TArray<TObjectPtr<UTBCitizenAppearanceData>> AppearanceCandidates;
+	TObjectPtr<UTBCitizenAppearanceData> AppearanceCandidates;
 	
 	UPROPERTY(ReplicatedUsing = OnRep_Appearance)
-	TObjectPtr<UTBCitizenAppearanceData> CurrentAppearance;
+	TSoftObjectPtr<USkeletalMesh> CurrentAppearance;
 	
 	UFUNCTION()
 	void OnRep_Appearance();

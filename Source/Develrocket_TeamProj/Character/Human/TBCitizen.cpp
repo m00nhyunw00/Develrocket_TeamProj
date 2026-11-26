@@ -85,7 +85,7 @@ void ATBCitizen::BeginPlay()
 	
 	UpdateMoveSpeed();
 
-	if (!CurrentAppearance)                          // 레벨에 직접 배치된 시민용 (풀이 이미 골랐으면 건너뜀)
+	if (CurrentAppearance.IsNull())
 	{
 		ChooseAppearance();
 	}
@@ -293,31 +293,27 @@ void ATBCitizen::UpdateMoveSpeed()
 
 void ATBCitizen::ChooseAppearance()
 {
-	if (!HasAuthority())
+	if (!HasAuthority() || !AppearanceCandidates)
 	{
 		return;
 	}
-	
-	TArray<UTBCitizenAppearanceData*> Candidates;
-	for (UTBCitizenAppearanceData* Data : AppearanceCandidates)
+
+	TArray<USkeletalMesh*> ValidMeshes;
+	for (USkeletalMesh* CandidateMesh : AppearanceCandidates->SkeletalMesh)
 	{
-		if (Data && Data->SkeletalMesh)
+		if (CandidateMesh)
 		{
-			Candidates.Add(Data);
+			ValidMeshes.Add(CandidateMesh);
 		}
 	}
-	
-	if (Candidates.IsEmpty())
+
+	if (ValidMeshes.IsEmpty())
 	{
 		return;
 	}
-	
-	if (Candidates.Num() > 1)
-	{
-		Candidates.Remove(CurrentAppearance.Get());
-	}
-	
-	CurrentAppearance = Candidates[FMath::RandRange(0, Candidates.Num() - 1)];
+
+	const int32 Index = FMath::RandRange(0, ValidMeshes.Num() - 1);
+	CurrentAppearance = ValidMeshes[Index];
 	ApplyAppearance();
 	ForceNetUpdate();
 }
@@ -329,14 +325,9 @@ void ATBCitizen::OnRep_Appearance()
 
 void ATBCitizen::ApplyAppearance()
 {
-	if (!CurrentAppearance || !CurrentAppearance->SkeletalMesh)
+	if (USkeletalMesh* SelectedMesh = CurrentAppearance.LoadSynchronous())
 	{
-		return;
-	}
-
-	if (GetMesh()->GetSkeletalMeshAsset() != CurrentAppearance->SkeletalMesh)   // 같은 메시면 교체 생략
-	{
-		GetMesh()->SetSkeletalMeshAsset(CurrentAppearance->SkeletalMesh);
+		GetMesh()->SetSkeletalMesh(SelectedMesh);
 	}
 }
 
