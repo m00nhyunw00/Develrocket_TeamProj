@@ -15,6 +15,7 @@ class UStaticMesh;
 class UStaticMeshComponent;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
+class UPoseableMeshComponent;
 
 UENUM(BlueprintType)
 enum class ETBHunterPhase : uint8 { Rifle, DrawingSword, Sword };
@@ -91,6 +92,10 @@ public:
 	static constexpr float BasicTracerDuration = 0.07f;
 	UFUNCTION(NetMulticast, Unreliable)
 	void MulticastPlayRifleTracer(FVector_NetQuantize10 TraceStart, FVector_NetQuantize10 Impact, ETBHunterRifleTracer TracerType);
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastStartMotionTrail(float Duration);
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastStopMotionTrail();
 	static bool TryGetRifleAimRay(const ATBMonster& Hunter, FName MuzzleSocket, const FVector& AimLocation,
 		float Range, FVector& OutStart, FVector& OutEnd);
 	static bool TraceRifleShot(const ATBMonster& Hunter, const FVector& Start, const FVector& End, FHitResult& OutHit);
@@ -101,6 +106,13 @@ protected:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
+	struct FMotionTrailGhost
+	{
+		TWeakObjectPtr<UPoseableMeshComponent> Mesh;
+		TWeakObjectPtr<UMaterialInstanceDynamic> Material;
+		double SpawnedAt = 0.0;
+	};
+
 	struct FRifleTracer
 	{
 		TWeakObjectPtr<UStaticMeshComponent> Mesh;
@@ -121,6 +133,8 @@ private:
 	void UpdateChargeBeam();
 	void ClearChargeBeamPoseUpdate();
 	void UpdateRifleTracers();
+	void UpdateMotionTrail();
+	void SpawnMotionTrailGhost(double Now);
 	UStaticMeshComponent* CreateRifleBeam(UMaterialInterface* Material);
 	bool IsAtTransitionHealth() const;
 	void SetCombatState(ETBHunterPhase Phase, ETBHunterSwordAnimation Animation);
@@ -162,6 +176,10 @@ private:
 	FDelegateHandle ChargeBeamPoseHandle;
 	FTimerHandle RifleTracerTimer;
 	TArray<FRifleTracer> RifleTracers;
+	FTimerHandle MotionTrailTimer;
+	TArray<FMotionTrailGhost> MotionTrailGhosts;
+	double MotionTrailUntil = 0.0;
+	double NextMotionTrailSample = 0.0;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USkeletalMesh> LoadedRifleMesh;

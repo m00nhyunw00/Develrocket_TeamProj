@@ -9,6 +9,7 @@
 #include "Animation/AnimMontage.h"
 #include "Character/Monster/TBVampireHunter.h"
 #include "Character/Monster/TBMonster.h"
+#include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
@@ -35,6 +36,9 @@ constexpr double RifleTracerMinTravelTime = 0.14;
 constexpr ECollisionChannel HunterHitscanTraceChannel = ECC_GameTraceChannel2;
 const FName BeamColorParameter(TEXT("Color"));
 const FName ChargeBeamMuzzleSocket(TEXT("weapon_r_muzzle"));
+const FName MotionTrailOpacity(TEXT("TrailOpacity"));
+constexpr double MotionTrailLifetime = 0.24;
+constexpr double MotionTrailSampleInterval = 0.055;
 
 void SetRifleBeamSegment(UStaticMeshComponent& Beam, const FVector& Start, const FVector& End, double Radius)
 {
@@ -144,17 +148,110 @@ void UTBHunterCombatComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		World->GetTimerManager().ClearTimer(ChargeBeamTimer);
 		World->GetTimerManager().ClearTimer(RifleTracerTimer);
+		World->GetTimerManager().ClearTimer(MotionTrailTimer);
 	}
 	for (const FRifleTracer& Tracer : RifleTracers)
 	{
 		if (UStaticMeshComponent* Mesh = Tracer.Mesh.Get()) Mesh->DestroyComponent();
 	}
 	RifleTracers.Reset();
+	for (const FMotionTrailGhost& Ghost : MotionTrailGhosts)
+	{
+		if (UPoseableMeshComponent* Mesh = Ghost.Mesh.Get()) Mesh->DestroyComponent();
+	}
+	MotionTrailGhosts.Reset();
 	if (ChargeBeam)
 	{
 		ChargeBeam->DestroyComponent();
 	}
 	Super::EndPlay(EndPlayReason);
+}
+
+void UTBHunterCombatComponent::MulticastStartMotionTrail_Implementation(float Duration)
+{
+	if (GetNetMode() == NM_DedicatedServer || Duration <= 0.f)
+	{
+		return;
+	}
+	const ATBVampireHunter* Hunter = Cast<ATBVampireHunter>(GetOwner());
+	const UTBHunterAnimationData* Data = Hunter ? Hunter->GetPhaseAnimationData(true) : nullptr;
+	if (!Data || !Data->SwordMotionTrailMaterial)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	const double Now = World->GetTimeSeconds();
+	MotionTrailUntil = Now + Duration;
+	NextMotionTrailSample = Now;
+	if (!World->GetTimerManager().IsTimerActive(MotionTrailTimer))
+	{
+		World->GetTimerManager().SetTimer(MotionTrailTimer, this, &ThisClass::UpdateMotionTrail, 1.f / 60.f, true);
+	}
+	UpdateMotionTrail();
+}
+
+void UTBHunterCombatComponent::MulticastStopMotionTrail_Implementation()
+{
+	MotionTrailUntil = 0.0;
+}
+
+void UTBHunterCombatComponent::UpdateMotionTrail()
+{
+	UWorld* World = GetWorld();
+	const double Now = World->GetTimeSeconds();
+	for (int32 Index = MotionTrailGhosts.Num() - 1; Index >= 0; --Index)
+	{
+		const FMotionTrailGhost& Ghost = MotionTrailGhosts[Index];
+		const double Life = (Now - Ghost.SpawnedAt) / MotionTrailLifetime;
+		if (Life >= 1.0 || !Ghost.Mesh.IsValid() || !Ghost.Material.IsValid())
+		{
+			if (UPoseableMeshComponent* Mesh = Ghost.Mesh.Get()) Mesh->DestroyComponent();
+			MotionTrailGhosts.RemoveAtSwap(Index);
+		}
+		else
+		{
+			Ghost.Material->SetScalarParameterValue(MotionTrailOpacity, static_cast<float>(0.48 * FMath::Square(1.0 - Life)));
+		}
+	}
+
+	if (Now < MotionTrailUntil && Now >= NextMotionTrailSample)
+	{
+		SpawnMotionTrailGhost(Now);
+		NextMotionTrailSample = Now + MotionTrailSampleInterval;
+	}
+	if (Now >= MotionTrailUntil && MotionTrailGhosts.IsEmpty())
+	{
+		World->GetTimerManager().ClearTimer(MotionTrailTimer);
+	}
+}
+
+void UTBHunterCombatComponent::SpawnMotionTrailGhost(double Now)
+{
+	ATBVampireHunter* Hunter = Cast<ATBVampireHunter>(GetOwner());
+	const UTBHunterAnimationData* Data = Hunter ? Hunter->GetPhaseAnimationData(true) : nullptr;
+	USkeletalMeshComponent* SourceMesh = Hunter ? Hunter->GetMesh() : nullptr;
+	if (!Data || !Data->SwordMotionTrailMaterial || !SourceMesh || !SourceMesh->GetSkeletalMeshAsset()
+		|| Hunter->IsHidden() || Hunter->IsDead())
+	{
+		return;
+	}
+
+	UPoseableMeshComponent* Ghost = NewObject<UPoseableMeshComponent>(Hunter, NAME_None, RF_Transient);
+	Ghost->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Ghost->SetCanEverAffectNavigation(false);
+	Ghost->SetCastShadow(false);
+	Ghost->SetSkinnedAssetAndUpdate(SourceMesh->GetSkeletalMeshAsset());
+	Ghost->SetWorldTransform(SourceMesh->GetComponentTransform());
+	UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Data->SwordMotionTrailMaterial, Ghost);
+	Material->SetScalarParameterValue(MotionTrailOpacity, 0.48f);
+	for (int32 Index = 0; Index < Ghost->GetNumMaterials(); ++Index)
+	{
+		Ghost->SetMaterial(Index, Material);
+	}
+	Ghost->RegisterComponent();
+	Ghost->CopyPoseFromSkeletalComponent(SourceMesh);
+	MotionTrailGhosts.Add({Ghost, Material, Now});
 }
 
 void UTBHunterCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

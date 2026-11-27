@@ -4,6 +4,7 @@
 #include "TBGameplayAbility_VampireHunter_Dodge.generated.h"
 
 class UAnimSequence;
+class USkeletalMeshComponent;
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_VampireHunter_Dodge : public UTBGameplayAbility_Action
@@ -26,4 +27,7 @@ protected:
 
 private:
 	TWeakObjectPtr<UAnimSequence> LastDodgeSequence;
+	TWeakObjectPtr<USkeletalMeshComponent> DodgeMesh;
+	uint8 PreviousVisibilityTickOption = 0;
+	bool bStartedMotionTrail = false;
 };

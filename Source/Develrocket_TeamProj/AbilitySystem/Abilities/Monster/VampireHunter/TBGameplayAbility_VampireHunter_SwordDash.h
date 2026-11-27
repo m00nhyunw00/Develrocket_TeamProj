@@ -43,6 +43,7 @@ private:
 	bool CanDashToward(const ATBMonster* Hunter, const AActor* Target) const;
 	double GetStopDistance(const ATBMonster& Hunter, const AActor& Target) const;
 	void HandleMeleeHit(const FHitResult& Hit);
+	void StopMotionTrail();
 
 	UFUNCTION()
 	void OnDashFinished();
@@ -57,4 +58,5 @@ private:
 	TWeakObjectPtr<UAbilityTask_ApplyRootMotionMoveToForce> ActiveDashTask;
 	uint8 PreviousVisibilityTickOption = 0;
 	bool bMontageCompleted = false;
+	bool bStartedMotionTrail = false;
 };
