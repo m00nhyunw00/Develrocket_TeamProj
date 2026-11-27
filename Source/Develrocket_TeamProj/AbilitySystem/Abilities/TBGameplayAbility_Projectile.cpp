@@ -1,169 +1,154 @@
 ﻿#include "AbilitySystem/Abilities/TBGameplayAbility_Projectile.h"
 
+#include "TBGameplayTags.h"
 #include "Character/TBCharacterBase.h"
+#include "Engine/HitResult.h"
 #include "Projectiles/TBProjectile.h"
 
 UTBGameplayAbility_Projectile::UTBGameplayAbility_Projectile()
 {
     InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerExecution;
-
-    // 실행 인스턴스 자체는 복제하지 않고 GAS 실행·종료 통신 사용
     ReplicationPolicy = EGameplayAbilityReplicationPolicy::ReplicateNo;
+
+    // 발사 동작과 후딜 동안 후속 공격 제한
+    ActivationOwnedTags.AddTag(TBGameplayTags::State_Combat);
 }
 
 bool UTBGameplayAbility_Projectile::GetProjectileLaunchTransform_Implementation(FTransform& OutTransform) const
 {
     const ATBCharacterBase* Attacker = Cast<ATBCharacterBase>(GetAvatarActorFromActorInfo());
 
-    if (!IsValid(Attacker))
+    if (!IsValid(Attacker) || !Attacker->GetWorld())
     {
         return false;
     }
 
-    FVector Location;
-    FRotator Rotation;
-    Attacker->GetActorEyesViewPoint(Location, Rotation);
-
-    if (Location.ContainsNaN() || Rotation.ContainsNaN())
+    if (!FMath::IsFinite(ProjectileAimTraceDistance) || ProjectileAimTraceDistance <= 0.0f || !FMath::IsFinite(ProjectileSpawnHeightOffset))
     {
         return false;
     }
 
-    OutTransform = FTransform(Rotation, Location);
-    return true;
+    // 서버 캐릭터의 눈 위치와 조준 회전
+    FVector EyeLocation;
+    FRotator ViewRotation;
+    Attacker->GetActorEyesViewPoint(EyeLocation, ViewRotation);
+
+    if (EyeLocation.ContainsNaN() || ViewRotation.ContainsNaN())
+    {
+        return false;
+    }
+
+    // 조준선에 충돌이 없을 때 사용할 끝점
+    const FVector TraceEnd = EyeLocation + ViewRotation.Vector() * ProjectileAimTraceDistance;
+
+    // 실제 투사체와 동일한 Projectile 응답을 기준으로 조준 검사
+    constexpr ECollisionChannel ProjectileChannel = ECC_GameTraceChannel4;
+
+    FHitResult AimHit;
+    const bool bBlockingHit = Attacker->LineTraceByChannel(AimHit, EyeLocation, TraceEnd, ProjectileChannel);
+
+    // 첫 차단 지점 또는 조준 검사 거리의 끝점
+    const FVector AimPoint = bBlockingHit ? FVector(AimHit.ImpactPoint) : TraceEnd;
+
+    // 시선의 상하 각도와 관계없이 월드 Z축으로 발사 높이 조절
+    const FVector SpawnLocation = EyeLocation + FVector::UpVector * ProjectileSpawnHeightOffset;
+
+    // 실제 발사 위치에서 조준 지점을 향하는 방향
+    FVector LaunchDirection = AimPoint - SpawnLocation;
+
+    if (SpawnLocation.ContainsNaN() || LaunchDirection.ContainsNaN() || !LaunchDirection.Normalize())
+    {
+        return false;
+    }
+
+    OutTransform = FTransform(LaunchDirection.Rotation(), SpawnLocation);
+    return OutTransform.IsValid();
 }
 
-void UTBGameplayAbility_Projectile::ActivateAbility(
-    FGameplayAbilitySpecHandle Handle,
-    const FGameplayAbilityActorInfo* ActorInfo,
-    FGameplayAbilityActivationInfo ActivationInfo,
-    const FGameplayEventData* TriggerEventData)
+void UTBGameplayAbility_Projectile::ActivateAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
-    ATBCharacterBase* Attacker = ActorInfo
-        ? Cast<ATBCharacterBase>(ActorInfo->AvatarActor.Get())
-        : nullptr;
+    ATBCharacterBase* Attacker = ActorInfo ? Cast<ATBCharacterBase>(ActorInfo->AvatarActor.Get()) : nullptr;
 
-    if (!IsValid(Attacker) || !ProjectileClass)
+    if (!IsValid(Attacker) || !ProjectileClass || (bWaitForRecovery && !ThirdPersonMontage))
     {
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
 
-    DamagedActors.Reset();
-
-    // 피해량 확정, 비용·쿨다운 처리, 선택적 몽타주 재생
+    // 피해량 확정, 비용·쿨다운 처리, 몽타주 재생
     Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
-    if (!IsActive() || !ActorInfo->IsNetAuthority())
-    {
-        return;
-    }
-
-    FTransform SpawnTransform;
-
-    if (!GetProjectileLaunchTransform(SpawnTransform))
-    {
-        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-        return;
-    }
-
     if (!IsActive())
     {
         return;
     }
 
-    ATBProjectile* Projectile = Attacker->SpawnAttackProjectile(ProjectileClass, SpawnTransform);
-
-    if (!IsValid(Projectile))
+    if (ActorInfo->IsNetAuthority())
     {
-        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-        return;
-    }
+        FTransform SpawnTransform;
 
-    if (!IsActive())
-    {
-        Projectile->Destroy();
-        return;
-    }
+        if (!GetProjectileLaunchTransform(SpawnTransform))
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+            return;
+        }
 
-    ActiveProjectile = Projectile;
+        if (!IsActive())
+        {
+            return;
+        }
 
-    HitDelegateHandle = Projectile->OnHit.AddUObject(this, &ThisClass::HandleProjectileHit);
+        ATBProjectile* Projectile = Attacker->SpawnAttackProjectile(ProjectileClass, SpawnTransform);
 
-    FinishedDelegateHandle = Projectile->OnFinished.AddUObject(this, &ThisClass::HandleProjectileFinished);
+        if (!IsValid(Projectile))
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+            return;
+        }
 
-    const bool bLaunchSucceeded = Projectile->Launch();
+        if (!IsActive())
+        {
+            Projectile->Destroy();
+            return;
+        }
 
-    // Launch 중 즉시 명중·종료된 경우 콜백에서 이미 정리
-    if (!IsActive())
-    {
-        return;
-    }
+        ActiveProjectile = Projectile;
 
-    if (!bLaunchSucceeded)
-    {
-        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-        return;
-    }
+        // 발사 전에 확정 피해량과 명중 조건 전달
+        if (!Projectile->InitializeAttackDamage(Attacker, CurrentAttackDamage, AllowedTargetClasses, RequiresUnblockedAttackerOnHit()))
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+            return;
+        }
 
-    // 발사 행동은 완료하되 명중을 받을 어빌리티는 유지
-    MarkAttackActionCompleted();
-}
+        const bool bLaunchSucceeded = Projectile->Launch();
 
-void UTBGameplayAbility_Projectile::HandleProjectileHit(const FHitResult& HitResult)
-{
-    if (!IsAllowedAttackHit(HitResult))
-    {
-        return;
-    }
+        // 발사 중 외부 처리로 어빌리티가 종료된 경우 확인
+        if (!IsActive())
+        {
+            return;
+        }
 
-    ATBCharacterBase* Attacker = Cast<ATBCharacterBase>(GetAvatarActorFromActorInfo());
+        if (!bLaunchSucceeded)
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+            return;
+        }
 
-    AActor* Target = HitResult.GetActor();
-    const TWeakObjectPtr<AActor> TargetKey(Target);
-
-    if (DamagedActors.Contains(TargetKey))
-    {
-        return;
-    }
-
-    // 피해 처리 중 재진입하더라도 중복 적용되지 않도록 먼저 기록
-    DamagedActors.Add(TargetKey);
-
-    if (!Attacker->ApplyProjectileDamage(HitResult, CurrentAttackDamage))
-    {
-        // 피해 요청이 실패한 대상은 성공 기록에서 제외
-        DamagedActors.Remove(TargetKey);
-    }
-}
-
-void UTBGameplayAbility_Projectile::HandleProjectileFinished(bool bWasLaunched)
-{
-    if (!IsActive())
-    {
-        return;
-    }
-
-    // 발사 직후 즉시 종료된 경우도 발사 완료로 기록
-    if (bWasLaunched)
-    {
         MarkAttackActionCompleted();
+
+        // 발사 성공 이후에는 투사체가 자신의 수명 관리
+        ActiveProjectile.Reset();
     }
 
-    EndAbility(
-        CurrentSpecHandle,
-        CurrentActorInfo,
-        CurrentActivationInfo,
-        true,
-        !bWasLaunched);
+    // 후딜 대기 여부에 따른 발사 동작 종료
+    if (!bWaitForRecovery)
+    {
+        EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
+    }
 }
 
-void UTBGameplayAbility_Projectile::EndAbility(
-    FGameplayAbilitySpecHandle Handle,
-    const FGameplayAbilityActorInfo* ActorInfo,
-    FGameplayAbilityActivationInfo ActivationInfo,
-    bool bReplicateEndAbility,
-    bool bWasCancelled)
+void UTBGameplayAbility_Projectile::EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
     if (!IsActive())
     {
@@ -173,23 +158,11 @@ void UTBGameplayAbility_Projectile::EndAbility(
     ATBProjectile* Projectile = ActiveProjectile.Get();
     ActiveProjectile.Reset();
 
-    if (IsValid(Projectile))
-    {
-        Projectile->OnHit.Remove(HitDelegateHandle);
-        Projectile->OnFinished.Remove(FinishedDelegateHandle);
-    }
-
-    HitDelegateHandle.Reset();
-    FinishedDelegateHandle.Reset();
-    DamagedActors.Reset();
-
-    // 어빌리티가 먼저 종료되면 서버 투사체도 정리
-    if (IsValid(Projectile) && Projectile->HasAuthority() && !Projectile->IsActorBeingDestroyed())
+    // 발사 준비 중 실패한 서버 투사체 정리
+    if (IsValid(Projectile) && Projectile->HasAuthority() && !Projectile->HasLaunched() && !Projectile->IsActorBeingDestroyed())
     {
         Projectile->Destroy();
     }
 
-    Super::EndAbility(
-        Handle, ActorInfo, ActivationInfo,
-        bReplicateEndAbility, bWasCancelled);
+    Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

@@ -355,7 +355,9 @@ private:
 
 	// 이동·시점 입력 처리 ----------------------
 
+	// 이동 입력 유지 중 취소 구간 확인 및 이동 처리
 	void InputMove(const FInputActionValue& Value);
+
 	void InputLook(const FInputActionValue& Value);
 
 	// 점프 입력 처리 ----------------------

@@ -6,20 +6,21 @@
 #include "Engine/HitResult.h"
 #include "TBGameplayAbility_Attack.generated.h"
 
+class ATBCharacterBase;
+class UAbilitySystemComponent;
+
 UCLASS(Abstract, Blueprintable)
-class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_Attack
-    : public UTBGameplayAbility_Action
+class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_Attack : public UTBGameplayAbility_Action
 {
     GENERATED_BODY()
 
 public:
     UTBGameplayAbility_Attack();
 
-    virtual void ActivateAbility(
-        FGameplayAbilitySpecHandle Handle,
-        const FGameplayAbilityActorInfo* ActorInfo,
-        FGameplayAbilityActivationInfo ActivationInfo,
-        const FGameplayEventData* TriggerEventData) override;
+    // 어빌리티와 투사체가 함께 사용하는 명중 대상 검증
+    static bool IsAllowedDamageHit(ATBCharacterBase* Attacker, UAbilitySystemComponent* ExpectedSourceASC, const FHitResult& HitResult, float Damage, const TArray<TSubclassOf<AActor>>& TargetClasses, bool bRequireUnblockedAttacker);
+
+    virtual void ActivateAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 
     // 활성화 과정에서 발사 행동을 완료하는 공격인지 조회
     virtual bool CompletesAttackActionDuringActivation() const
@@ -90,10 +91,7 @@ protected:
 
     virtual const FGameplayTagContainer* GetCooldownTags() const override;
 
-    virtual void ApplyCooldown(
-        FGameplayAbilitySpecHandle Handle,
-        const FGameplayAbilityActorInfo* ActorInfo,
-        FGameplayAbilityActivationInfo ActivationInfo) const override;
+    virtual void ApplyCooldown(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo) const override;
 
 private:
     bool bAttackActionCompleted = false;

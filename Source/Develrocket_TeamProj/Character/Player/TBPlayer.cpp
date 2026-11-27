@@ -871,6 +871,18 @@ void ATBPlayer::ConfigurePlayerMeshes()
 	FirstPersonMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	FirstPersonMesh->SetGenerateOverlapEvents(false);
 	FirstPersonMesh->SetCastShadow(false);
+	
+	// 프로젝트에 등록된 Projectile 오브젝트 채널
+	constexpr ECollisionChannel ProjectileChannel = ECC_GameTraceChannel4;
+
+	// 투사체의 캐릭터 캡슐 판정 제외
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ProjectileChannel, ECR_Ignore);
+
+	// 3인칭 전신 메시의 투사체 피격 판정 설정
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	GetMesh()->SetCollisionObjectType(ECC_Pawn);
+	GetMesh()->SetCollisionResponseToChannel(ProjectileChannel, ECR_Block);
+	GetMesh()->SetGenerateOverlapEvents(true);
 }
 
 void ATBPlayer::UpdateCameraHeight()
@@ -892,13 +904,30 @@ void ATBPlayer::UpdateCameraHeight()
 
 void ATBPlayer::InputMove(const FInputActionValue& Value)
 {
-	// Controller 부재 또는 이동 제한 상태에서 이동 입력 차단
-	if (!Controller || IsMovementBlocked())
+	// 로컬 플레이어의 유효한 이동 입력만 처리
+	if (!Controller || !IsLocallyControlled() || IsActionBlocked())
 	{
 		return;
 	}
 
 	const FVector2D Input = Value.Get<FVector2D>();
+
+	if (Input.IsNearlyZero())
+	{
+		return;
+	}
+
+	// 이동키 유지 중에도 취소 허용 구간을 확인하고 동작 전환 요청
+	if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+	{
+		ASC->RequestActionTransition(FGameplayTag(), true);
+	}
+
+	// 스킬의 이동 제한 해제 여부는 취소 요청 이후 확인
+	if (IsMovementBlocked())
+	{
+		return;
+	}
 
 	// 시점의 상하 기울기를 제외한 좌우 회전으로 수평 이동 방향 계산
 	const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);

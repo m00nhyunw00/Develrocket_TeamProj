@@ -20,7 +20,10 @@ public:
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
-
+	
+	// 현재 몽타주 위치에서 해당 입력으로 취소 가능한지 확인
+	bool CanCancelByInput(const FGameplayTag& InputTag, bool bMovementInput) const;
+	
 protected:
 	// 비용 적용 시점 ----------------------
 
