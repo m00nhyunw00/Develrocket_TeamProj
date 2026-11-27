@@ -109,6 +109,9 @@ public:
 	}
 
 protected:
+	// 캐릭터 공통 투사체 피격 설정
+	virtual void BeginPlay() override;
+
 	// 빙의 해제 및 종료 처리 ----------------------
 
 	virtual void UnPossessed() override;
