@@ -35,7 +35,7 @@ bool IsValidShotTarget(const ATBMonster* Monster, const AActor* Target)
 
 #if ENABLE_DRAW_DEBUG
 TAutoConsoleVariable<int32> CVarDebugHunterShot(
-	TEXT("tb.Debug.HunterShot"), 0, TEXT("Draw the Vampire Hunter's charge aim and hitscan traces (0: off, 1: on)."));
+		TEXT("tb.Debug.HunterShot"), 0, TEXT("Draw the Vampire Hunter's aim and log hitscan results (0: off, 1: on)."));
 #endif
 }
 
@@ -127,7 +127,7 @@ AActor* UTBGameplayAbility_VampireHunter_Hitscan::GetCurrentShotTarget(bool bReq
 
 void UTBGameplayAbility_VampireHunter_Hitscan::LockAim()
 {
-	const ATBMonster* Monster = Cast<ATBMonster>(GetAvatarActorFromActorInfo());
+	ATBMonster* Monster = GetHunter();
 	const AActor* Target = ShotTarget.Get();
 	if (!IsActive() || !CanUseAgainst(Monster, Target) || GetHunterTarget(Monster) != Target)
 	{
@@ -136,6 +136,7 @@ void UTBGameplayAbility_VampireHunter_Hitscan::LockAim()
 	}
 
 	LockedAimLocation = Target->GetActorLocation();
+	Monster->GetHunterCombatComponent()->SetRifleAimLock(LockedAimLocation.GetValue(), FireTime);
 #if ENABLE_DRAW_DEBUG
 	if (IsShotDebugEnabled())
 	{
@@ -148,7 +149,7 @@ void UTBGameplayAbility_VampireHunter_Hitscan::FireShot()
 {
 	AActor* Target = GetCurrentShotTarget();
 	const bool bFired = Target && LockedAimLocation.IsSet()
-		&& TraceShot(*GetHunter(), *Target, LockedAimLocation.GetValue());
+		&& TraceShot(*GetHunter(), *Target, LockedAimLocation.GetValue(), true);
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, !bFired);
 }
 
@@ -161,37 +162,40 @@ bool UTBGameplayAbility_VampireHunter_Hitscan::IsShotDebugEnabled()
 #endif
 }
 
-bool UTBGameplayAbility_VampireHunter_Hitscan::TryGetShotOrigin(const ATBMonster& Monster, FVector& OutOrigin) const
+bool UTBGameplayAbility_VampireHunter_Hitscan::TryGetShotRay(const ATBMonster& Monster, const FVector& AimLocation,
+	FVector& OutStart, FVector& OutEnd) const
 {
-	return UTBHunterCombatComponent::TryGetRifleShotOrigin(Monster, MuzzleSocketName, OutOrigin);
+	return UTBHunterCombatComponent::TryGetRifleAimRay(Monster, MuzzleSocketName, AimLocation, TraceRange, OutStart, OutEnd);
 }
 
 bool UTBGameplayAbility_VampireHunter_Hitscan::TraceShot(ATBMonster& Monster, AActor& Target,
-	const FVector& AimLocation) const
+	const FVector& AimLocation, bool bBasicShot) const
 {
 	FVector TraceStart;
-	if (!TryGetShotOrigin(Monster, TraceStart))
+	FVector TraceEnd;
+	if (!TryGetShotRay(Monster, AimLocation, TraceStart, TraceEnd))
 	{
 		return false;
 	}
 
-	const FVector AimDirection = (AimLocation - TraceStart).GetSafeNormal();
-	if (AimDirection.IsNearlyZero())
-	{
-		return false;
-	}
-
-	const FVector TraceEnd = TraceStart + AimDirection * TraceRange;
 	FHitResult Hit;
 	const bool bBlockingHit = UTBHunterCombatComponent::TraceRifleShot(Monster, TraceStart, TraceEnd, Hit);
 	const bool bHitTarget = bBlockingHit && Hit.GetActor() == &Target;
 	const FVector ImpactEnd = bBlockingHit ? Hit.ImpactPoint : TraceEnd;
-	OnShotTraced(Monster, TraceStart, ImpactEnd);
+	UTBHunterCombatComponent* Combat = Monster.GetHunterCombatComponent();
+	const ETBHunterRifleTracer TracerType = bBasicShot ? ETBHunterRifleTracer::Basic
+		: (IsChargedShot() ? ETBHunterRifleTracer::Charged : ETBHunterRifleTracer::Traveling);
+	if (bBasicShot) Combat->SetRifleAimLock(AimLocation, UTBHunterCombatComponent::BasicTracerDuration);
+	Combat->MulticastPlayRifleTracer(TraceStart, ImpactEnd, TracerType);
 
 #if ENABLE_DRAW_DEBUG
 	if (IsShotDebugEnabled())
 	{
 		const FColor TraceColor = bHitTarget ? FColor::Green : (bBlockingHit ? FColor::Orange : FColor::Red);
+		const TCHAR* Result = bHitTarget ? TEXT("TargetHit") : (bBlockingHit ? TEXT("Blocked") : TEXT("Miss"));
+		UE_LOG(LogTemp, Display, TEXT("HunterShot %s: %s Hunter=%s Target=%s Hit=%s Component=%s Bone=%s"),
+			*GetClass()->GetName(), Result, *GetNameSafe(&Monster), *GetNameSafe(&Target),
+			*GetNameSafe(Hit.GetActor()), *GetNameSafe(Hit.GetComponent()), *Hit.BoneName.ToString());
 		DrawDebugLine(Monster.GetWorld(), TraceStart, ImpactEnd, TraceColor, false, 2.0f, 0, 2.0f);
 		if (bBlockingHit)
 		{
@@ -217,6 +221,10 @@ void UTBGameplayAbility_VampireHunter_Hitscan::EndAbility(FGameplayAbilitySpecHa
 		FTimerManager& Timers = World->GetTimerManager();
 		Timers.ClearTimer(AimLockTimer);
 		Timers.ClearTimer(FireTimer);
+	}
+	if (bWasCancelled && LockedAimLocation.IsSet())
+	{
+		if (ATBMonster* Monster = GetHunter()) Monster->GetHunterCombatComponent()->ClearRifleAimLock();
 	}
 	ShotTarget.Reset();
 	LockedAimLocation.Reset();

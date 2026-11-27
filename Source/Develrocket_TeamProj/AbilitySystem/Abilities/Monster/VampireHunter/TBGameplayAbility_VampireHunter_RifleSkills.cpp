@@ -6,7 +6,6 @@
 #include "Animation/Monster/TBAnimNotify_HunterRifleFire.h"
 #include "Character/Monster/TBMonster.h"
 #include "Components/TBHunterCombatComponent.h"
-#include "Components/TBRotationComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -57,32 +56,24 @@ void UTBGameplayAbility_VampireHunter_StationaryShot::OnActionCommitted()
 	}
 	Hunter->GetCharacterMovement()->StopMovementImmediately();
 
-	if (UTBRotationComponent* Rotation = Hunter->GetAttackRotationComponent())
+	if (USkeletalMeshComponent* Mesh = Hunter->GetMesh())
 	{
-		ShotRotation = Rotation;
-		Rotation->SetAbilityFacingTarget(GetCurrentShotTarget(false));
-		Rotation->ToggleShouldRotate(false);
+		ShotMesh = Mesh;
+		PreviousVisibilityTickOption = static_cast<uint8>(Mesh->VisibilityBasedAnimTickOption);
+		Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	}
-}
 
-void UTBGameplayAbility_VampireHunter_StationaryShot::SetTrackingTarget(bool bTrack)
-{
-	if (UTBRotationComponent* Rotation = ShotRotation.Get())
-	{
-		Rotation->ToggleShouldRotate(bTrack);
-	}
 }
 
 void UTBGameplayAbility_VampireHunter_StationaryShot::EndAbility(FGameplayAbilitySpecHandle Handle,
 	const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo,
 	bool bReplicateEndAbility, bool bWasCancelled)
 {
-	if (UTBRotationComponent* Rotation = ShotRotation.Get())
+	if (USkeletalMeshComponent* Mesh = ShotMesh.Get())
 	{
-		Rotation->ToggleShouldRotate(false);
-		Rotation->SetAbilityFacingTarget(nullptr);
+		Mesh->VisibilityBasedAnimTickOption = static_cast<EVisibilityBasedAnimTickOption>(PreviousVisibilityTickOption);
 	}
-	ShotRotation.Reset();
+	ShotMesh.Reset();
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
@@ -106,14 +97,16 @@ const FGameplayTagContainer& UTBGameplayAbility_VampireHunter_ChargedShot::GetCo
 
 bool UTBGameplayAbility_VampireHunter_ChargedShot::CanUseAgainst(const ATBMonster* Monster, const AActor* Target) const
 {
-	return FMath::IsFinite(ChargeDuration) && ChargeDuration > 0.f && Super::CanUseAgainst(Monster, Target);
+	FVector Start;
+	FVector End;
+	return FMath::IsFinite(ChargeDuration) && ChargeDuration > 0.f && Super::CanUseAgainst(Monster, Target)
+		&& TryGetShotRay(*Monster, Target->GetActorLocation(), Start, End);
 }
 
 void UTBGameplayAbility_VampireHunter_ChargedShot::StartShotSequence()
 {
-	SetTrackingTarget(true);
 	GetHunter()->GetHunterCombatComponent()->BeginRifleChargeVisual(
-		GetCurrentShotTarget(false), MuzzleSocketName, TraceRange, ChargeDuration);
+		GetCurrentShotTarget(false), ChargeDuration);
 	FTimerManager& Timers = GetWorld()->GetTimerManager();
 	Timers.SetTimer(ChargeTimer, this, &ThisClass::FinishCharge, ChargeDuration, false);
 #if ENABLE_DRAW_DEBUG
@@ -133,9 +126,11 @@ void UTBGameplayAbility_VampireHunter_ChargedShot::UpdateChargeDebugRay()
 	const AActor* Target = GetCurrentShotTarget(false);
 	const ATBMonster* Hunter = GetHunter();
 	FVector Start;
-	if (Target && Hunter && TryGetShotOrigin(*Hunter, Start))
+	FVector End;
+	FHitResult Hit;
+	if (Target && Hunter && TryGetShotRay(*Hunter, Target->GetActorLocation(), Start, End))
 	{
-		const FVector End = Start + (Target->GetActorLocation() - Start).GetClampedToMaxSize(TraceRange);
+		if (UTBHunterCombatComponent::TraceRifleShot(*Hunter, Start, End, Hit)) End = Hit.ImpactPoint;
 		DrawDebugLine(Hunter->GetWorld(), Start, End, FColor::Yellow, false, ChargeDebugInterval, 0, 2.0f);
 	}
 #endif
@@ -143,7 +138,6 @@ void UTBGameplayAbility_VampireHunter_ChargedShot::UpdateChargeDebugRay()
 
 void UTBGameplayAbility_VampireHunter_ChargedShot::FinishCharge()
 {
-	SetTrackingTarget(false);
 	if (ATBMonster* Hunter = GetHunter())
 	{
 		Hunter->GetHunterCombatComponent()->EndRifleChargeVisual();
@@ -169,11 +163,6 @@ void UTBGameplayAbility_VampireHunter_ChargedShot::FinishCharge()
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, !bFired);
 	}
-}
-
-void UTBGameplayAbility_VampireHunter_ChargedShot::OnShotTraced(ATBMonster& Monster, const FVector& Start, const FVector& End) const
-{
-	Monster.GetHunterCombatComponent()->MulticastPlayChargedShotFlash(Start, End);
 }
 
 void UTBGameplayAbility_VampireHunter_ChargedShot::EndAbility(FGameplayAbilitySpecHandle Handle,
@@ -225,18 +214,6 @@ UAnimMontage* UTBGameplayAbility_VampireHunter_NotifyShot::GetPhaseShotMontage(c
 	return Monster.GetHunterCombatComponent()->GetRifleNotifyShotMontage();
 }
 
-void UTBGameplayAbility_VampireHunter_NotifyShot::OnActionCommitted()
-{
-	Super::OnActionCommitted();
-	if (USkeletalMeshComponent* Mesh = GetHunter()->GetMesh())
-	{
-		// Dedicated servers must advance the montage and refresh the muzzle socket.
-		NotifyMesh = Mesh;
-		PreviousVisibilityTickOption = static_cast<uint8>(Mesh->VisibilityBasedAnimTickOption);
-		Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
-	}
-}
-
 void UTBGameplayAbility_VampireHunter_NotifyShot::FireFromMontageNotify(const UAnimSequenceBase* Animation) const
 {
 	const UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
@@ -245,16 +222,4 @@ void UTBGameplayAbility_VampireHunter_NotifyShot::FireFromMontageNotify(const UA
 	{
 		FireAtCurrentTarget();
 	}
-}
-
-void UTBGameplayAbility_VampireHunter_NotifyShot::EndAbility(FGameplayAbilitySpecHandle Handle,
-	const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo,
-	bool bReplicateEndAbility, bool bWasCancelled)
-{
-	if (USkeletalMeshComponent* Mesh = NotifyMesh.Get())
-	{
-		Mesh->VisibilityBasedAnimTickOption = static_cast<EVisibilityBasedAnimTickOption>(PreviousVisibilityTickOption);
-	}
-	NotifyMesh.Reset();
-	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

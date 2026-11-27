@@ -5,7 +5,6 @@
 
 class UAnimSequenceBase;
 class USkeletalMeshComponent;
-class UTBRotationComponent;
 
 UCLASS(Abstract)
 class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_VampireHunter_StationaryShot : public UTBGameplayAbility_VampireHunter_Hitscan
@@ -22,11 +21,11 @@ public:
 protected:
 	virtual UAnimMontage* GetPhaseShotMontage(const ATBMonster& Monster) const override { return nullptr; }
 	virtual void OnActionCommitted() override;
-	void SetTrackingTarget(bool bTrack);
 	bool FireAtCurrentTarget() const;
 
 private:
-	TWeakObjectPtr<UTBRotationComponent> ShotRotation;
+	TWeakObjectPtr<USkeletalMeshComponent> ShotMesh;
+	uint8 PreviousVisibilityTickOption = 0;
 };
 
 UCLASS(Blueprintable)
@@ -42,7 +41,7 @@ public:
 
 protected:
 	virtual void StartShotSequence() override;
-	virtual void OnShotTraced(ATBMonster& Monster, const FVector& Start, const FVector& End) const override;
+	virtual bool IsChargedShot() const override { return true; }
 	virtual bool ShouldPlayActionMontagesOnActivate() const override { return false; }
 	virtual bool ShouldWaitForMontageEnd() const override { return true; }
 	virtual bool ShouldAllowMontageInterruptAfterBlendOut() const override { return true; }
@@ -66,19 +65,12 @@ class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_VampireHunter_NotifyShot : pub
 public:
 	UTBGameplayAbility_VampireHunter_NotifyShot();
 	virtual bool CanUseAgainst(const ATBMonster* Monster, const AActor* Target) const override;
-	virtual void EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
-		FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 	void FireFromMontageNotify(const UAnimSequenceBase* Animation) const;
 
 protected:
 	virtual bool ShouldWaitForMontageEnd() const override { return true; }
 	virtual bool ShouldAllowMontageInterruptAfterBlendOut() const override { return true; }
 	virtual UAnimMontage* GetPhaseShotMontage(const ATBMonster& Monster) const override;
-	virtual void OnActionCommitted() override;
 	virtual void StartShotSequence() override {}
 	virtual const FGameplayTagContainer& GetConfiguredSkillCooldownTags() const override;
-
-private:
-	TWeakObjectPtr<USkeletalMeshComponent> NotifyMesh;
-	uint8 PreviousVisibilityTickOption = 0;
 };
