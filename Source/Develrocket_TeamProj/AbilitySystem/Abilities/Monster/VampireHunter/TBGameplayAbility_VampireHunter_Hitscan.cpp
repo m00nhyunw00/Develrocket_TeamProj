@@ -206,7 +206,7 @@ bool UTBGameplayAbility_VampireHunter_Hitscan::TraceShot(ATBMonster& Monster, AA
 
 	if (bHitTarget)
 	{
-		ITBHitInterface::Execute_ReceiveAttackHit(&Target, ShotDamage, &Monster, Hit);
+		ATBCharacterBase::DispatchRangedAttackHit(Target, ShotDamage, &Monster, Hit);
 	}
 
 	return true;

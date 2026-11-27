@@ -201,7 +201,7 @@ protected:
 	virtual void OnAttackApplied(float Damage, AActor* DamageSource) override;
 
 	// 세 공격 방식에서 공유하는 플레이어 피해 전달
-	bool ApplyAttackDamage(const FHitResult& HitResult, float Damage);
+	bool ApplyAttackDamage(const FHitResult& HitResult, float Damage, bool bRangedAttack = false);
 
 	// 로컬 어빌리티 입력 전달 ----------------------
 

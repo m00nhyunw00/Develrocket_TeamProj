@@ -35,5 +35,8 @@ public:
 	TMap<ETBHunterSwordAnimation, float> SwordHitFractions;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hunter|Animation")
+	TArray<TObjectPtr<UAnimSequence>> SwordDodgeSequences;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hunter|Animation")
 	FName SwordFullBodySlot = TEXT("DefaultSlot");
 };
