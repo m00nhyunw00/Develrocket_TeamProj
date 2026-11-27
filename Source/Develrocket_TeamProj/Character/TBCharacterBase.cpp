@@ -4,6 +4,7 @@
 #include "AbilitySystemGlobals.h"
 #include "GameplayEffect.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/TBBloodBarComponent.h"
 #include "Components/TBHealComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -53,6 +54,29 @@ ATBCharacterBase::ATBCharacterBase(const FObjectInitializer& ObjectInitializer)
     OutlineComponent = CreateDefaultSubobject<UTBOutlineComponent>(TEXT("OutlineComponent"));
     
     HealComponent = CreateDefaultSubobject<UTBHealComponent>(TEXT("HealComponent"));
+}
+
+void ATBCharacterBase::BeginPlay()
+{
+    Super::BeginPlay();
+
+    // 프로젝트에 등록된 Projectile 오브젝트 채널
+    constexpr ECollisionChannel ProjectileChannel = ECC_GameTraceChannel4;
+
+    // 투사체의 캡슐 판정 제외
+    GetCapsuleComponent()->SetCollisionResponseToChannel(ProjectileChannel, ECR_Ignore);
+
+    // 전신 스켈레탈 메시의 투사체 피격 판정
+    GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    GetMesh()->SetCollisionObjectType(ECC_Pawn);
+    GetMesh()->SetCollisionResponseToChannel(ProjectileChannel, ECR_Block);
+    GetMesh()->SetGenerateOverlapEvents(true);
+
+    // 서버 화면에 보이지 않아도 피격 충돌체의 뼈 위치 갱신
+    if (HasAuthority())
+    {
+        GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+    }
 }
 
 void ATBCharacterBase::SetCharacterOutlineColor(float Red, float Green, float Blue)

@@ -21,8 +21,13 @@ namespace TBGameplayTags
 	
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_PrimaryAttack);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_SecondaryAction);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Melee);
+
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Mobility);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Skill1);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Skill2);
+	
+	
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_MonsterSkill);
 
 	// 전투 Ability ----------------------
@@ -50,7 +55,6 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Damage);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Heal);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_MoveSpeedBonus);
-
 	
 	// 공격·피격·강화 연출 ----------------------
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Attack);
@@ -58,12 +62,16 @@ namespace TBGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Impact_Blood_World);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Impact_Blood_Flesh_Red);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Impact_Blood_Flesh_Green);
+	
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Attack);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Attack_Fire);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Attack_Melee);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Blackwood_Empowered);
+	
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Amanai_Attack);
-	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Amanai_Attack_PrimaryAttack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Amanai_Attack_HeavyAttack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Amanai_Attack_Guard);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Amanai_Attack_Dash);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Amanai_Attack_SwordWave);
 	
 	// 이벤트 발생 시점 전달 ----------------------

@@ -872,18 +872,6 @@ void ATBPlayer::ConfigurePlayerMeshes()
 	FirstPersonMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	FirstPersonMesh->SetGenerateOverlapEvents(false);
 	FirstPersonMesh->SetCastShadow(false);
-	
-	// 프로젝트에 등록된 Projectile 오브젝트 채널
-	constexpr ECollisionChannel ProjectileChannel = ECC_GameTraceChannel4;
-
-	// 투사체의 캐릭터 캡슐 판정 제외
-	GetCapsuleComponent()->SetCollisionResponseToChannel(ProjectileChannel, ECR_Ignore);
-
-	// 3인칭 전신 메시의 투사체 피격 판정 설정
-	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-	GetMesh()->SetCollisionObjectType(ECC_Pawn);
-	GetMesh()->SetCollisionResponseToChannel(ProjectileChannel, ECR_Block);
-	GetMesh()->SetGenerateOverlapEvents(true);
 }
 
 void ATBPlayer::UpdateCameraHeight()
