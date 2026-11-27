@@ -30,9 +30,12 @@ constexpr TCHAR HunterAssets[] = TEXT("/Game/_Assets/Animations/Monster/VampireH
 constexpr TCHAR HunterMeshes[] = TEXT("/Game/_Assets/_Original/Gothic_Hunter_Vampire/Meshes/base_mesh/");
 constexpr TCHAR HunterSwordSequences[] = TEXT("/Game/_Assets/_Original/Gothic_Hunter_Vampire/animation/sword/");
 constexpr float ChargeBeamUpdateInterval = 1.f / 60.f;
+constexpr double ChargeBeamWarningDuration = 0.48;
+constexpr double ChargeBeamWarningPulses = 3.0;
 constexpr float ShotFlashLifetime = 0.14f;
 constexpr ECollisionChannel HunterHitscanTraceChannel = ECC_GameTraceChannel2;
 const FName BeamColorParameter(TEXT("Color"));
+const FName HunterRifleMuzzleSocket(TEXT("weapon_r_muzzle"));
 
 FString AssetPath(const TCHAR* Folder, const TCHAR* Name)
 {
@@ -175,7 +178,7 @@ void UTBHunterCombatComponent::BeginRifleChargeVisual(AActor* Target, FName Muzz
 		return;
 	}
 	ChargeVisual.Target = Target;
-	ChargeVisual.MuzzleSocket = MuzzleSocket;
+	ChargeVisual.MuzzleSocket = MuzzleSocket.IsNone() ? HunterRifleMuzzleSocket : MuzzleSocket;
 	ChargeVisual.Range = Range;
 	ChargeVisual.Duration = Duration;
 	ChargeVisual.StartTime = GetCombatTime();
@@ -213,15 +216,19 @@ void UTBHunterCombatComponent::UpdateChargeBeam()
 {
 	const ATBMonster* Hunter = CastChecked<ATBMonster>(GetOwner());
 	const double Elapsed = GetCombatTime() - ChargeVisual.StartTime;
-	const bool bCharging = ChargeVisual.Duration > 0.f && Elapsed < ChargeVisual.Duration;
+	const double TimeUntilFire = ChargeVisual.Duration - Elapsed;
+	const bool bCharging = ChargeVisual.Duration > 0.f && TimeUntilFire > 0.0;
 	if (!bCharging)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(ChargeBeamTimer);
 	}
 
+	const double WarningDuration = FMath::Min(ChargeBeamWarningDuration, static_cast<double>(ChargeVisual.Duration));
+	const bool bWarning = bCharging && TimeUntilFire <= WarningDuration;
+	const bool bBlinkOff = bWarning && FMath::Frac((1.0 - TimeUntilFire / WarningDuration) * ChargeBeamWarningPulses) >= 0.5;
 	FVector Start;
 	const AActor* Target = ChargeVisual.Target.Get();
-	if (!bCharging || !IsValid(Target) || Hunter->IsHidden() || GetPhase() != ETBHunterPhase::Rifle
+	if (!bCharging || bBlinkOff || !IsValid(Target) || Hunter->IsHidden() || GetPhase() != ETBHunterPhase::Rifle
 		|| !TryGetRifleShotOrigin(*Hunter, ChargeVisual.MuzzleSocket, Start))
 	{
 		if (ChargeBeam)
