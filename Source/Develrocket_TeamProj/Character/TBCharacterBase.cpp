@@ -268,6 +268,27 @@ void ATBCharacterBase::UninitializeAbilitySystem()
     }
 }
 
+bool ATBCharacterBase::DispatchRangedAttackHit(AActor& Target, float Damage, AActor* DamageSource, const FHitResult& HitResult)
+{
+    if (ATBCharacterBase* Character = Cast<ATBCharacterBase>(&Target))
+    {
+        return Character->ReceiveRangedAttackHit(Damage, DamageSource, HitResult);
+    }
+    return Target.Implements<UTBHitInterface>() && ITBHitInterface::Execute_ReceiveAttackHit(&Target, Damage, DamageSource, HitResult);
+}
+
+bool ATBCharacterBase::ReceiveRangedAttackHit(float Damage, AActor* DamageSource, const FHitResult& HitResult)
+{
+    const UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    if (HasAuthority() && IsValid(ASC) && FMath::IsFinite(Damage) && Damage > 0.0f
+        && !ASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable) && CanReceiveAttack(Damage)
+        && TryDodgeRangedAttack())
+    {
+        return false;
+    }
+    return ITBHitInterface::Execute_ReceiveAttackHit(this, Damage, DamageSource, HitResult);
+}
+
 bool ATBCharacterBase::ReceiveAttackHit_Implementation(float Damage, AActor* DamageSource, const FHitResult& HitResult)
 {
     // 피격 대상의 ASC와 자식 클래스가 지정한 피해 GE를 가져온다.

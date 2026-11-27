@@ -7,10 +7,23 @@
 class UAnimInstance;
 class UAnimMontage;
 class UAnimSequence;
+class UMaterialInterface;
 class USkeletalMesh;
 
 UENUM(BlueprintType)
 enum class ETBHunterSwordAnimation : uint8 { Idle, Run, Draw, ApproachSlash, SlashOne, SlashTwo, Backstep, Hit, Death };
+
+USTRUCT(BlueprintType)
+struct FTBHunterDodgeAnimation
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Dodge")
+	TObjectPtr<UAnimSequence> Sequence;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Dodge", meta = (Units = "cm", ToolTip = "Negative moves left; positive moves right relative to the Hunter's facing."))
+	float RightOffset = 0.f;
+};
 
 UCLASS(BlueprintType)
 class DEVELROCKET_TEAMPROJ_API UTBHunterAnimationData : public UDataAsset
@@ -33,6 +46,15 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hunter|Animation")
 	TMap<ETBHunterSwordAnimation, float> SwordHitFractions;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UAnimSequence>> SwordDodgeSequences;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hunter|Dodge")
+	TArray<FTBHunterDodgeAnimation> SwordDodgeAnimations;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hunter|Dodge")
+	TObjectPtr<UMaterialInterface> SwordMotionTrailMaterial;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hunter|Animation")
 	FName SwordFullBodySlot = TEXT("DefaultSlot");
