@@ -1,6 +1,7 @@
 #include "AbilitySystem/Abilities/Monster/VampireHunter/TBGameplayAbility_VampireHunter_RifleSkills.h"
 
 #include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayTag.h"
 #include "AIController.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/Monster/TBAnimNotify_HunterRifleFire.h"
@@ -113,6 +114,14 @@ void UTBGameplayAbility_VampireHunter_ChargedShot::StartShotSequence()
 	UpdateChargeDebugRay();
 	Timers.SetTimer(ChargeDebugTimer, this, &ThisClass::UpdateChargeDebugRay, ChargeDebugInterval, true);
 #endif
+	auto* StunTask = UAbilityTask_WaitGameplayTagAdded::WaitGameplayTagAdd(this, TBGameplayTags::State_Stunned, nullptr, true);
+	StunTask->Added.AddDynamic(this, &ThisClass::OnChargeStunned);
+	StunTask->ReadyForActivation();
+}
+
+void UTBGameplayAbility_VampireHunter_ChargedShot::OnChargeStunned()
+{
+	CancelAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true);
 }
 
 void UTBGameplayAbility_VampireHunter_ChargedShot::UpdateChargeDebugRay()

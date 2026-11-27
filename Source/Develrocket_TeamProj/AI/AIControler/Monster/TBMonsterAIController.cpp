@@ -60,7 +60,9 @@ ETeamAttitude::Type ATBMonsterAIController::GetTeamAttitudeTowards(const AActor&
 
 bool ATBMonsterAIController::CanTargetActor(const AActor& Actor) const
 {
-	return Actor.IsA<ATBPlayer>() || Actor.IsA<ATBCitizen>();
+	const ATBMonster* Monster = Cast<ATBMonster>(&Actor);
+	return Actor.IsA<ATBPlayer>() || Actor.IsA<ATBCitizen>()
+		|| (Monster && Monster != GetPawn() && Monster->GetMonsterBehavior() == ETBMonsterBehavior::Hunter);
 }
 
 bool ATBMonsterAIController::RunBehaviorTree(UBehaviorTree* BTAsset)

@@ -51,6 +51,9 @@ protected:
 	float ChargeDuration = 3.0f;
 
 private:
+	UFUNCTION()
+	void OnChargeStunned();
+
 	void FinishCharge();
 	void UpdateChargeDebugRay();
 	FTimerHandle ChargeTimer;

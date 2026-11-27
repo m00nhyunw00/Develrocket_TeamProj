@@ -11,7 +11,7 @@ struct FTBOutlineStyle
 
 	/** Radius in Custom Stencil buffer pixels. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Outline", meta = (ClampMin = "1", ClampMax = "4", UIMin = "1", UIMax = "4"))
-	int32 Thickness = 2;
+	int32 Thickness = 1;
 
 	/** Linear HDR color. RGB values above 1 can contribute to Bloom. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Outline", meta = (HideAlphaChannel))

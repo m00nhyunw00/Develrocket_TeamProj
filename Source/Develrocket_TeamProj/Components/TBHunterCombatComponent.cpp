@@ -397,7 +397,9 @@ void UTBHunterCombatComponent::UpdateChargeBeam()
 	const bool bBlinkOff = bWarning && FMath::Frac((1.0 - TimeUntilFire / WarningDuration) * ChargeBeamWarningPulses) >= 0.5;
 	const AActor* Target = ChargeVisual.Target.Get();
 	const USkeletalMeshComponent* Mesh = Hunter->GetMesh();
-	if (!bCharging || bBlinkOff || !IsValid(Target) || Hunter->IsHidden() || GetPhase() != ETBHunterPhase::Rifle
+	const UAbilitySystemComponent* ASC = Hunter->GetAbilitySystemComponent();
+	const bool bInterrupted = Hunter->IsDead() || (ASC && ASC->HasMatchingGameplayTag(TBGameplayTags::State_Stunned));
+	if (!bCharging || bBlinkOff || bInterrupted || !IsValid(Target) || Hunter->IsHidden() || GetPhase() != ETBHunterPhase::Rifle
 		|| !Mesh || !Mesh->DoesSocketExist(ChargeBeamMuzzleSocket))
 	{
 		if (ChargeBeam)
