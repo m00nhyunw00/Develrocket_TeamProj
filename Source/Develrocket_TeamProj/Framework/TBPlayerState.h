@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
 #include "GameFramework/PlayerState.h"
+#include "Data/TBClassChangeTypes.h"
 #include "TBPlayerState.generated.h"
 
 struct FGameplayTag;
@@ -17,6 +18,7 @@ class UGameplayEffect;
 class UTBCharacterClassData;
 
 DECLARE_MULTICAST_DELEGATE(FOnTBClassDataChanged);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnTBClassChangeResult, ETBClassChangeResult);
 
 USTRUCT(BlueprintType)
 struct FTBMatchStats
@@ -58,7 +60,10 @@ public:
 	// 서버 전용 : 직업 변경 전 어빌리티 정리 --------------------
 	
 	void ResetGameplayDataForClassChange();
-	
+
+	// [서버] 승인된 직업으로 교체: GAS 정리 + 데이터 교체. 폰을 다시 만들어야 하면 true
+	bool ApplyClassChange(const UTBCharacterClassData* NewClassData);
+
 	// 현재 PlayerState의 사망 관련 이벤트를 한 번만 연결
 	void InitializeDeathEvents();
 
@@ -76,11 +81,20 @@ public:
 	// 선택한 직업이 있으면 그것을, 없으면 기본 직업을 반환
 	const UTBCharacterClassData* GetClassData() const;
 	
-	// 서버 전용: 직업 변경(로비에서 사용)
+	// 서버 전용: 데이터만 교체. 직업 변경은 ApplyClassChange 사용
 	void SetSelectedClassData(const UTBCharacterClassData* NewClassData);
 	
 	// 리슨 서버 호스트는 OnRep을 받지 않으므로 HUD는 이 이벤트로 갱신
 	FOnTBClassDataChanged OnClassDataChangedEvent;
+
+	// 로비 직업 변경 신청 ----------------------
+	// 흐름: 신청 → LobbyManager 결재 → 승인 시 ApplyClassChange → GameMode 재스폰 → 결과 통보
+
+	// [로컬] 위젯에서 호출
+	void RequestClassChange(const UTBCharacterClassData* ClassData);
+
+	// [로컬] 결재 결과 (위젯이 구독해서 거절 사유 표시)
+	FOnTBClassChangeResult OnClassChangeResult;
 
 protected:
 	// 기본 공격 피해량
@@ -173,6 +187,12 @@ private:
 
 	UFUNCTION()
 	void OnRep_SelectedClassData();
+
+	UFUNCTION(Server, Reliable)
+	void ServerRequestClassChange(const UTBCharacterClassData* ClassData);
+
+	UFUNCTION(Client, Reliable)
+	void ClientClassChangeResult(ETBClassChangeResult Result);
 
 public:
 	// 게임플레이 데이터 초기화 완료 여부

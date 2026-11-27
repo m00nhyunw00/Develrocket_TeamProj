@@ -9,7 +9,10 @@ UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBGameModeBase : public AGameModeBase
 {
 	GENERATED_BODY()
-	
+
 public:
 	virtual UClass* GetDefaultPawnClassForController_Implementation(AController* InController) override;
+
+	// [서버] 현재 직업 데이터로 제자리 재스폰 (기존 폰은 제거)
+	void RespawnPlayerInPlace(APlayerController* PlayerController);
 };

@@ -10,6 +10,10 @@
 #include "AbilitySystem/Attributes/TBPlayerAttributeSet.h"
 #include "Character/Player/TBPlayer.h"
 #include "Data/TBCharacterClassData.h"
+#include "Framework/TBGameModeBase.h"
+#include "Framework/TBLobbyManager.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 
 ATBPlayerState::ATBPlayerState()
 {
@@ -166,6 +170,26 @@ void ATBPlayerState::ResetGameplayDataForClassChange()
 	bGameplayDataInitialized = false;
 }
 
+bool ATBPlayerState::ApplyClassChange(const UTBCharacterClassData* NewClassData)
+{
+	if (!HasAuthority() || !NewClassData)
+	{
+		return false;
+	}
+
+	// 첫 선택이 지금 폰(기본 직업)과 같으면 기록만 하고 폰은 유지
+	const bool bNeedsRespawn = GetClassData() != NewClassData;
+
+	// 순서 중요: GAS 정리 → 새 데이터 (다음 Possess에서 새 데이터로 초기화)
+	if (bNeedsRespawn)
+	{
+		ResetGameplayDataForClassChange();
+	}
+	SetSelectedClassData(NewClassData);
+
+	return bNeedsRespawn;
+}
+
 void ATBPlayerState::InitializeDeathEvents()
 {
 	if (!HasAuthority() || bDeathEventsBound || !IsValid(AbilitySystemComponent.Get()))
@@ -291,6 +315,54 @@ void ATBPlayerState::SetSelectedClassData(const UTBCharacterClassData* NewClassD
 void ATBPlayerState::OnRep_SelectedClassData()
 {
 	OnClassDataChangedEvent.Broadcast();
+}
+
+// 로비 직업 변경 신청 ----------------------
+
+void ATBPlayerState::RequestClassChange(const UTBCharacterClassData* ClassData)
+{
+	if (!ClassData)
+	{
+		return;
+	}
+
+	// 호스트(리슨서버)는 서버라서 바로 실행됨
+	ServerRequestClassChange(ClassData);
+}
+
+void ATBPlayerState::ServerRequestClassChange_Implementation(const UTBCharacterClassData* ClassData)
+{
+	APlayerController* PC = GetPlayerController();
+	ATBLobbyManager* Manager = Cast<ATBLobbyManager>(
+		UGameplayStatics::GetActorOfClass(this, ATBLobbyManager::StaticClass()));
+	ATBGameModeBase* GameMode = GetWorld()->GetAuthGameMode<ATBGameModeBase>();
+
+	// 로비가 아닌 맵이면 LobbyManager가 없어서 거절
+	if (!PC || !Manager || !GameMode)
+	{
+		ClientClassChangeResult(ETBClassChangeResult::NotInLobby);
+		return;
+	}
+
+	// 1. 결재: 규칙 확인 + 장부 기록(직업, 준비 해제)
+	const ETBClassChangeResult Result = Manager->ApproveClassChange(this, ClassData);
+	ClientClassChangeResult(Result);
+
+	if (Result != ETBClassChangeResult::Approved)
+	{
+		return;
+	}
+
+	// 2. 승인 후: 내 데이터 교체 → GameMode가 폰 재스폰
+	if (ApplyClassChange(ClassData))
+	{
+		GameMode->RespawnPlayerInPlace(PC);
+	}
+}
+
+void ATBPlayerState::ClientClassChangeResult_Implementation(ETBClassChangeResult Result)
+{
+	OnClassChangeResult.Broadcast(Result);
 }
 
 // 직업 데이터 기반 조회 ----------------------
