@@ -29,11 +29,44 @@ UTBGameplayAbility_Attack::UTBGameplayAbility_Attack()
     };
 }
 
-void UTBGameplayAbility_Attack::ActivateAbility(
-    FGameplayAbilitySpecHandle Handle,
-    const FGameplayAbilityActorInfo* ActorInfo,
-    FGameplayAbilityActivationInfo ActivationInfo,
-    const FGameplayEventData* TriggerEventData)
+bool UTBGameplayAbility_Attack::IsAllowedDamageHit(ATBCharacterBase* Attacker, UAbilitySystemComponent* ExpectedSourceASC, const FHitResult& HitResult, float Damage, const TArray<TSubclassOf<AActor>>& TargetClasses, bool bRequireUnblockedAttacker)
+{
+    AActor* Target = HitResult.GetActor();
+
+    if (!FMath::IsFinite(Damage) || Damage <= 0.0f || !IsValid(Attacker) || !Attacker->HasAuthority() || !IsValid(Target) || Target == Attacker || !Target->Implements<UTBHitInterface>())
+    {
+        return false;
+    }
+
+    UAbilitySystemComponent* SourceASC = Attacker->GetAbilitySystemComponent();
+
+    if (!IsValid(SourceASC) || SourceASC != ExpectedSourceASC || SourceASC->GetAvatarActor() != Attacker || SourceASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
+    {
+        return false;
+    }
+
+    if (bRequireUnblockedAttacker && Attacker->IsActionBlocked())
+    {
+        return false;
+    }
+
+    const bool bAllowedTarget = TargetClasses.ContainsByPredicate(
+        [Target](const TSubclassOf<AActor>& TargetClass)
+        {
+            return TargetClass.Get() && Target->IsA(TargetClass.Get());
+        });
+
+    if (!bAllowedTarget)
+    {
+        return false;
+    }
+
+    UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
+
+    return IsValid(TargetASC) && TargetASC->GetAvatarActor() == Target && !TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead) && !TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Invulnerable);
+}
+
+void UTBGameplayAbility_Attack::ActivateAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
     bAttackActionCompleted = false;
     CurrentAttackDamage = 0.0f;
@@ -41,11 +74,7 @@ void UTBGameplayAbility_Attack::ActivateAbility(
 
     ATBCharacterBase* Attacker = ActorInfo ? Cast<ATBCharacterBase>(ActorInfo->AvatarActor.Get()) : nullptr;
 
-    if (!IsValid(Attacker) || Attacker->IsActionBlocked()
-        || !AttackId.IsValid()
-        || !GetAssetTags().HasTagExact(AttackId)
-        || AllowedTargetClasses.IsEmpty()
-        || !bCommitOnActivate)
+    if (!IsValid(Attacker) || Attacker->IsActionBlocked() || !AttackId.IsValid() || !GetAssetTags().HasTagExact(AttackId) || AllowedTargetClasses.IsEmpty() || !bCommitOnActivate)
     {
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
@@ -62,12 +91,7 @@ void UTBGameplayAbility_Attack::ActivateAbility(
 
         const UGameplayEffect* Effect = EffectClass ? EffectClass.GetDefaultObject() : nullptr;
 
-        if (AttackId != TBGameplayTags::Ability_Combat_PrimaryAttack
-            || !IsValid(PS)
-            || !FMath::IsFinite(Interval) || Interval <= 0.0f
-            || !Effect
-            || Effect->DurationPolicy != EGameplayEffectDurationType::HasDuration
-            || !Effect->GetGrantedTags().HasTagExact(TBGameplayTags::Cooldown_PrimaryAttack))
+        if (AttackId != TBGameplayTags::Ability_Combat_PrimaryAttack || !IsValid(PS) || !FMath::IsFinite(Interval) || Interval <= 0.0f || !Effect || Effect->DurationPolicy != EGameplayEffectDurationType::HasDuration || !Effect->GetGrantedTags().HasTagExact(TBGameplayTags::Cooldown_PrimaryAttack))
         {
             EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
             return;
@@ -77,9 +101,7 @@ void UTBGameplayAbility_Attack::ActivateAbility(
     // 기능별 피해량을 서버에서 한 번 조회하여 이번 실행에 보관
     if (ActorInfo->IsNetAuthority())
     {
-        if (!Attacker->GetAttackDamage(AttackId, CurrentAttackDamage)
-            || !FMath::IsFinite(CurrentAttackDamage)
-            || CurrentAttackDamage <= 0.0f)
+        if (!Attacker->GetAttackDamage(AttackId, CurrentAttackDamage) || !FMath::IsFinite(CurrentAttackDamage) || CurrentAttackDamage <= 0.0f)
         {
             EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
             return;
@@ -133,53 +155,12 @@ void UTBGameplayAbility_Attack::OnActionCommitted()
 
 bool UTBGameplayAbility_Attack::IsAllowedAttackHit(const FHitResult& HitResult) const
 {
-    ATBCharacterBase* Attacker = Cast<ATBCharacterBase>(GetAvatarActorFromActorInfo());
-
-    AActor* Target = HitResult.GetActor();
-
-    if (!IsActive()
-        || !FMath::IsFinite(CurrentAttackDamage)
-        || CurrentAttackDamage <= 0.0f
-        || !IsValid(Attacker) || !Attacker->HasAuthority()
-        || !IsValid(Target) || Target == Attacker
-        || !Target->Implements<UTBHitInterface>())
+    if (!IsActive())
     {
         return false;
     }
 
-    UAbilitySystemComponent* SourceASC = Attacker->GetAbilitySystemComponent();
-
-    if (!IsValid(SourceASC)
-        || SourceASC != GetAbilitySystemComponentFromActorInfo()
-        || SourceASC->GetAvatarActor() != Attacker
-        || SourceASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
-    {
-        return false;
-    }
-
-    if (RequiresUnblockedAttackerOnHit() && Attacker->IsActionBlocked())
-    {
-        return false;
-    }
-
-    const bool bAllowedTarget = AllowedTargetClasses.ContainsByPredicate(
-        [Target](const TSubclassOf<AActor>& TargetClass)
-        {
-            return TargetClass.Get() && Target->IsA(TargetClass.Get());
-        });
-
-    if (!bAllowedTarget)
-    {
-        return false;
-    }
-
-    UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
-
-    return IsValid(TargetASC)
-        && TargetASC->GetAvatarActor() == Target
-        && !TargetASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead)
-        && !TargetASC->HasMatchingGameplayTag(
-            TBGameplayTags::State_Invulnerable);
+    return IsAllowedDamageHit(Cast<ATBCharacterBase>(GetAvatarActorFromActorInfo()), GetAbilitySystemComponentFromActorInfo(), HitResult, CurrentAttackDamage, AllowedTargetClasses, RequiresUnblockedAttackerOnHit());
 }
 
 const FGameplayTagContainer* UTBGameplayAbility_Attack::GetCooldownTags() const
@@ -194,10 +175,7 @@ const FGameplayTagContainer* UTBGameplayAbility_Attack::GetCooldownTags() const
     return &CooldownTags;
 }
 
-void UTBGameplayAbility_Attack::ApplyCooldown(
-    FGameplayAbilitySpecHandle Handle,
-    const FGameplayAbilityActorInfo* ActorInfo,
-    FGameplayAbilityActivationInfo ActivationInfo) const
+void UTBGameplayAbility_Attack::ApplyCooldown(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo) const
 {
     if (!bUsePlayerPrimaryAttackCooldown)
     {
