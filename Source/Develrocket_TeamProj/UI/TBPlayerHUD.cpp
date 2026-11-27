@@ -306,6 +306,14 @@ void ATBPlayerHUD::NotifyShotFired()
     }
 }
 
+void ATBPlayerHUD::ShowDamageIndicator(const FVector& Origin, AActor* Source)
+{
+    if (HUDWidget)
+    {
+        HUDWidget->AddDamageIndicator(Origin, Source);
+    }
+}
+
 void ATBPlayerHUD::HandleFocusedActorChanged(AActor* NewFocus)
 {
     if (!HUDWidget)

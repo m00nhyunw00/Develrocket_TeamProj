@@ -304,6 +304,27 @@ bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
     return ReceiveAttackHit_Implementation(Damage, DamageSource, FHitResult());
 }
 
+// [서버] 피해 GE 적용 성공 직후 호출됨 (ATBCharacterBase::ReceiveAttackHit_Implementation)
+void ATBPlayer::OnAttackApplied(float Damage, AActor* DamageSource)
+{
+    Super::OnAttackApplied(Damage, DamageSource);
+
+    if (IsValid(DamageSource) && DamageSource != this)
+    {
+        ClientNotifyDamageTaken(DamageSource->GetActorLocation(), DamageSource);
+    }
+}
+
+// [맞은 클라이언트] HUD로 전달만 하고, 각도 계산은 위젯이 매 프레임 수행
+void ATBPlayer::ClientNotifyDamageTaken_Implementation(FVector_NetQuantize Origin, AActor* DamageSource)
+{
+    APlayerController* PC = GetController<APlayerController>();
+    if (ATBPlayerHUD* PlayerHUD = PC ? PC->GetHUD<ATBPlayerHUD>() : nullptr)
+    {
+        PlayerHUD->ShowDamageIndicator(Origin, DamageSource);
+    }
+}
+
 void ATBPlayer::ResetInputForDraining()
 {
 	// 이전 점프·앉기 요청 해제
@@ -704,7 +725,7 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 	if (SecondaryAction)
 	{
-		EnhancedInput->BindAction(SecondaryAction, ETriggerEvent::Started, this, &ATBPlayer::StartSecondaryAction);
+		EnhancedInput->BindAction(SecondaryAction, ETriggerEvent::Started, this, &ATBPlayer::StartSecond#### aryAction);
 
 		EnhancedInput->BindAction(SecondaryAction, ETriggerEvent::Completed, this, &ATBPlayer::StopSecondaryAction);
 
