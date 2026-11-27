@@ -105,9 +105,13 @@ void ATBPlayerState::InitializeGameplayData()
 
 	// 설정된 현재 탄약을 오른쪽 표시용 기준값으로 저장
 	AbilitySystemComponent->SetNumericAttributeBase(UTBPlayerAttributeSet::GetAmmoAtLastReloadAttribute(),PlayerAttributeSet->GetLoadedBlood());
-
+	
 	// BP에서 지정한 초기 어빌리티 부여
-	AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
+	// AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
+	
+	const UTBCharacterClassData* ClassData = GetClassData();
+	AbilitySystemComponent->AddCharacterAbilities(ClassData ? ClassData->StartupAbilities : StartupAbilities);
+	
 	const bool bHasSkill1 = AbilitySystemComponent->GetActivatableAbilities().ContainsByPredicate(
 		[](const FGameplayAbilitySpec& Spec)
 		{
@@ -145,6 +149,21 @@ bool ATBPlayerState::ResetForRespawn(FActiveGameplayEffectHandle DeathEffect)
 	AbilitySystemComponent->SetNumericAttributeBase(UTBPlayerAttributeSet::GetAmmoAtLastReloadAttribute(), PlayerAttributeSet->GetLoadedBlood());
 	ForceNetUpdate();
 	return true;
+}
+
+void ATBPlayerState::ResetGameplayDataForClassChange()
+{
+	if (!HasAuthority() || !IsValid(AbilitySystemComponent))
+	{
+		return;
+	}
+
+	AbilitySystemComponent->CancelAllAbilities();
+
+	// AddCharacterAbilities로 부여한 것만 제거
+	AbilitySystemComponent->RemoveCharacterAbilities();
+	
+	bGameplayDataInitialized = false;
 }
 
 void ATBPlayerState::InitializeDeathEvents()

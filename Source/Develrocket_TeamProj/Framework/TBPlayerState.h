@@ -55,6 +55,10 @@ public:
 	void InitializeGameplayData();
 	bool ResetForRespawn(FActiveGameplayEffectHandle DeathEffect);
 	
+	// 서버 전용 : 직업 변경 전 어빌리티 정리 --------------------
+	
+	void ResetGameplayDataForClassChange();
+	
 	// 현재 PlayerState의 사망 관련 이벤트를 한 번만 연결
 	void InitializeDeathEvents();
 
