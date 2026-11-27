@@ -3,8 +3,9 @@
 #include "AbilitySystemComponent.h"
 #include "AIController.h"
 #include "Character/Monster/TBMonster.h"
-#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/TBHunterCombatComponent.h"
+#include "Components/TBMeleeTraceComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "NavigationSystem.h"
@@ -18,6 +19,7 @@ namespace
 	constexpr double SwordReach = 95.0;
 	constexpr double MaxStrikeHeightDifference = 125.0;
 	constexpr double RecoveryTime = 0.65;
+	constexpr double TraceWindowHalfDuration = 0.08;
 	constexpr float SlashDamage = 21.f;
 	constexpr float ApproachDamage = 29.f;
 
@@ -66,7 +68,26 @@ void UTBGameplayAbility_VampireHunter_Sword::ActivateAbility(FGameplayAbilitySpe
 	const AActor* Victim = TriggerEventData ? TriggerEventData->Target.Get() : nullptr;
 	UTBHunterCombatComponent* Combat = Hunter ? Hunter->GetHunterCombatComponent() : nullptr;
 	if (!Combat || Combat->GetPhase() != ETBHunterPhase::Sword || !IsValid(Victim)
-		|| !CanStrike(*Hunter, *Victim) || !CommitAbility(Handle, ActorInfo, ActivationInfo))
+		|| !CanStrike(*Hunter, *Victim))
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
+	USkeletalMeshComponent* Mesh = Hunter->GetMesh();
+	UTBMeleeTraceComponent* Trace = Hunter->GetMeleeTraceComponent();
+	if (!Mesh || !Trace || !Trace->PrepareAttack(Hunter->GetMeleeTraceMesh()))
+	{
+		Combat->DeferSwordAttackRetry();
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+	ActiveTrace = Trace;
+	TraceHitHandle = Trace->OnHit.AddUObject(this, &ThisClass::HandleMeleeHit);
+	AttackMesh = Mesh;
+	PreviousVisibilityTickOption = static_cast<uint8>(Mesh->VisibilityBasedAnimTickOption);
+	Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
@@ -128,11 +149,24 @@ void UTBGameplayAbility_VampireHunter_Sword::UpdateAttack()
 		if (Elapsed >= RecoveryTime) FinishAttack(false);
 		return;
 	}
-	if (!bHitChecked && Elapsed >= SwingHitTime)
+	UTBMeleeTraceComponent* Trace = ActiveTrace.Get();
+	if (!Trace)
 	{
-		bHitChecked = true;
-		TryHit(*Hunter, *Victim);
+		FinishAttack(true);
+		return;
+	}
+	const bool bInTraceWindow = Elapsed >= SwingHitTime - TraceWindowHalfDuration
+		&& Elapsed < FMath::Min(SwingHitTime + TraceWindowHalfDuration, static_cast<double>(SwingDuration));
+	if (bInTraceWindow && !bTraceWindowOpen)
+	{
+		bTraceWindowOpen = true;
+		Trace->StartTrace();
 		if (!IsActive()) return;
+	}
+	else if (!bInTraceWindow && bTraceWindowOpen)
+	{
+		bTraceWindowOpen = false;
+		Trace->StopTrace();
 	}
 	if (Elapsed >= SwingDuration)
 	{
@@ -156,24 +190,16 @@ void UTBGameplayAbility_VampireHunter_Sword::StartSwing(EStage Swing, ATBMonster
 	StageStartedAt = GetWorld()->GetTimeSeconds();
 	SwingDuration = FMath::Max(0.45f, Combat.GetSwordAnimationDuration(Animation));
 	SwingHitTime = SwingDuration * Combat.GetSwordHitFraction(Animation);
-	bHitChecked = false;
 	Combat.SetSwordAnimation(Animation);
 }
 
-void UTBGameplayAbility_VampireHunter_Sword::TryHit(ATBMonster& Hunter, AActor& Victim) const
+void UTBGameplayAbility_VampireHunter_Sword::HandleMeleeHit(const FHitResult& Hit)
 {
-	const FVector Origin = Hunter.GetActorLocation();
-	const FVector Offset = Victim.GetActorLocation() - Origin;
-	if (Offset.SizeSquared2D() > FMath::Square(GetStrikeRange(Hunter, Victim)) || FMath::Abs(Offset.Z) > MaxStrikeHeightDifference
-		|| FVector::DotProduct(Hunter.GetActorForwardVector(), Offset.GetSafeNormal2D()) < 0.25) return;
-
-	FCollisionQueryParams Query(SCENE_QUERY_STAT(HunterSword), false, &Hunter);
-	Query.AddIgnoredActor(&Victim);
-	if (Hunter.GetWorld()->LineTraceTestByChannel(Origin, Victim.GetActorLocation(), ECC_Visibility, Query)) return;
-	const auto* TargetCharacter = CastChecked<ATBCharacterBase>(&Victim);
-	const FVector Impact = Victim.GetActorLocation();
-	const FHitResult Hit(&Victim, TargetCharacter->GetCapsuleComponent(), Impact, -Offset.GetSafeNormal());
-	Hunter.ApplyMeleeDamage(Hit, bApproachStrike ? ApproachDamage : SlashDamage);
+	ATBMonster* Hunter = Cast<ATBMonster>(GetAvatarActorFromActorInfo());
+	if (IsActive() && IsValid(Hunter) && Target.IsValid() && Hit.GetActor() == Target.Get())
+	{
+		Hunter->ApplyMeleeDamage(Hit, bApproachStrike ? ApproachDamage : SlashDamage);
+	}
 }
 
 void UTBGameplayAbility_VampireHunter_Sword::StartRecovery(ATBMonster& Hunter, const AActor& Victim, UTBHunterCombatComponent& Combat)
@@ -227,6 +253,19 @@ void UTBGameplayAbility_VampireHunter_Sword::EndAbility(FGameplayAbilitySpecHand
 	bool bReplicateEndAbility, bool bWasCancelled)
 {
 	if (UWorld* World = GetWorld()) World->GetTimerManager().ClearTimer(AttackTimer);
+	if (UTBMeleeTraceComponent* Trace = ActiveTrace.Get())
+	{
+		Trace->OnHit.Remove(TraceHitHandle);
+		Trace->FinishAttack();
+	}
+	ActiveTrace.Reset();
+	TraceHitHandle.Reset();
+	bTraceWindowOpen = false;
+	if (USkeletalMeshComponent* Mesh = AttackMesh.Get())
+	{
+		Mesh->VisibilityBasedAnimTickOption = static_cast<EVisibilityBasedAnimTickOption>(PreviousVisibilityTickOption);
+	}
+	AttackMesh.Reset();
 	if (ATBMonster* Hunter = Cast<ATBMonster>(GetAvatarActorFromActorInfo()))
 	{
 		StopAttackMove(*Hunter);

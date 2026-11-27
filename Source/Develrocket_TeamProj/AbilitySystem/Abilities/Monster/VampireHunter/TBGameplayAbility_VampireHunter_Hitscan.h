@@ -26,10 +26,10 @@ protected:
 	virtual void StartShotSequence();
 	ATBMonster* GetHunter() const;
 	AActor* GetCurrentShotTarget(bool bRequireStartingConditions = true) const;
-	bool TryGetShotOrigin(const ATBMonster& Monster, FVector& OutOrigin) const;
+	bool TryGetShotRay(const ATBMonster& Monster, const FVector& AimLocation, FVector& OutStart, FVector& OutEnd) const;
 	static bool IsShotDebugEnabled();
-	bool TraceShot(ATBMonster& Monster, AActor& Target, const FVector& AimLocation) const;
-	virtual void OnShotTraced(ATBMonster& Monster, const FVector& Start, const FVector& End) const {}
+	bool TraceShot(ATBMonster& Monster, AActor& Target, const FVector& AimLocation, bool bBasicShot = false) const;
+	virtual bool IsChargedShot() const { return false; }
 
 	UPROPERTY(EditDefaultsOnly, Category = "Hunter|Hitscan", meta = (ClampMin = "1.0", Units = "cm"))
 	float TraceRange = 1200.0f;

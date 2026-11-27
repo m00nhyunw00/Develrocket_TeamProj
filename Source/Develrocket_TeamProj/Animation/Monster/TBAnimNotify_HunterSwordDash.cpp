@@ -24,6 +24,6 @@ void UTBAnimNotify_HunterSwordDash::Notify(USkeletalMeshComponent* MeshComp, UAn
 	auto* Ability = ASC ? Cast<UTBGameplayAbility_VampireHunter_SwordDash>(ASC->GetAnimatingAbility()) : nullptr;
 	if (Ability)
 	{
-		Ability->DashFromMontageNotify(Animation);
+		Ability->DashFromMontageNotify(Animation, *this);
 	}
 }

@@ -14,6 +14,9 @@ public:
 	ATBVampireHunter(const FObjectInitializer& ObjectInitializer);
 	const UTBHunterAnimationData* GetPhaseAnimationData(bool bSword) const;
 
+protected:
+	virtual bool TryDodgeRangedAttack() override;
+
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hunter|Animation", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UTBHunterAnimationData> RifleAnimationData;

@@ -73,6 +73,11 @@ public:
 
 	virtual bool ApplyProjectileDamage(const FHitResult& HitResult, float Damage);
 
+	static bool DispatchRangedAttackHit(AActor& Target, float Damage, AActor* DamageSource, const FHitResult& HitResult);
+
+	UFUNCTION(BlueprintCallable, Category = "Combat|Hit")
+	bool ReceiveRangedAttackHit(float Damage, AActor* DamageSource, const FHitResult& HitResult);
+
 	// 투사체 생성 및 라인 트레이스 ----------------------
 
 	// 서버 투사체 생성; 실제 발사는 구독 완료 후 수행
@@ -138,6 +143,7 @@ protected:
 
 	// 공통 피해 GameplayEffect 적용
 	virtual bool ReceiveAttackHit_Implementation(float Damage, AActor* DamageSource, const FHitResult& HitResult) override;
+	virtual bool TryDodgeRangedAttack() { return false; }
 
 	// 자식 클래스별 피격 조건·피해 GE·피격 후 반응 지정
 	virtual bool CanReceiveAttack(float Damage) const;

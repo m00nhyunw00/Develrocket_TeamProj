@@ -517,7 +517,7 @@ bool ATBPlayer::GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) 
 
 bool ATBPlayer::ApplyHitscanDamage(const FHitResult& HitResult, float Damage)
 {
-	return !IsActionBlocked() && ApplyAttackDamage(HitResult, Damage);
+	return !IsActionBlocked() && ApplyAttackDamage(HitResult, Damage, true);
 }
 
 bool ATBPlayer::ApplyMeleeDamage(const FHitResult& HitResult, float Damage)
@@ -527,10 +527,10 @@ bool ATBPlayer::ApplyMeleeDamage(const FHitResult& HitResult, float Damage)
 
 bool ATBPlayer::ApplyProjectileDamage(const FHitResult& HitResult, float Damage)
 {
-	return ApplyAttackDamage(HitResult, Damage);
+	return ApplyAttackDamage(HitResult, Damage, true);
 }
 
-bool ATBPlayer::ApplyAttackDamage(const FHitResult& HitResult, float Damage)
+bool ATBPlayer::ApplyAttackDamage(const FHitResult& HitResult, float Damage, bool bRangedAttack)
 {
 	if (!HasAuthority() || IsDead() || !FMath::IsFinite(Damage) || Damage <= 0.0f)
 	{
@@ -556,7 +556,8 @@ bool ATBPlayer::ApplyAttackDamage(const FHitResult& HitResult, float Damage)
 	}
 
 	// 명중 시 PS에서 다시 조회하지 않고 전달받은 피해량 사용
-	return ITBHitInterface::Execute_ReceiveAttackHit(Target, Damage, this, HitResult);
+	return bRangedAttack ? DispatchRangedAttackHit(*Target, Damage, this, HitResult)
+		: ITBHitInterface::Execute_ReceiveAttackHit(Target, Damage, this, HitResult);
 }
 
 // 빙의 및 네트워크 초기화 ----------------------
