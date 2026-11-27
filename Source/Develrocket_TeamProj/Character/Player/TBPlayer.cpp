@@ -710,6 +710,11 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	{
 		EnhancedInput->BindAction(PauseAction, ETriggerEvent::Started, this, &ATBPlayer::InputPauseStarted);
 	}
+
+	if (ClassSelectAction)
+	{
+		EnhancedInput->BindAction(ClassSelectAction, ETriggerEvent::Started, this, &ATBPlayer::InputClassSelectStarted);
+	}
 	
 	if (LeaderboardAction)
 	{
@@ -1316,6 +1321,20 @@ void ATBPlayer::InputPauseStarted()
 	if (ATBPlayerHUD* HUD = Cast<ATBPlayerHUD>(PC->GetHUD()))
 	{
 		HUD->TogglePauseMenu();
+	}
+}
+
+void ATBPlayer::InputClassSelectStarted()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	if (ATBPlayerHUD* HUD = Cast<ATBPlayerHUD>(PC->GetHUD()))
+	{
+		HUD->OpenClassSelect();
 	}
 }
 
