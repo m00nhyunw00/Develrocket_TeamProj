@@ -562,7 +562,7 @@ void UTBHunterCombatComponent::OnRep_CombatState()
 
 void UTBHunterCombatComponent::UpdateSwordVisual()
 {
-	if (!bSwordAnimationMode || GetNetMode() == NM_DedicatedServer) return;
+	if (!bSwordAnimationMode) return;
 	ATBMonster* Hunter = CastChecked<ATBMonster>(GetOwner());
 	UAnimInstance* AnimInstance = Hunter->GetMesh()->GetAnimInstance();
 	if (!AnimInstance) return;
@@ -579,7 +579,9 @@ void UTBHunterCombatComponent::UpdateSwordVisual()
 		PlayingSwordMontage.Reset();
 	}
 
-	const auto* Sequence = SwordActions.Find(Desired);
+	const bool bSwordSwing = Desired == ETBHunterSwordAnimation::SlashOne
+		|| Desired == ETBHunterSwordAnimation::SlashTwo || Desired == ETBHunterSwordAnimation::ApproachSlash;
+	const auto* Sequence = (GetNetMode() != NM_DedicatedServer || bSwordSwing) ? SwordActions.Find(Desired) : nullptr;
 	if (Sequence && *Sequence)
 	{
 		const float Length = (*Sequence)->GetPlayLength();

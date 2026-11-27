@@ -4,7 +4,10 @@
 #include "TBGameplayAbility_VampireHunter_SwordDash.generated.h"
 
 class UAnimSequenceBase;
+class UAbilityTask_ApplyRootMotionMoveToForce;
 class USkeletalMeshComponent;
+class UTBAnimNotify_HunterSwordDash;
+class UTBMeleeTraceComponent;
 
 UCLASS(Blueprintable)
 class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_VampireHunter_SwordDash : public UTBGameplayAbility_MonsterSkill
@@ -18,7 +21,7 @@ public:
 		FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 	virtual void EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 		FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
-	void DashFromMontageNotify(const UAnimSequenceBase* Animation);
+	void DashFromMontageNotify(const UAnimSequenceBase* Animation, const UTBAnimNotify_HunterSwordDash& Notify);
 
 protected:
 	virtual void OnActionCommitted() override;
@@ -39,6 +42,7 @@ protected:
 private:
 	bool CanDashToward(const ATBMonster* Hunter, const AActor* Target) const;
 	double GetStopDistance(const ATBMonster& Hunter, const AActor& Target) const;
+	void HandleMeleeHit(const FHitResult& Hit);
 
 	UFUNCTION()
 	void OnDashFinished();
@@ -48,8 +52,9 @@ private:
 
 	TWeakObjectPtr<const AActor> DashTarget;
 	TWeakObjectPtr<USkeletalMeshComponent> NotifyMesh;
+	TWeakObjectPtr<UTBMeleeTraceComponent> ActiveTrace;
+	FDelegateHandle TraceHitHandle;
+	TWeakObjectPtr<UAbilityTask_ApplyRootMotionMoveToForce> ActiveDashTask;
 	uint8 PreviousVisibilityTickOption = 0;
-	bool bDashTriggered = false;
-	bool bDashInProgress = false;
 	bool bMontageCompleted = false;
 };

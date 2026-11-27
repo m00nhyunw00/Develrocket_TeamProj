@@ -5,7 +5,9 @@
 #include "TBGameplayAbility_VampireHunter_Sword.generated.h"
 
 class ATBMonster;
+class USkeletalMeshComponent;
 class UTBHunterCombatComponent;
+class UTBMeleeTraceComponent;
 
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API UTBGameplayAbility_VampireHunter_Sword : public UGameplayAbility
@@ -26,16 +28,20 @@ private:
 	void StartSwing(EStage Swing, ATBMonster& Hunter, const AActor& Victim, UTBHunterCombatComponent& Combat);
 	void StartRecovery(ATBMonster& Hunter, const AActor& Victim, UTBHunterCombatComponent& Combat);
 	void StopAttackMove(ATBMonster& Hunter);
-	void TryHit(ATBMonster& Hunter, AActor& Victim) const;
+	void HandleMeleeHit(const FHitResult& Hit);
 	void FinishAttack(bool bCancelled);
 
 	TWeakObjectPtr<AActor> Target;
+	TWeakObjectPtr<USkeletalMeshComponent> AttackMesh;
+	TWeakObjectPtr<UTBMeleeTraceComponent> ActiveTrace;
+	FDelegateHandle TraceHitHandle;
 	FTimerHandle AttackTimer;
 	FAIRequestID AttackMoveId;
 	double StageStartedAt = 0.0;
 	float SwingDuration = 0.f;
 	float SwingHitTime = 0.f;
+	uint8 PreviousVisibilityTickOption = 0;
 	EStage Stage = EStage::Approach;
 	bool bApproachStrike = false;
-	bool bHitChecked = false;
+	bool bTraceWindowOpen = false;
 };
