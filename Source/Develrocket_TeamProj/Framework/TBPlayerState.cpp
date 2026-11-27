@@ -82,7 +82,12 @@ void ATBPlayerState::InitializeGameplayData()
 		return;
 	}
 
-	if (!InitialBloodEffect)
+	// 직업 데이터의 초기화 GE 우선, 없으면 PlayerState 값
+	const UTBCharacterClassData* ClassData = GetClassData();
+	const TSubclassOf<UGameplayEffect> InitEffect =
+		(ClassData && ClassData->InitialBloodEffect) ? ClassData->InitialBloodEffect : InitialBloodEffect;
+
+	if (!InitEffect)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("InitialBloodEffect가 설정되지 않았습니다."));
 		return;
@@ -91,7 +96,7 @@ void ATBPlayerState::InitializeGameplayData()
 	FGameplayEffectContextHandle Context = AbilitySystemComponent->MakeEffectContext();
 	Context.AddSourceObject(this);
 
-	const FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(InitialBloodEffect, 1.0f, Context);
+	const FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(InitEffect, 1.0f, Context);
 
 	if (!Spec.IsValid())
 	{
@@ -110,10 +115,7 @@ void ATBPlayerState::InitializeGameplayData()
 	// 설정된 현재 탄약을 오른쪽 표시용 기준값으로 저장
 	AbilitySystemComponent->SetNumericAttributeBase(UTBPlayerAttributeSet::GetAmmoAtLastReloadAttribute(),PlayerAttributeSet->GetLoadedBlood());
 	
-	// BP에서 지정한 초기 어빌리티 부여
-	// AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
-	
-	const UTBCharacterClassData* ClassData = GetClassData();
+	// 직업 데이터의 초기 어빌리티 부여 (없으면 PlayerState 값)
 	AbilitySystemComponent->AddCharacterAbilities(ClassData ? ClassData->StartupAbilities : StartupAbilities);
 	
 	const bool bHasSkill1 = AbilitySystemComponent->GetActivatableAbilities().ContainsByPredicate(
@@ -395,4 +397,10 @@ float ATBPlayerState::GetPrimaryAttackInterval() const
 {
 	const UTBCharacterClassData* Data = GetClassData();
 	return Data ? Data->PrimaryAttackInterval : PrimaryAttackInterval;
+}
+
+TSubclassOf<UGameplayEffect> ATBPlayerState::GetPrimaryAttackCooldownEffectClass() const
+{
+	const UTBCharacterClassData* Data = GetClassData();
+	return (Data && Data->PrimaryAttackCooldownEffectClass) ? Data->PrimaryAttackCooldownEffectClass : PrimaryAttackCooldownEffectClass;
 }

@@ -7,6 +7,8 @@
 #include "GameFramework/PlayerState.h"
 #include "Net/UnrealNetwork.h"
 #include "Data/TBCharacterClassData.h"
+#include "Engine/GameInstance.h"
+#include "Framework/TBClassSelectionSubsystem.h"
 
 ATBLobbyManager::ATBLobbyManager()
 {
@@ -181,6 +183,16 @@ void ATBLobbyManager::StartGame()
 	}
 
 	bTravelStarted = true;
+
+	// 고른 직업을 GameInstance에 보관 → 전장 GameMode가 로그인 시 복원
+	if (UTBClassSelectionSubsystem* Selection = GetGameInstance()->GetSubsystem<UTBClassSelectionSubsystem>())
+	{
+		Selection->Clear();
+		for (const FTBLobbyReadyEntry& Entry : Entries)
+		{
+			Selection->SaveSelection(Entry.PlayerState, Entry.ClassData);
+		}
+	}
 
 	// 넘어갈 인원을 같이 전달 → Battlefield의 LevelManager가 이 인원을 기다림
 	const FString TravelURL = FString::Printf(TEXT("%s?listen?ExpectedPlayers=%d"),

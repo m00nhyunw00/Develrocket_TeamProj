@@ -2,6 +2,8 @@
 
 #include "Character/Player/TBPlayer.h"
 #include "Data/TBCharacterClassData.h"
+#include "Engine/GameInstance.h"
+#include "Framework/TBClassSelectionSubsystem.h"
 #include "Framework/TBPlayerState.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
@@ -19,6 +21,30 @@ UClass* ATBGameModeBase::GetDefaultPawnClassForController_Implementation(AContro
 
 	// 직업 데이터가 없으면 GameMode에 지정된 기본 폰
 	return Super::GetDefaultPawnClassForController_Implementation(InController);
+}
+
+FString ATBGameModeBase::InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId,
+	const FString& Options, const FString& Portal)
+{
+	const FString Result = Super::InitNewPlayer(NewPlayerController, UniqueId, Options, Portal);
+
+	// PlayerState는 생성됨, 폰은 아직 없음
+	// 여기서 직업을 넣으면 이후 RestartPlayer가 해당 직업 폰으로 스폰
+	const UTBClassSelectionSubsystem* Selection = GetGameInstance()->GetSubsystem<UTBClassSelectionSubsystem>();
+	ATBPlayerState* PS = NewPlayerController ? NewPlayerController->GetPlayerState<ATBPlayerState>() : nullptr;
+	if (!Selection || !PS)
+	{
+		return Result;
+	}
+
+	// 보관된 직업이 없으면 기본 직업 유지 (로비를 거치지 않은 단독 실행 등)
+	if (const UTBCharacterClassData* ClassData = Selection->FindSelection(UniqueId))
+	{
+		PS->SetSelectedClassData(ClassData);
+		UE_LOG(LogTemp, Log, TEXT("[ClassSelection] 복원: %s → %s"), *PS->GetPlayerName(), *ClassData->GetName());
+	}
+
+	return Result;
 }
 
 void ATBGameModeBase::RespawnPlayerInPlace(APlayerController* PlayerController)

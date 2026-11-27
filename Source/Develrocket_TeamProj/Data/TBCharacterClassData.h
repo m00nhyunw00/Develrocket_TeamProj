@@ -36,6 +36,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "GAS")
 	TArray<TSubclassOf<UGameplayAbility>> StartupAbilities;
 
+	// 직업별 초기 체력·탄약 (비우면 PlayerState 값 사용)
+	UPROPERTY(EditDefaultsOnly, Category = "GAS")
+	TSubclassOf<UGameplayEffect> InitialBloodEffect;
+
+	// 직업별 기본 공격 쿨다운 (비우면 PlayerState 값 사용)
+	UPROPERTY(EditDefaultsOnly, Category = "PrimaryAttack")
+	TSubclassOf<UGameplayEffect> PrimaryAttackCooldownEffectClass;
+
 	// 피해량 ----------------------
 	UPROPERTY(EditDefaultsOnly, Category = "Damage", meta = (ClampMin = "0.0"))
 	float PrimaryAttackDamage = 10.0f;

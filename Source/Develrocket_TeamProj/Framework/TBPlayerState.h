@@ -227,8 +227,6 @@ public:
 		return bDrawPrimaryAttackTrace;
 	}
 
-	TSubclassOf<UGameplayEffect> GetPrimaryAttackCooldownEffectClass() const
-	{
-		return PrimaryAttackCooldownEffectClass;
-	}
+	// 직업 데이터 기반 조회 (DA 미지정 시 PlayerState 값 사용)
+	TSubclassOf<UGameplayEffect> GetPrimaryAttackCooldownEffectClass() const;
 };
