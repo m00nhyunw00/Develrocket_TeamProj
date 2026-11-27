@@ -16,6 +16,7 @@
 #include "Components/TBInteractionComponent.h"
 #include "Interface/TBInteractInterface.h"
 #include "UI/Menu/TBLobbyReadyWidget.h"
+#include "UI/Menu/TBClassSelectWidget.h"
 #include "Framework/TBLobbyManager.h"
 #include "InGame/TBLeaderboardWidget.h"
 #include "GameFramework/GameStateBase.h"
@@ -81,6 +82,18 @@ void ATBPlayerHUD::BeginPlay()
         if (UTBLobbyReadyWidget* ReadyWidget = CreateWidget<UTBLobbyReadyWidget>(PC, LobbyReadyWidgetClass))
         {
             ReadyWidget->AddToViewport(5);
+        }
+    }
+
+    // 직업 선택 : 로비에 들어오면 항상 먼저 띄움
+    // (입장 직후 클라엔 LobbyManager 목록 복제가 아직 없을 수 있어 "미선택일 때만" 조건은 쓰지 않음)
+    if (ClassSelectWidgetClass && UGameplayStatics::GetActorOfClass(this, ATBLobbyManager::StaticClass()))
+    {
+        ClassSelectWidget = CreateWidget<UTBClassSelectWidget>(PC, ClassSelectWidgetClass);
+        if (ClassSelectWidget)
+        {
+            ClassSelectWidget->AddToViewport(15);
+            ClassSelectWidget->OpenSelect();
         }
     }
 
@@ -386,6 +399,17 @@ void ATBPlayerHUD::TogglePauseMenu()
         HideLeaderboard();
         PauseWidget->OpenPauseMenu();
     }
+}
+
+void ATBPlayerHUD::OpenClassSelect()
+{
+    if (!ClassSelectWidget)
+    {
+        return;
+    }
+
+    HideLeaderboard();
+    ClassSelectWidget->OpenSelect();
 }
 
 void ATBPlayerHUD::BindInteraction(UTBInteractionComponent* InInteraction)

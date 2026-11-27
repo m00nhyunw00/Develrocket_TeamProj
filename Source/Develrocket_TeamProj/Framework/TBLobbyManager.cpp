@@ -6,6 +6,9 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "Net/UnrealNetwork.h"
+#include "Data/TBCharacterClassData.h"
+#include "Engine/GameInstance.h"
+#include "Framework/TBClassSelectionSubsystem.h"
 
 ATBLobbyManager::ATBLobbyManager()
 {
@@ -96,6 +99,7 @@ void ATBLobbyManager::AddEntry(APlayerState* PlayerState)
 	FTBLobbyReadyEntry& NewEntry = Entries.AddDefaulted_GetRef();
 	NewEntry.PlayerState = PlayerState;
 	NewEntry.bReady = false;
+	NewEntry.ClassData = nullptr;
 }
 
 void ATBLobbyManager::RemoveEntry(APlayerState* PlayerState)
@@ -136,6 +140,13 @@ void ATBLobbyManager::ToggleReady(APlayerState* PlayerState)
 		return;
 	}
 
+	// 직업을 고르기 전에는 준비완료 불가 (준비 취소는 허용)
+	if (!Entry->bReady && !Entry->ClassData)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[TBLobby] %s: 직업 미선택이라 준비 불가"), *PlayerState->GetPlayerName());
+		return;
+	}
+	
 	Entry->bReady = !Entry->bReady;
 	UE_LOG(LogTemp, Log, TEXT("[TBLobby] %s → %s"),
 		*PlayerState->GetPlayerName(), Entry->bReady ? TEXT("Ready") : TEXT("Not Ready"));
@@ -173,6 +184,16 @@ void ATBLobbyManager::StartGame()
 
 	bTravelStarted = true;
 
+	// 고른 직업을 GameInstance에 보관 → 전장 GameMode가 로그인 시 복원
+	if (UTBClassSelectionSubsystem* Selection = GetGameInstance()->GetSubsystem<UTBClassSelectionSubsystem>())
+	{
+		Selection->Clear();
+		for (const FTBLobbyReadyEntry& Entry : Entries)
+		{
+			Selection->SaveSelection(Entry.PlayerState, Entry.ClassData);
+		}
+	}
+
 	// 넘어갈 인원을 같이 전달 → Battlefield의 LevelManager가 이 인원을 기다림
 	const FString TravelURL = FString::Printf(TEXT("%s?listen?ExpectedPlayers=%d"),
 		*BattlefieldMapPath, Entries.Num());
@@ -194,4 +215,51 @@ void ATBLobbyManager::NotifyChanged()
 void ATBLobbyManager::OnRep_Entries()
 {
 	OnLobbyChangedEvent.Broadcast();
+}
+
+// 직업 변경 ----------------------
+
+ETBClassChangeResult ATBLobbyManager::ApproveClassChange(APlayerState* PlayerState, const UTBCharacterClassData* NewClassData)
+{
+	if (!HasAuthority() || bTravelStarted)
+	{
+		return ETBClassChangeResult::TravelStarted;
+	}
+
+	// 클라가 보낸 값은 목록에 있는 것만 허용
+	const bool bAllowed = NewClassData && AvailableClasses.ContainsByPredicate(
+		[NewClassData](const TObjectPtr<UTBCharacterClassData>& Data) { return Data.Get() == NewClassData; });
+	if (!bAllowed)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TBLobby] 허용되지 않은 직업 요청: %s"), *GetNameSafe(NewClassData));
+		return ETBClassChangeResult::NotAllowed;
+	}
+
+	FTBLobbyReadyEntry* Entry = FindEntry(PlayerState);
+	if (!Entry)
+	{
+		return ETBClassChangeResult::NotInLobby;
+	}
+
+	// 같은 직업을 다시 고르면 아무것도 바꾸지 않음 (준비 상태도 유지)
+	if (Entry->ClassData == NewClassData)
+	{
+		return ETBClassChangeResult::NoChange;
+	}
+
+	const double Now = GetWorld()->GetTimeSeconds();
+	if (Now - Entry->LastClassChangeTime < ClassChangeCooldown)
+	{
+		return ETBClassChangeResult::Cooldown;
+	}
+
+	// 장부 기록: 준비 해제를 폰 교체보다 먼저 → 교체 도중 게임 시작 방지
+	Entry->ClassData = NewClassData;
+	Entry->bReady = false;
+	Entry->LastClassChangeTime = Now;
+	NotifyChanged();
+
+	UE_LOG(LogTemp, Log, TEXT("[TBLobby] %s → %s 승인"),
+		*PlayerState->GetPlayerName(), *NewClassData->DisplayName.ToString());
+	return ETBClassChangeResult::Approved;
 }

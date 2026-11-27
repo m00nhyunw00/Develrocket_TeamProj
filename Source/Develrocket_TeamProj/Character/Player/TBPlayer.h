@@ -320,6 +320,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> PauseAction;
 
+	// 로비 직업 선택 팝업 열기 (로비가 아니면 HUD에 위젯이 없어 무시됨)
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> ClassSelectAction;
+
 private:
 	void UpdateBloodPulseVisual();
 
@@ -403,6 +407,7 @@ private:
 
 	void InputInteractStarted();
 	void InputPauseStarted();
+	void InputClassSelectStarted();
 
 	// 카메라 반동 계산 및 실행 상태 ----------------------
 

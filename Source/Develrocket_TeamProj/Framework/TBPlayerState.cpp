@@ -9,6 +9,11 @@
 #include "TBGameplayTags.h"
 #include "AbilitySystem/Attributes/TBPlayerAttributeSet.h"
 #include "Character/Player/TBPlayer.h"
+#include "Data/TBCharacterClassData.h"
+#include "Framework/TBGameModeBase.h"
+#include "Framework/TBLobbyManager.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 
 ATBPlayerState::ATBPlayerState()
 {
@@ -33,6 +38,7 @@ void ATBPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATBPlayerState, MatchStats);
+	DOREPLIFETIME(ATBPlayerState, SelectedClassData);
 }
 
 void ATBPlayerState::AddMatchKill(int32 Points)
@@ -76,7 +82,12 @@ void ATBPlayerState::InitializeGameplayData()
 		return;
 	}
 
-	if (!InitialBloodEffect)
+	// 직업 데이터의 초기화 GE 우선, 없으면 PlayerState 값
+	const UTBCharacterClassData* ClassData = GetClassData();
+	const TSubclassOf<UGameplayEffect> InitEffect =
+		(ClassData && ClassData->InitialBloodEffect) ? ClassData->InitialBloodEffect : InitialBloodEffect;
+
+	if (!InitEffect)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("InitialBloodEffect가 설정되지 않았습니다."));
 		return;
@@ -85,7 +96,7 @@ void ATBPlayerState::InitializeGameplayData()
 	FGameplayEffectContextHandle Context = AbilitySystemComponent->MakeEffectContext();
 	Context.AddSourceObject(this);
 
-	const FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(InitialBloodEffect, 1.0f, Context);
+	const FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(InitEffect, 1.0f, Context);
 
 	if (!Spec.IsValid())
 	{
@@ -103,9 +114,10 @@ void ATBPlayerState::InitializeGameplayData()
 
 	// 설정된 현재 탄약을 오른쪽 표시용 기준값으로 저장
 	AbilitySystemComponent->SetNumericAttributeBase(UTBPlayerAttributeSet::GetAmmoAtLastReloadAttribute(),PlayerAttributeSet->GetLoadedBlood());
-
-	// BP에서 지정한 초기 어빌리티 부여
-	AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
+	
+	// 직업 데이터의 초기 어빌리티 부여 (없으면 PlayerState 값)
+	AbilitySystemComponent->AddCharacterAbilities(ClassData ? ClassData->StartupAbilities : StartupAbilities);
+	
 	const bool bHasSkill1 = AbilitySystemComponent->GetActivatableAbilities().ContainsByPredicate(
 		[](const FGameplayAbilitySpec& Spec)
 		{
@@ -143,6 +155,41 @@ bool ATBPlayerState::ResetForRespawn(FActiveGameplayEffectHandle DeathEffect)
 	AbilitySystemComponent->SetNumericAttributeBase(UTBPlayerAttributeSet::GetAmmoAtLastReloadAttribute(), PlayerAttributeSet->GetLoadedBlood());
 	ForceNetUpdate();
 	return true;
+}
+
+void ATBPlayerState::ResetGameplayDataForClassChange()
+{
+	if (!HasAuthority() || !IsValid(AbilitySystemComponent))
+	{
+		return;
+	}
+
+	AbilitySystemComponent->CancelAllAbilities();
+
+	// AddCharacterAbilities로 부여한 것만 제거
+	AbilitySystemComponent->RemoveCharacterAbilities();
+	
+	bGameplayDataInitialized = false;
+}
+
+bool ATBPlayerState::ApplyClassChange(const UTBCharacterClassData* NewClassData)
+{
+	if (!HasAuthority() || !NewClassData)
+	{
+		return false;
+	}
+
+	// 첫 선택이 지금 폰(기본 직업)과 같으면 기록만 하고 폰은 유지
+	const bool bNeedsRespawn = GetClassData() != NewClassData;
+
+	// 순서 중요: GAS 정리 → 새 데이터 (다음 Possess에서 새 데이터로 초기화)
+	if (bNeedsRespawn)
+	{
+		ResetGameplayDataForClassChange();
+	}
+	SetSelectedClassData(NewClassData);
+
+	return bNeedsRespawn;
 }
 
 void ATBPlayerState::InitializeDeathEvents()
@@ -184,29 +231,32 @@ bool ATBPlayerState::GetAttackDamage(const FGameplayTag& AttackId, float& OutDam
 {
 	OutDamage = 0.0f;
 
+	// 1단계 이전 중: DA가 지정되지 않은 BP는 기존 필드 값 유지
+	const UTBCharacterClassData* Data = GetClassData();
+
 	if (AttackId == TBGameplayTags::Ability_Combat_PrimaryAttack)
 	{
-		OutDamage = PrimaryAttackDamage;
+		OutDamage = Data ? Data->PrimaryAttackDamage : PrimaryAttackDamage;
 	}
 	else if (AttackId == TBGameplayTags::Ability_Combat_SecondaryAction)
 	{
-		OutDamage = SecondaryAttackDamage;
+		OutDamage = Data ? Data->SecondaryAttackDamage : SecondaryAttackDamage;
 	}
 	else if (AttackId == TBGameplayTags::Ability_Combat_Mobility)
 	{
-		OutDamage = MobilityAttackDamage;
+		OutDamage = Data ? Data->MobilityAttackDamage : MobilityAttackDamage;
 	}
 	else if (AttackId == TBGameplayTags::Ability_Combat_Melee)
 	{
-		OutDamage = MeleeAttackDamage;
+		OutDamage = Data ? Data->MeleeAttackDamage : MeleeAttackDamage;
 	}
 	else if (AttackId == TBGameplayTags::Ability_Combat_Skill1)
 	{
-		OutDamage = Skill1Damage;
+		OutDamage = Data ? Data->Skill1Damage : Skill1Damage;
 	}
 	else if (AttackId == TBGameplayTags::Ability_Combat_Skill2)
 	{
-		OutDamage = Skill2Damage;
+		OutDamage = Data ? Data->Skill2Damage : Skill2Damage;
 	}
 	else
 	{
@@ -243,4 +293,114 @@ void ATBPlayerState::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount
 	{
 		Player->HandleDeadTagChanged(Tag, NewCount);
 	}
+}
+
+const UTBCharacterClassData* ATBPlayerState::GetClassData() const
+{
+	return SelectedClassData ? SelectedClassData.Get() : DefaultClassData.Get();
+}
+
+const UTBCharacterClassData* ATBPlayerState::GetSelectedClassData() const
+{
+	return SelectedClassData.Get();
+}
+
+void ATBPlayerState::SetSelectedClassData(const UTBCharacterClassData* NewClassData)
+{
+	if (!HasAuthority() || !NewClassData || SelectedClassData == NewClassData)
+	{
+		return;
+	}
+
+	SelectedClassData = NewClassData;
+	ForceNetUpdate();
+
+	// 서버(호스트)는 OnRep이 호출되지 않으므로 직접 알림
+	OnClassDataChangedEvent.Broadcast();
+}
+
+void ATBPlayerState::OnRep_SelectedClassData()
+{
+	OnClassDataChangedEvent.Broadcast();
+}
+
+// 로비 직업 변경 신청 ----------------------
+
+void ATBPlayerState::RequestClassChange(const UTBCharacterClassData* ClassData)
+{
+	if (!ClassData)
+	{
+		return;
+	}
+
+	// 호스트(리슨서버)는 서버라서 바로 실행됨
+	ServerRequestClassChange(ClassData);
+}
+
+void ATBPlayerState::ServerRequestClassChange_Implementation(const UTBCharacterClassData* ClassData)
+{
+	APlayerController* PC = GetPlayerController();
+	ATBLobbyManager* Manager = Cast<ATBLobbyManager>(
+		UGameplayStatics::GetActorOfClass(this, ATBLobbyManager::StaticClass()));
+	ATBGameModeBase* GameMode = GetWorld()->GetAuthGameMode<ATBGameModeBase>();
+
+	// 로비가 아닌 맵이면 LobbyManager가 없어서 거절
+	if (!PC || !Manager || !GameMode)
+	{
+		ClientClassChangeResult(ETBClassChangeResult::NotInLobby);
+		return;
+	}
+
+	// 1. 결재: 규칙 확인 + 장부 기록(직업, 준비 해제)
+	const ETBClassChangeResult Result = Manager->ApproveClassChange(this, ClassData);
+	ClientClassChangeResult(Result);
+
+	if (Result != ETBClassChangeResult::Approved)
+	{
+		return;
+	}
+
+	// 2. 승인 후: 내 데이터 교체 → GameMode가 폰 재스폰
+	if (ApplyClassChange(ClassData))
+	{
+		GameMode->RespawnPlayerInPlace(PC);
+	}
+}
+
+void ATBPlayerState::ClientClassChangeResult_Implementation(ETBClassChangeResult Result)
+{
+	OnClassChangeResult.Broadcast(Result);
+}
+
+// 직업 데이터 기반 조회 ----------------------
+// 1단계 이전 중: DA가 지정되지 않은 BP는 기존 필드 값 유지
+
+float ATBPlayerState::GetPrimaryAttackDamage() const
+{
+	const UTBCharacterClassData* Data = GetClassData();
+	return Data ? Data->PrimaryAttackDamage : PrimaryAttackDamage;
+}
+
+float ATBPlayerState::GetMeleeAttackDamage() const
+{
+	const UTBCharacterClassData* Data = GetClassData();
+	return Data ? Data->MeleeAttackDamage : MeleeAttackDamage;
+}
+
+float ATBPlayerState::GetPrimaryAttackRange() const
+{
+	const UTBCharacterClassData* Data = GetClassData();
+	return Data ? Data->PrimaryAttackRange : PrimaryAttackRange;
+}
+
+float ATBPlayerState::GetPrimaryAttackInterval() const
+{
+	const UTBCharacterClassData* Data = GetClassData();
+	return Data ? Data->PrimaryAttackInterval : PrimaryAttackInterval;
+}
+
+TSubclassOf<UGameplayEffect> ATBPlayerState::GetPrimaryAttackCooldownEffectClass() const
+{
+	const UTBCharacterClassData* Data = GetClassData();
+	return (Data && Data->PrimaryAttackCooldownEffectClass) ? Data->PrimaryAttackCooldownEffectClass : PrimaryAttackCooldownEffectClass;
 }
