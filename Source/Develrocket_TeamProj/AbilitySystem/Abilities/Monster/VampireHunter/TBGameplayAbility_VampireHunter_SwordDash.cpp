@@ -22,7 +22,6 @@ UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_SwordDashCooldown, "Cooldown.Hunter.SwordDash"
 
 namespace
 {
-const FName TargetActorKey(TEXT("TargetActor"));
 const FName SwordDashMotionName(TEXT("HunterSwordDash"));
 constexpr double MaxTargetHeightDifference = 125.0;
 }
@@ -101,7 +100,8 @@ void UTBGameplayAbility_VampireHunter_SwordDash::ActivateAbility(FGameplayAbilit
 	const AActor* Target = TriggerEventData ? TriggerEventData->Target.Get() : nullptr;
 	if (!Target && Blackboard)
 	{
-		Target = Cast<AActor>(Blackboard->GetValueAsObject(TargetActorKey));
+		static const FName SwordDashTargetKey(TEXT("TargetActor"));
+		Target = Cast<AActor>(Blackboard->GetValueAsObject(SwordDashTargetKey));
 	}
 
 	if (!CanUseAgainst(Hunter, Target))
