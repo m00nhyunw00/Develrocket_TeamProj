@@ -15,10 +15,25 @@ class UStaticMesh;
 class UStaticMeshComponent;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
-class UNiagaraSystem;
+class UPoseableMeshComponent;
 
 UENUM(BlueprintType)
 enum class ETBHunterPhase : uint8 { Rifle, DrawingSword, Sword };
+
+UENUM()
+enum class ETBHunterRifleTracer : uint8 { Basic, Traveling, Charged };
+
+USTRUCT()
+struct FTBHunterRifleAimLock
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FVector_NetQuantize10 Location = FVector::ZeroVector;
+
+	UPROPERTY()
+	double EndTime = 0.0;
+};
 
 USTRUCT()
 struct FTBHunterCombatState
@@ -42,12 +57,6 @@ struct FTBHunterChargeVisual
 
 	UPROPERTY()
 	TObjectPtr<AActor> Target;
-
-	UPROPERTY()
-	FName MuzzleSocket;
-
-	UPROPERTY()
-	float Range = 0.f;
 
 	UPROPERTY()
 	float Duration = 0.f;
@@ -74,11 +83,21 @@ public:
 	UAnimMontage* GetRifleAttackMontage() const { return RifleAttackMontage.Get(); }
 	UAnimMontage* GetRifleNotifyShotMontage() const { return RifleNotifyShotMontage.Get(); }
 	void ResetPhase();
-	void BeginRifleChargeVisual(AActor* Target, FName MuzzleSocket, float Range, float Duration);
+	void BeginRifleChargeVisual(AActor* Target, float Duration);
 	void EndRifleChargeVisual();
+	void SetRifleAimTarget(AActor* Target);
+	bool TryGetRifleAimLocation(FVector& OutLocation) const;
+	void SetRifleAimLock(const FVector& Location, float Duration);
+	void ClearRifleAimLock();
+	static constexpr float BasicTracerDuration = 0.07f;
 	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastPlayChargedShotFlash(FVector_NetQuantize10 Start, FVector_NetQuantize10 End);
-	static bool TryGetRifleShotOrigin(const ATBMonster& Hunter, FName MuzzleSocket, FVector& OutOrigin);
+	void MulticastPlayRifleTracer(FVector_NetQuantize10 TraceStart, FVector_NetQuantize10 Impact, ETBHunterRifleTracer TracerType);
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastStartMotionTrail(float Duration);
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastStopMotionTrail();
+	static bool TryGetRifleAimRay(const ATBMonster& Hunter, FName MuzzleSocket, const FVector& AimLocation,
+		float Range, FVector& OutStart, FVector& OutEnd);
 	static bool TraceRifleShot(const ATBMonster& Hunter, const FVector& Start, const FVector& End, FHitResult& OutHit);
 
 protected:
@@ -87,11 +106,36 @@ protected:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
+	struct FMotionTrailGhost
+	{
+		TWeakObjectPtr<UPoseableMeshComponent> Mesh;
+		TWeakObjectPtr<UMaterialInstanceDynamic> Material;
+		double SpawnedAt = 0.0;
+	};
+
+	struct FRifleTracer
+	{
+		TWeakObjectPtr<UStaticMeshComponent> Mesh;
+		FVector Start;
+		FVector Direction;
+		double Length;
+		double StartTime;
+		double InitialHeadDistance;
+		double Speed;
+		double TailLength;
+		double Radius;
+	};
+
 	UFUNCTION()
 	void OnRep_CombatState();
 	UFUNCTION()
 	void OnRep_ChargeVisual();
 	void UpdateChargeBeam();
+	void ClearChargeBeamPoseUpdate();
+	void UpdateRifleTracers();
+	void UpdateMotionTrail();
+	void SpawnMotionTrailGhost(double Now);
+	UStaticMeshComponent* CreateRifleBeam(UMaterialInterface* Material);
 	bool IsAtTransitionHealth() const;
 	void SetCombatState(ETBHunterPhase Phase, ETBHunterSwordAnimation Animation);
 	void UpdateSwordVisual();
@@ -107,11 +151,20 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_ChargeVisual)
 	FTBHunterChargeVisual ChargeVisual;
 
+	UPROPERTY(Replicated)
+	TObjectPtr<AActor> RifleAimTarget;
+
+	UPROPERTY(Replicated)
+	FTBHunterRifleAimLock RifleAimLock;
+
 	UPROPERTY()
 	TObjectPtr<UStaticMesh> ChargeBeamMesh;
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> ChargeBeamMaterial;
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> RifleTracerMaterial;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> ChargeBeam;
@@ -119,10 +172,14 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> ChargeBeamMaterialInstance;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Hunter|Charge Visual")
-	TObjectPtr<UNiagaraSystem> ChargedShotFlashSystem;
-
 	FTimerHandle ChargeBeamTimer;
+	FDelegateHandle ChargeBeamPoseHandle;
+	FTimerHandle RifleTracerTimer;
+	TArray<FRifleTracer> RifleTracers;
+	FTimerHandle MotionTrailTimer;
+	TArray<FMotionTrailGhost> MotionTrailGhosts;
+	double MotionTrailUntil = 0.0;
+	double NextMotionTrailSample = 0.0;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USkeletalMesh> LoadedRifleMesh;

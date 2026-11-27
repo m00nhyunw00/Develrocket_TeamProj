@@ -49,10 +49,13 @@ protected:
 		meta = (ClampMin = "0.01"))
 	float CameraRecoilReturnTime = 0.14f;
 
-	// 몽타주 종료를 기다리지 않고 발사 처리 후 어빌리티 종료
+	// 사격 후 몽타주 완료까지 어빌리티 유지 여부
+	UPROPERTY(EditDefaultsOnly, Category = "Combat|Recovery")
+	bool bWaitForRecovery = false;
+
 	virtual bool ShouldWaitForMontageEnd() const override
 	{
-		return false;
+		return bWaitForRecovery;
 	}
 
 	// 트레이스 끝점 결정 후 공격 연출을 한 번만 실행

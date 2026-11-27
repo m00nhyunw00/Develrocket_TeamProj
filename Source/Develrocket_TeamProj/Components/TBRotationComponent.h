@@ -24,11 +24,7 @@ public:
 
 public:
 	FORCEINLINE void ToggleShouldRotate(const bool bRotate) { bShouldRotate = bRotate; }
-	void SetAbilityFacingTarget(AActor* Target);
-	bool IsRotatingTowardAbilityTarget() const
-	{
-		return bShouldRotate && AbilityFacingTarget.IsSet() && AbilityFacingTarget.GetValue().IsValid();
-	}
+	bool IsTrackingHunterTarget() const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -37,5 +33,5 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
-	TOptional<TWeakObjectPtr<AActor>> AbilityFacingTarget;
+	AActor* GetFacingTarget() const;
 };

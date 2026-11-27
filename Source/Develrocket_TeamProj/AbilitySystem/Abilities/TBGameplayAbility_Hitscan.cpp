@@ -23,6 +23,13 @@ void UTBGameplayAbility_Hitscan::ActivateAbility(
     FGameplayAbilityActivationInfo ActivationInfo,
     const FGameplayEventData* TriggerEventData)
 {
+    // 후딜 구간 판정에 사용할 3인칭 몽타주 확인
+    if (bWaitForRecovery && !ThirdPersonMontage)
+    {
+        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+        return;
+    }
+    
     ATBPlayer* Player = ActorInfo
         ? Cast<ATBPlayer>(ActorInfo->AvatarActor.Get())
         : nullptr;
@@ -97,8 +104,11 @@ void UTBGameplayAbility_Hitscan::ActivateAbility(
         }
     }
 
-    EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
-}
+    // 기존 발사·명중·반동 처리 이후 종료 시점 선택
+    if (!bWaitForRecovery)
+    {
+        EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
+    }}
 
 void UTBGameplayAbility_Hitscan::HandleHitscanHit(const FHitResult& HitResult)
 {

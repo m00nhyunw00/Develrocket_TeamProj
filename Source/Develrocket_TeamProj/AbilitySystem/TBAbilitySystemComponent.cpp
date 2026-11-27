@@ -1,6 +1,8 @@
 #include "AbilitySystem/TBAbilitySystemComponent.h"
 
 #include "Abilities/GameplayAbility.h"
+#include "Abilities/TBGameplayAbility_Action.h"
+#include "Character/Player/TBPlayer.h"
 
 void UTBAbilitySystemComponent::AddCharacterAbilities(const TArray<TSubclassOf<UGameplayAbility>>& StartupAbilities)
 {
@@ -61,9 +63,12 @@ bool UTBAbilitySystemComponent::TryActivateAbilityByTag(const FGameplayTag& Abil
 		return false;
 	}
 
-	const FGameplayTagContainer AbilityTags(AbilityTag);
+	if (RequestActionTransition(AbilityTag, false))
+	{
+		return true;
+	}
 
-	// ASC가 관리하는 Ability Spec에서 태그 검색 및 활성화
+	const FGameplayTagContainer AbilityTags(AbilityTag);
 	return TryActivateAbilitiesByTag(AbilityTags);
 }
 
@@ -80,12 +85,16 @@ void UTBAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Input
 
 		Spec.InputPressed = true;
 
+		if (RequestActionTransition(InputTag, false))
+		{
+			return;
+		}
+
 		if (!Spec.IsActive())
 		{
 			TryActivateAbility(Spec.Handle);
 		}
 
-		// 하나의 입력 기능에는 하나의 실행 어빌리티 부여
 		return;
 	}
 }
@@ -123,3 +132,110 @@ void UTBAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& Inpu
 		InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputReleased, Spec.Handle, PredictionKey);
 	}
 }
+
+bool UTBAbilitySystemComponent::RequestActionTransition(const FGameplayTag& InputTag, bool bMovementInput)
+{
+	ATBPlayer* Player = Cast<ATBPlayer>(GetAvatarActor());
+	UTBGameplayAbility_Action* Action = Cast<UTBGameplayAbility_Action>(GetAnimatingAbility());
+
+	if (!Player || !Player->IsLocallyControlled()
+		|| Player->IsActionBlocked()
+		|| !Action
+		|| !Action->CanCancelByInput(InputTag, bMovementInput))
+	{
+		return false;
+	}
+
+	ServerRequestActionTransition(
+		Player,
+		Action->GetCurrentAbilitySpecHandle(),
+		Action->GetCurrentActivationInfo().GetActivationPredictionKey(),
+		InputTag,
+		bMovementInput);
+
+	return true;
+}
+
+void UTBAbilitySystemComponent::ServerRequestActionTransition_Implementation(ATBPlayer* RequestAvatar,
+	FGameplayAbilitySpecHandle SourceHandle, FPredictionKey SourcePredictionKey, FGameplayTag InputTag,
+	bool bMovementInput)
+{
+    ABILITYLIST_SCOPE_LOCK();
+
+    ATBPlayer* Player = Cast<ATBPlayer>(GetAvatarActor());
+    UTBGameplayAbility_Action* Action =
+        Cast<UTBGameplayAbility_Action>(GetAnimatingAbility());
+
+    // 이전 캐릭터 또는 이전 실행에서 늦게 도착한 요청 제외
+    if (!Player || Player != RequestAvatar || Player->IsActionBlocked()
+        || !Action
+        || Action->GetCurrentAbilitySpecHandle() != SourceHandle
+        || !(Action->GetCurrentActivationInfo().GetActivationPredictionKey()
+            == SourcePredictionKey)
+        || !Action->CanCancelByInput(InputTag, bMovementInput))
+    {
+        return;
+    }
+
+    FGameplayAbilitySpecHandle TargetHandle;
+
+    if (!bMovementInput)
+    {
+        for (FGameplayAbilitySpec& Spec : GetActivatableAbilities())
+        {
+            if (!Spec.Ability || Spec.PendingRemove
+                || Spec.RemoveAfterActivation
+                || !Spec.Ability->GetAssetTags().HasTagExact(InputTag))
+            {
+                continue;
+            }
+
+            // 별도로 실행 중인 어빌리티의 중복 발동 제외
+            if (Spec.IsActive() && Spec.Handle != SourceHandle)
+            {
+                return;
+            }
+
+            UGameplayAbility* TargetAbility = Spec.GetPrimaryInstance();
+            if (!TargetAbility)
+            {
+                TargetAbility = Spec.Ability;
+            }
+
+            // 현재 동작을 끝내기 전 쿨다운·자원 확인
+            if (!TargetAbility->CheckCooldown(Spec.Handle, AbilityActorInfo.Get())
+                || !TargetAbility->CheckCost(Spec.Handle, AbilityActorInfo.Get())
+                || IsAbilityInputBlocked(Spec.InputID))
+            {
+                return;
+            }
+
+            TargetHandle = Spec.Handle;
+            break;
+        }
+
+        if (!TargetHandle.IsValid())
+        {
+            return;
+        }
+    }
+
+    // 서버에서 검증한 현재 실행 인스턴스만 취소
+    Action->CancelAbility(
+        SourceHandle,
+        Action->GetCurrentActorInfo(),
+        Action->GetCurrentActivationInfo(),
+        true);
+
+    if (Action->IsActive())
+    {
+        return;
+    }
+
+    if (TargetHandle.IsValid())
+    {
+        // GAS의 활성화 조건 재검사 및 후속 어빌리티 실행
+        TryActivateAbility(TargetHandle);
+    }
+}
+

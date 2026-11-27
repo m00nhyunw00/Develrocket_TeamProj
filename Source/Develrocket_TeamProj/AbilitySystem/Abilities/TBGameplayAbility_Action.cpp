@@ -5,6 +5,7 @@
 #include "AbilitySystemComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
+#include "Animation/Player/ANS_TBActionCancelWindow.h"
 #include "Character/Player/TBPlayer.h"
 #include "Components/SkeletalMeshComponent.h"
 
@@ -298,4 +299,58 @@ void UTBGameplayAbility_Action::EndAbility(const FGameplayAbilitySpecHandle Hand
 
     MontageTask = nullptr;
     FirstPersonWaitTask = nullptr;
+}
+
+bool UTBGameplayAbility_Action::CanCancelByInput(const FGameplayTag& InputTag, bool bMovementInput) const
+{
+    if (!IsActive() || !CanBeCanceled() || !CurrentActorInfo)
+    {
+        return false;
+    }
+
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    UAnimInstance* AnimInstance = CurrentActorInfo->GetAnimInstance();
+    UAnimMontage* Montage = ThirdPersonMontage.Get();
+
+    // 이번 어빌리티가 실제로 재생 중인 몽타주 확인
+    if (!ASC || !AnimInstance || !Montage
+        || ASC->GetAnimatingAbility() != this
+        || ASC->GetCurrentMontage() != Montage)
+    {
+        return false;
+    }
+
+    FAnimMontageInstance* Instance = AnimInstance->GetActiveInstanceForMontage(Montage);
+
+    if (!Instance)
+    {
+        return false;
+    }
+
+    const float Position = Instance->GetPosition();
+
+    for (const FAnimNotifyEvent& Event : Montage->Notifies)
+    {
+        const UANS_TBActionCancelWindow* Window = Cast<UANS_TBActionCancelWindow>(Event.NotifyStateClass);
+
+        if (!Window || Position < Event.GetTriggerTime() || Position >= Event.GetEndTriggerTime())
+        {
+            continue;
+        }
+
+        if (bMovementInput && Window->bAllowMovementCancel)
+        {
+            return true;
+        }
+
+        if (!bMovementInput
+            && InputTag.IsValid()
+            && InputTag.MatchesAny(Window->AllowedAbilityTags))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
