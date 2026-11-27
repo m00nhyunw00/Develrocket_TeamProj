@@ -28,9 +28,17 @@ void UTBClassSelectEntryWidget::Setup(const UTBCharacterClassData* InClassData)
 		NameText->SetText(ClassData->DisplayName);
 	}
 
-	if (IconImage && ClassData->Icon)
+	if (PortraitImage && ClassData->Portrait)
 	{
-		IconImage->SetBrushFromTexture(ClassData->Icon.Get());
+		PortraitImage->SetBrushFromTexture(ClassData->Portrait.Get());
+	}
+}
+
+void UTBClassSelectEntryWidget::SetSelectable(bool bSelectable)
+{
+	if (SelectButton)
+	{
+		SelectButton->SetIsEnabled(bSelectable);
 	}
 }
 

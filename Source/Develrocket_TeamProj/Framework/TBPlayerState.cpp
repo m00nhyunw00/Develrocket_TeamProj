@@ -298,6 +298,11 @@ const UTBCharacterClassData* ATBPlayerState::GetClassData() const
 	return SelectedClassData ? SelectedClassData.Get() : DefaultClassData.Get();
 }
 
+const UTBCharacterClassData* ATBPlayerState::GetSelectedClassData() const
+{
+	return SelectedClassData.Get();
+}
+
 void ATBPlayerState::SetSelectedClassData(const UTBCharacterClassData* NewClassData)
 {
 	if (!HasAuthority() || !NewClassData || SelectedClassData == NewClassData)

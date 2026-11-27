@@ -20,8 +20,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Display")
 	FText DisplayName;
 
+	// 작은 아이콘 (준비 목록·HUD용, 256x256)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Display")
 	TObjectPtr<UTexture2D> Icon;
+
+	// 직업 선택 카드용 큰 그림 (2:3 세로)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Display")
+	TObjectPtr<UTexture2D> Portrait;
 
 	// 폰 ----------------------
 	UPROPERTY(EditDefaultsOnly, Category = "Pawn")

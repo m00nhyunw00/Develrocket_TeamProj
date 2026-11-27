@@ -22,6 +22,16 @@ void UTBClassSelectWidget::NativeOnInitialized()
 	BuildEntries();
 }
 
+void UTBClassSelectWidget::NativeDestruct()
+{
+	if (ATBPlayerState* PS = BoundPlayerState.Get())
+	{
+		PS->OnClassChangeResult.Remove(ClassChangeResultHandle);
+	}
+
+	Super::NativeDestruct();
+}
+
 void UTBClassSelectWidget::BuildEntries()
 {
 	if (!EntryBox || !EntryWidgetClass)
@@ -31,6 +41,7 @@ void UTBClassSelectWidget::BuildEntries()
 	}
 
 	EntryBox->ClearChildren();
+	EntryWidgets.Reset();
 
 	// 배치 액터라 클라에도 맵 로드 시점부터 존재
 	const ATBLobbyManager* Manager = Cast<ATBLobbyManager>(
@@ -56,6 +67,7 @@ void UTBClassSelectWidget::BuildEntries()
 		Entry->Setup(Data);
 		Entry->OnEntryClicked.BindUObject(this, &ThisClass::HandleEntryClicked);
 		EntryBox->AddChild(Entry);
+		EntryWidgets.Add(Entry);
 	}
 }
 
@@ -68,6 +80,9 @@ void UTBClassSelectWidget::OpenSelect()
 	}
 
 	SetVisibility(ESlateVisibility::Visible);
+	BindClassChangeResult();
+	RefreshEntries();
+
 	FInputModeUIOnly InputMode;
 	InputMode.SetWidgetToFocus(TakeWidget());
 	PC->SetInputMode(InputMode);
@@ -87,19 +102,79 @@ void UTBClassSelectWidget::CloseSelect()
 	PC->SetShowMouseCursor(false);
 }
 
-void UTBClassSelectWidget::HandleEntryClicked(const UTBCharacterClassData* ClassData)
+void UTBClassSelectWidget::RefreshEntries()
 {
-	// 직업 변경 신청 → 서버에서 결재 후 교체
-	if (ATBPlayerState* PS = GetOwningPlayerState<ATBPlayerState>())
+	// 입장 직후 클라에는 PlayerState가 아직 없을 수 있음 → 미선택으로 처리
+	const ATBPlayerState* PS = GetOwningPlayerState<ATBPlayerState>();
+	const UTBCharacterClassData* Selected = PS ? PS->GetSelectedClassData() : nullptr;
+
+	for (UTBClassSelectEntryWidget* Entry : EntryWidgets)
 	{
-		PS->RequestClassChange(ClassData);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[ClassSelect] TBPlayerState 없음"));
+		if (Entry)
+		{
+			Entry->SetSelectable(Entry->GetClassData() != Selected);
+		}
 	}
 
-	CloseSelect();
+	// 아직 직업을 안 골랐으면 닫을 수 없음 (첫 입장)
+	if (CloseButton)
+	{
+		CloseButton->SetVisibility(Selected ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+}
+
+void UTBClassSelectWidget::SetAllEntriesSelectable(bool bSelectable)
+{
+	for (UTBClassSelectEntryWidget* Entry : EntryWidgets)
+	{
+		if (Entry)
+		{
+			Entry->SetSelectable(bSelectable);
+		}
+	}
+}
+
+void UTBClassSelectWidget::BindClassChangeResult()
+{
+	ATBPlayerState* PS = GetOwningPlayerState<ATBPlayerState>();
+	if (!PS || BoundPlayerState.Get() == PS)
+	{
+		return;
+	}
+
+	ClassChangeResultHandle = PS->OnClassChangeResult.AddUObject(this, &ThisClass::HandleClassChangeResult);
+	BoundPlayerState = PS;
+}
+
+void UTBClassSelectWidget::HandleEntryClicked(const UTBCharacterClassData* ClassData)
+{
+	ATBPlayerState* PS = GetOwningPlayerState<ATBPlayerState>();
+	if (!PS)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ClassSelect] TBPlayerState 없음"));
+		return;
+	}
+
+	BindClassChangeResult();
+
+	// 결과가 올 때까지 연타 방지
+	SetAllEntriesSelectable(false);
+
+	// 직업 변경 신청 → 서버 결재 → 결과는 HandleClassChangeResult로 옴
+	PS->RequestClassChange(ClassData);
+}
+
+void UTBClassSelectWidget::HandleClassChangeResult(ETBClassChangeResult Result)
+{
+	if (Result == ETBClassChangeResult::Approved || Result == ETBClassChangeResult::NoChange)
+	{
+		CloseSelect();
+		return;
+	}
+
+	// 거절: 열린 채로 다시 고를 수 있게
+	UE_LOG(LogTemp, Log, TEXT("[ClassSelect] 거절됨 (%d)"), static_cast<int32>(Result));
+	RefreshEntries();
 }
 
 void UTBClassSelectWidget::HandleCloseClicked()

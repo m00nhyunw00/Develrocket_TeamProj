@@ -80,6 +80,9 @@ public:
 	
 	// 선택한 직업이 있으면 그것을, 없으면 기본 직업을 반환
 	const UTBCharacterClassData* GetClassData() const;
+
+	// 로비에서 실제로 고른 직업 (아직 안 골랐으면 nullptr)
+	const UTBCharacterClassData* GetSelectedClassData() const;
 	
 	// 서버 전용: 데이터만 교체. 직업 변경은 ApplyClassChange 사용
 	void SetSelectedClassData(const UTBCharacterClassData* NewClassData);
