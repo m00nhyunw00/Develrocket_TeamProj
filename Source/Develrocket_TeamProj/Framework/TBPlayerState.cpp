@@ -9,6 +9,7 @@
 #include "TBGameplayTags.h"
 #include "AbilitySystem/Attributes/TBPlayerAttributeSet.h"
 #include "Character/Player/TBPlayer.h"
+#include "Data/TBCharacterClassData.h"
 
 ATBPlayerState::ATBPlayerState()
 {
@@ -33,6 +34,7 @@ void ATBPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATBPlayerState, MatchStats);
+	DOREPLIFETIME(ATBPlayerState, SelectedClassData);
 }
 
 void ATBPlayerState::AddMatchKill(int32 Points)
@@ -184,29 +186,32 @@ bool ATBPlayerState::GetAttackDamage(const FGameplayTag& AttackId, float& OutDam
 {
 	OutDamage = 0.0f;
 
+	// 1단계 이전 중: DA가 지정되지 않은 BP는 기존 필드 값 유지
+	const UTBCharacterClassData* Data = GetClassData();
+
 	if (AttackId == TBGameplayTags::Ability_Combat_PrimaryAttack)
 	{
-		OutDamage = PrimaryAttackDamage;
+		OutDamage = Data ? Data->PrimaryAttackDamage : PrimaryAttackDamage;
 	}
 	else if (AttackId == TBGameplayTags::Ability_Combat_SecondaryAction)
 	{
-		OutDamage = SecondaryAttackDamage;
+		OutDamage = Data ? Data->SecondaryAttackDamage : SecondaryAttackDamage;
 	}
 	else if (AttackId == TBGameplayTags::Ability_Combat_Mobility)
 	{
-		OutDamage = MobilityAttackDamage;
+		OutDamage = Data ? Data->MobilityAttackDamage : MobilityAttackDamage;
 	}
 	else if (AttackId == TBGameplayTags::Ability_Combat_Melee)
 	{
-		OutDamage = MeleeAttackDamage;
+		OutDamage = Data ? Data->MeleeAttackDamage : MeleeAttackDamage;
 	}
 	else if (AttackId == TBGameplayTags::Ability_Combat_Skill1)
 	{
-		OutDamage = Skill1Damage;
+		OutDamage = Data ? Data->Skill1Damage : Skill1Damage;
 	}
 	else if (AttackId == TBGameplayTags::Ability_Combat_Skill2)
 	{
-		OutDamage = Skill2Damage;
+		OutDamage = Data ? Data->Skill2Damage : Skill2Damage;
 	}
 	else
 	{
@@ -243,4 +248,55 @@ void ATBPlayerState::HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount
 	{
 		Player->HandleDeadTagChanged(Tag, NewCount);
 	}
+}
+
+const UTBCharacterClassData* ATBPlayerState::GetClassData() const
+{
+	return SelectedClassData ? SelectedClassData.Get() : DefaultClassData.Get();
+}
+
+void ATBPlayerState::SetSelectedClassData(const UTBCharacterClassData* NewClassData)
+{
+	if (!HasAuthority() || !NewClassData || SelectedClassData == NewClassData)
+	{
+		return;
+	}
+
+	SelectedClassData = NewClassData;
+	ForceNetUpdate();
+
+	// 서버(호스트)는 OnRep이 호출되지 않으므로 직접 알림
+	OnClassDataChangedEvent.Broadcast();
+}
+
+void ATBPlayerState::OnRep_SelectedClassData()
+{
+	OnClassDataChangedEvent.Broadcast();
+}
+
+// 직업 데이터 기반 조회 ----------------------
+// 1단계 이전 중: DA가 지정되지 않은 BP는 기존 필드 값 유지
+
+float ATBPlayerState::GetPrimaryAttackDamage() const
+{
+	const UTBCharacterClassData* Data = GetClassData();
+	return Data ? Data->PrimaryAttackDamage : PrimaryAttackDamage;
+}
+
+float ATBPlayerState::GetMeleeAttackDamage() const
+{
+	const UTBCharacterClassData* Data = GetClassData();
+	return Data ? Data->MeleeAttackDamage : MeleeAttackDamage;
+}
+
+float ATBPlayerState::GetPrimaryAttackRange() const
+{
+	const UTBCharacterClassData* Data = GetClassData();
+	return Data ? Data->PrimaryAttackRange : PrimaryAttackRange;
+}
+
+float ATBPlayerState::GetPrimaryAttackInterval() const
+{
+	const UTBCharacterClassData* Data = GetClassData();
+	return Data ? Data->PrimaryAttackInterval : PrimaryAttackInterval;
 }

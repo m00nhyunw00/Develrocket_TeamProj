@@ -14,6 +14,9 @@ class UTBAbilitySystemComponent;
 class UTBAttributeSetBase;
 class UGameplayAbility;
 class UGameplayEffect;
+class UTBCharacterClassData;
+
+DECLARE_MULTICAST_DELEGATE(FOnTBClassDataChanged);
 
 USTRUCT(BlueprintType)
 struct FTBMatchStats
@@ -65,6 +68,15 @@ public:
 	// 기능 태그에 해당하는 플레이어 공격력 조회
 	bool GetAttackDamage(
 		const FGameplayTag& AttackId, float& OutDamage) const;
+	
+	// 선택한 직업이 있으면 그것을, 없으면 기본 직업을 반환
+	const UTBCharacterClassData* GetClassData() const;
+	
+	// 서버 전용: 직업 변경(로비에서 사용)
+	void SetSelectedClassData(const UTBCharacterClassData* NewClassData);
+	
+	// 리슨 서버 호스트는 OnRep을 받지 않으므로 HUD는 이 이벤트로 갱신
+	FOnTBClassDataChanged OnClassDataChangedEvent;
 
 protected:
 	// 기본 공격 피해량
@@ -135,6 +147,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|Death")
 	TSubclassOf<UGameplayEffect> DeathEffectClass;
 	
+	// 1단계 이전용: 기존 직업별 PlayerState BP에 DA를 하나씩 지정
+	UPROPERTY(EditDefaultsOnly, Category = "Class")
+	TObjectPtr<const UTBCharacterClassData> DefaultClassData;
+	
 private:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Match", meta = (AllowPrivateAccess = "true"))
 	FTBMatchStats MatchStats;
@@ -147,6 +163,12 @@ private:
 private:
 	void HandleBloodChanged(const FOnAttributeChangeData& Data);
 	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
+	
+	UPROPERTY(ReplicatedUsing = OnRep_SelectedClassData)
+	TObjectPtr<const UTBCharacterClassData> SelectedClassData;
+
+	UFUNCTION()
+	void OnRep_SelectedClassData();
 
 public:
 	// 게임플레이 데이터 초기화 완료 여부
@@ -166,33 +188,16 @@ public:
 		return DeathEffectClass;
 	}
 	
-	// 기본 공격 피해량 조회
-	float GetPrimaryAttackDamage() const
-	{
-		return PrimaryAttackDamage;
-	}
-	
-	// 플레이어 근접 공격 피해량 조회
-	float GetMeleeAttackDamage() const
-	{
-		return MeleeAttackDamage;
-	}
-
-	// 기본 공격 사거리 조회
-	float GetPrimaryAttackRange() const
-	{
-		return PrimaryAttackRange;
-	}
+	// 직업 데이터 기반 조회 (DA 미지정 시 기존 필드 값 사용)
+	float GetPrimaryAttackDamage() const;
+	float GetMeleeAttackDamage() const;
+	float GetPrimaryAttackRange() const;
+	float GetPrimaryAttackInterval() const;
 
 	// 공격 판정 디버그 표시 여부
 	bool ShouldDrawPrimaryAttackTrace() const
 	{
 		return bDrawPrimaryAttackTrace;
-	}
-	
-	float GetPrimaryAttackInterval() const
-	{
-		return PrimaryAttackInterval;
 	}
 
 	TSubclassOf<UGameplayEffect> GetPrimaryAttackCooldownEffectClass() const
