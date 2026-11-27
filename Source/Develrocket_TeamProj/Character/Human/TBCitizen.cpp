@@ -82,10 +82,10 @@ void ATBCitizen::BeginPlay()
 	}
 
 	ResetVitals();
-	
-	UpdateMoveSpeed();
 
-	if (CurrentAppearance.IsNull())
+	UpdateMoveSpeed();                               // 생성자 시점엔 BP 속도값 미반영이라 여기서 적용
+
+	if (CurrentAppearance.IsNull())                  // 외형 미선택 시에만 선택 (레벨 배치 시민 포함)
 	{
 		ChooseAppearance();
 	}
@@ -277,6 +277,7 @@ void ATBCitizen::RestoreAliveState()
 
 void ATBCitizen::UpdateMoveSpeed()
 {
+	// 부상 감속이 도주 뛰기보다 우선
 	float NewSpeed = WalkSpeed;
 	if (IsInjured())
 	{
@@ -288,7 +289,7 @@ void ATBCitizen::UpdateMoveSpeed()
 	}
 	
 	GetCharacterMovement()->MaxWalkSpeed = NewSpeed;
-	ForceNetUpdate();
+	ForceNetUpdate();                                // 복제 갱신을 앞당겨 속도 변화가 클라에 바로 보이도록 처리
 }
 
 void ATBCitizen::ChooseAppearance()
@@ -298,6 +299,7 @@ void ATBCitizen::ChooseAppearance()
 		return;
 	}
 
+	// 후보 데이터의 유효한 메시 중 무작위 선택
 	TArray<USkeletalMesh*> ValidMeshes;
 	for (USkeletalMesh* CandidateMesh : AppearanceCandidates->SkeletalMesh)
 	{
@@ -325,7 +327,7 @@ void ATBCitizen::OnRep_Appearance()
 
 void ATBCitizen::ApplyAppearance()
 {
-	if (USkeletalMesh* SelectedMesh = CurrentAppearance.LoadSynchronous())
+	if (USkeletalMesh* SelectedMesh = CurrentAppearance.LoadSynchronous())   // 소프트 참조 메시를 동기 로드해 적용
 	{
 		GetMesh()->SetSkeletalMesh(SelectedMesh);
 	}
@@ -439,10 +441,19 @@ TSubclassOf<UGameplayEffect> ATBCitizen::GetAttackDamageEffect() const
     return DamageEffectClass;
 }
 
-// 피격 GE 적용 후 기존 Citizen 출혈 처리를 시작한다.
+// 피격 GE 적용 후 출혈 시작과 AI 도주 보고
 void ATBCitizen::OnAttackApplied(float Damage, AActor* DamageSource)
 {
     StartBleeding();
+
+    // 평상시 상태에서만 도주 보고 (흡혈 중이거나 이번 공격으로 사망한 경우 제외)
+    if (CitizenState == ETBCitizenState::Idle)
+    {
+        if (ATBCitizenAIController* AIC = Cast<ATBCitizenAIController>(GetController()))
+        {
+            AIC->ReportDamage(DamageSource);
+        }
+    }
 }
 
 void ATBCitizen::ResetVitals()
@@ -493,20 +504,21 @@ void ATBCitizen::HandleOutOfBlood()
 
 void ATBCitizen::HandleBleedingTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
-	UpdateMoveSpeed();
+	UpdateMoveSpeed();                               // 출혈 시작·해제에 맞춰 부상 감속 갱신
 }
 
-float ATBCitizen::PlayStartle()
+float ATBCitizen::PlayStartle(float& OutLookYawOffset)
 {
+	OutLookYawOffset = 0.f;
 	if (!HasAuthority())
 	{
 		return 0.f;
 	}
-	
+
 	TArray<int32> Candidates;
-	for (int32 Index = 0; Index < StartleMontages.Num(); ++Index)
+	for (int32 Index = 0; Index < StartleAnims.Num(); ++Index)
 	{
-		if (StartleMontages[Index])
+		if (StartleAnims[Index].Montage)
 		{
 			Candidates.Add(Index);
 		}
@@ -517,24 +529,33 @@ float ATBCitizen::PlayStartle()
 		return 0.f;
 	}
 	
+	// 후보가 둘 이상이면 직전 몽타주 제외
 	if (Candidates.Num() > 1)
 	{
 		Candidates.Remove(LastStartleIndex);
 	}
-	
+
 	const int32 Chosen = Candidates[FMath::RandRange(0, Candidates.Num() - 1)];
 	LastStartleIndex = Chosen;
-	
-	MulticastPlayStartle(static_cast<uint8>(Chosen));
-	return StartleMontages[Chosen]->GetPlayLength();	
+
+	OutLookYawOffset = StartleAnims[Chosen].LookYawOffset;
+	MulticastPlayStartle(static_cast<uint8>(Chosen));   // 서버가 고른 인덱스로 모든 머신에서 같은 몽타주 재생
+	return StartleAnims[Chosen].Montage->GetPlayLength();
 }
 
 void ATBCitizen::MulticastPlayStartle_Implementation(uint8 MontageIndex)
 {
-	if (StartleMontages.IsValidIndex(MontageIndex) && StartleMontages[MontageIndex])
+	if (StartleAnims.IsValidIndex(MontageIndex) && StartleAnims[MontageIndex].Montage)
 	{
-		PlayAnimMontage(StartleMontages[MontageIndex]);
+		PlayAnimMontage(StartleAnims[MontageIndex].Montage);
 	}
+}
+
+void ATBCitizen::SetRotationLocked(bool bLocked)
+{
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	MoveComp->bOrientRotationToMovement = !bLocked;   // 해제 시 이동 방향 회전 복구
+	MoveComp->bUseControllerDesiredRotation = false;  // 컨트롤러 방향 회전은 항상 미사용
 }
 
 void ATBCitizen::SetFleeing(bool bNewFleeing)

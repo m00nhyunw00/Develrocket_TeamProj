@@ -14,6 +14,7 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(State_Empowered, "State.Empowered");
 	
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_PrimaryAttack, "Cooldown.PrimaryAttack");
+	UE_DEFINE_GAMEPLAY_TAG(Cooldown_SecondaryAction, "Cooldown.SecondaryAction");
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_Skill1, "Cooldown.Skill1");
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_Skill2, "Cooldown.Skill2");
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_MonsterSkill, "Cooldown.MonsterSkill");

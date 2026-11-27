@@ -13,6 +13,19 @@ class UGameplayEffect;
 class UTBCitizenAttributeSet;
 class UTBCitizenAppearanceData;
 
+// 놀람 몽타주와 애니 시선 보정값 묶음
+USTRUCT(BlueprintType)
+struct FTBStartleAnim
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<UAnimMontage> Montage;
+
+	UPROPERTY(EditAnywhere, meta = (Units = "deg", ClampMin = "-180.0", ClampMax = "180.0"))
+	float LookYawOffset = 0.f;                            // 애니 시선이 몸 정면에서 틀어진 각도 (+ = 오른쪽), 위협 방향 회전 보정용
+};
+
 UCLASS()
 class DEVELROCKET_TEAMPROJ_API ATBCitizen : public ATBCharacterBase, public ITBInteractInterface
 {
@@ -45,10 +58,12 @@ public:
 	virtual void OnPoolReady() override;
 	
 	ETBCitizenState GetCitizenState() const { return CitizenState; }
-	float PlayStartle();
-	
+	float PlayStartle(float& OutLookYawOffset);           // [서버] 놀람 몽타주 선택·재생, 재생 길이와 시선 보정값 반환
+	void SetRotationLocked(bool bLocked);                 // 놀람 재생 중 회전 고정 여부 전환
+
 	// 걷기/뛰기 -------------------------
-	void SetFleeing(bool bNweFleeing);
+	void SetFleeing(bool bNewFleeing);                    // [서버] 도주 여부에 따른 걷기·뛰기 속도 전환
+
 	
 protected:
 	virtual bool CanReceiveAttack(float Damage) const override;
@@ -130,13 +145,13 @@ protected:
 	void SetCitizenState(ETBCitizenState NewState);       // [서버] 상태 변경의 유일한 입구
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Animation")
-	TArray<TObjectPtr<UAnimMontage>> StartleMontages;
-	
+	TArray<FTBStartleAnim> StartleAnims;                  // 무작위로 고를 놀람 몽타주 후보
+
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Appearance")
-	TObjectPtr<UTBCitizenAppearanceData> AppearanceCandidates;
-	
+	TObjectPtr<UTBCitizenAppearanceData> AppearanceCandidates;   // 외형 메시 후보 데이터
+
 	UPROPERTY(ReplicatedUsing = OnRep_Appearance)
-	TSoftObjectPtr<USkeletalMesh> CurrentAppearance;
+	TSoftObjectPtr<USkeletalMesh> CurrentAppearance;      // [서버] 선택한 외형 메시, 클라는 OnRep으로 적용
 	
 	UFUNCTION()
 	void OnRep_Appearance();
@@ -145,10 +160,10 @@ protected:
 	void ApplyAppearance();
 
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Movement", meta=(ClampMin = "0.0", Units = "cm/s"))
-	float WalkSpeed = 180.f;
-	
+	float WalkSpeed = 180.f;                              // 평상시 순찰·진정 후 걷기 속도
+
 	UPROPERTY(EditDefaultsOnly, Category = "Citizen|Movement", meta=(ClampMin = "0.0", Units = "cm/s"))
-	float RunSpeed = 500.f;
+	float RunSpeed = 500.f;                               // 도주 중 뛰기 속도
 private:
 	void StartDeathSequence();                            // [서버] 사망 GA 실행 + 시체 타이머
 	void HandleCorpseExpired();                           // [서버] 시체 유지 종료
@@ -164,8 +179,8 @@ private:
 	UFUNCTION(NetMulticast, Unreliable)
 	void MulticastPlayStartle(uint8 MontageIndex);
 	
-	int32 LastStartleIndex = INDEX_NONE;
-	
-	void UpdateMoveSpeed();
+	int32 LastStartleIndex = INDEX_NONE;                  // 같은 놀람 몽타주 연속 재생 방지
+
+	void UpdateMoveSpeed();                               // [서버] 부상·도주 상태 기준 이동 속도 일괄 갱신
 	bool bFleeing = false;
 };

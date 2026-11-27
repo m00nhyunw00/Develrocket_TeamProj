@@ -4,6 +4,7 @@
 #include "Character/Player/TBPlayer.h"
 #include "Framework/TBPlayerState.h"
 #include "TBGameplayTags.h"
+#include "Perception/AISense_Hearing.h"
 
 UTBGameplayAbility_Hitscan::UTBGameplayAbility_Hitscan()
 {
@@ -69,6 +70,9 @@ void UTBGameplayAbility_Hitscan::ActivateAbility(
 
     if (ActorInfo->IsNetAuthority())
     {
+        // 총소리를 AI 청각에 알림
+        UAISense_Hearing::ReportNoiseEvent(Player->GetWorld(), Player->GetActorLocation(), 1.f, Player, 0.f, FName(TEXT("Gunshot")));
+
         const FHitResult HitResult = Player->TraceHitscanShot(AttackVisualCueTag, DefaultImpactCueTag, TraceRange, bDrawTrace, bCurrentAttackEnhanced);
 
         if (HitResult.bBlockingHit)
