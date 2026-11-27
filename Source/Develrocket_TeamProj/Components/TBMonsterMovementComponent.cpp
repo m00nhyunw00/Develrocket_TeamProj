@@ -5,6 +5,7 @@
 #include "Character/Player/TBPlayer.h"
 #include "GameFramework/Character.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/TBRotationComponent.h"
 #include "Engine/World.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "NavigationData.h"
@@ -137,6 +138,13 @@ void UTBMonsterMovementComponent::ResetAnasimusEvasion()
 
 void UTBMonsterMovementComponent::PhysicsRotation(float DeltaTime)
 {
+	const ATBMonster* Monster = Cast<ATBMonster>(CharacterOwner);
+	const UTBRotationComponent* AttackRotation = Monster ? Monster->GetAttackRotationComponent() : nullptr;
+	if (AttackRotation && AttackRotation->IsRotatingTowardAbilityTarget())
+	{
+		return;
+	}
+
 	const UWorld* World = GetWorld();
 	const AActor* Target = AnasimusEvasionTarget.Get();
 	if (AnasimusEvasionTurnAngle != 0.0f && World && World->GetTimeSeconds() < AnasimusEvasionEndTime

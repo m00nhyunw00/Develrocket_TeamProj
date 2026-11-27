@@ -14,7 +14,6 @@
 namespace
 {
 const FName TargetActorKey(TEXT("TargetActor"));
-constexpr ECollisionChannel HunterHitscanTraceChannel = ECC_GameTraceChannel2;
 constexpr float AimLockTime = 0.25f;
 constexpr float FireTime = 0.5f;
 
@@ -36,7 +35,7 @@ bool IsValidShotTarget(const ATBMonster* Monster, const AActor* Target)
 
 #if ENABLE_DRAW_DEBUG
 TAutoConsoleVariable<int32> CVarDebugHunterShot(
-	TEXT("tb.Debug.HunterShot"), 0, TEXT("Draw the Vampire Hunter's hitscan trace (0: off, 1: on)."));
+	TEXT("tb.Debug.HunterShot"), 0, TEXT("Draw the Vampire Hunter's charge aim and hitscan traces (0: off, 1: on)."));
 #endif
 }
 
@@ -76,19 +75,27 @@ void UTBGameplayAbility_VampireHunter_Hitscan::ActivateAbility(FGameplayAbilityS
 		return;
 	}
 
-	if (UsesPhaseAttackMontage())
-	{
-		if (UAnimMontage* PhaseMontage = Monster->GetHunterCombatComponent()->GetRifleAttackMontage())
-		{
-			ThirdPersonMontage = PhaseMontage;
-		}
-	}
+	ThirdPersonMontage = ResolveShotMontage(*Monster);
 	ShotTarget = Target;
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 	if (IsActive())
 	{
 		StartShotSequence();
 	}
+}
+
+UAnimMontage* UTBGameplayAbility_VampireHunter_Hitscan::GetPhaseShotMontage(const ATBMonster& Monster) const
+{
+	return Monster.GetHunterCombatComponent()->GetRifleAttackMontage();
+}
+
+UAnimMontage* UTBGameplayAbility_VampireHunter_Hitscan::ResolveShotMontage(const ATBMonster& Monster) const
+{
+	if (UAnimMontage* Montage = GetPhaseShotMontage(Monster))
+	{
+		return Montage;
+	}
+	return GetClass()->GetDefaultObject<UTBGameplayAbility_VampireHunter_Hitscan>()->ThirdPersonMontage.Get();
 }
 
 void UTBGameplayAbility_VampireHunter_Hitscan::StartShotSequence()
@@ -130,7 +137,7 @@ void UTBGameplayAbility_VampireHunter_Hitscan::LockAim()
 
 	LockedAimLocation = Target->GetActorLocation();
 #if ENABLE_DRAW_DEBUG
-	if (CVarDebugHunterShot.GetValueOnGameThread() != 0)
+	if (IsShotDebugEnabled())
 	{
 		DrawDebugPoint(Monster->GetWorld(), LockedAimLocation.GetValue(), 12.0f, FColor::Cyan, false, 2.0f);
 	}
@@ -145,23 +152,27 @@ void UTBGameplayAbility_VampireHunter_Hitscan::FireShot()
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, !bFired);
 }
 
+bool UTBGameplayAbility_VampireHunter_Hitscan::IsShotDebugEnabled()
+{
+#if ENABLE_DRAW_DEBUG
+	return CVarDebugHunterShot.GetValueOnGameThread() != 0;
+#else
+	return false;
+#endif
+}
+
+bool UTBGameplayAbility_VampireHunter_Hitscan::TryGetShotOrigin(const ATBMonster& Monster, FVector& OutOrigin) const
+{
+	return UTBHunterCombatComponent::TryGetRifleShotOrigin(Monster, MuzzleSocketName, OutOrigin);
+}
+
 bool UTBGameplayAbility_VampireHunter_Hitscan::TraceShot(ATBMonster& Monster, AActor& Target,
 	const FVector& AimLocation) const
 {
 	FVector TraceStart;
-	if (MuzzleSocketName.IsNone())
+	if (!TryGetShotOrigin(Monster, TraceStart))
 	{
-		FRotator EyeRotation;
-		Monster.GetActorEyesViewPoint(TraceStart, EyeRotation);
-	}
-	else
-	{
-		const USkeletalMeshComponent* Mesh = Monster.GetMesh();
-		if (!Mesh || !Mesh->DoesSocketExist(MuzzleSocketName))
-		{
-			return false;
-		}
-		TraceStart = Mesh->GetSocketLocation(MuzzleSocketName);
+		return false;
 	}
 
 	const FVector AimDirection = (AimLocation - TraceStart).GetSafeNormal();
@@ -172,18 +183,19 @@ bool UTBGameplayAbility_VampireHunter_Hitscan::TraceShot(ATBMonster& Monster, AA
 
 	const FVector TraceEnd = TraceStart + AimDirection * TraceRange;
 	FHitResult Hit;
-	const bool bBlockingHit = Monster.LineTraceByChannel(Hit, TraceStart, TraceEnd, HunterHitscanTraceChannel);
+	const bool bBlockingHit = UTBHunterCombatComponent::TraceRifleShot(Monster, TraceStart, TraceEnd, Hit);
 	const bool bHitTarget = bBlockingHit && Hit.GetActor() == &Target;
+	const FVector ImpactEnd = bBlockingHit ? Hit.ImpactPoint : TraceEnd;
+	OnShotTraced(Monster, TraceStart, ImpactEnd);
 
 #if ENABLE_DRAW_DEBUG
-	if (CVarDebugHunterShot.GetValueOnGameThread() != 0)
+	if (IsShotDebugEnabled())
 	{
 		const FColor TraceColor = bHitTarget ? FColor::Green : (bBlockingHit ? FColor::Orange : FColor::Red);
-		const FVector DebugEnd = bBlockingHit ? Hit.ImpactPoint : TraceEnd;
-		DrawDebugLine(Monster.GetWorld(), TraceStart, DebugEnd, TraceColor, false, 2.0f, 0, 2.0f);
+		DrawDebugLine(Monster.GetWorld(), TraceStart, ImpactEnd, TraceColor, false, 2.0f, 0, 2.0f);
 		if (bBlockingHit)
 		{
-			DrawDebugPoint(Monster.GetWorld(), DebugEnd, 12.0f, TraceColor, false, 2.0f);
+			DrawDebugPoint(Monster.GetWorld(), ImpactEnd, 12.0f, TraceColor, false, 2.0f);
 		}
 	}
 #endif

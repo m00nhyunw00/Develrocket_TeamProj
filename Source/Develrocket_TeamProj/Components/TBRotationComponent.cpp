@@ -16,6 +16,18 @@ void UTBRotationComponent::BeginPlay()
 
 }
 
+void UTBRotationComponent::SetAbilityFacingTarget(AActor* Target)
+{
+	if (Target)
+	{
+		AbilityFacingTarget.Emplace(Target);
+	}
+	else
+	{
+		AbilityFacingTarget.Reset();
+	}
+}
+
 void UTBRotationComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
@@ -29,7 +41,8 @@ void UTBRotationComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 	const APawn* Pawn = Cast<APawn>(Owner);
 	const AAIController* AIController = Pawn ? Cast<AAIController>(Pawn->GetController()) : nullptr;
 	const UBlackboardComponent* Blackboard = AIController ? AIController->GetBlackboardComponent() : nullptr;
-	const AActor* FacingTarget = Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(TEXT("TargetActor"))) : nullptr;
+	const AActor* FacingTarget = AbilityFacingTarget.IsSet() ? AbilityFacingTarget.GetValue().Get()
+		: (Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(TEXT("TargetActor"))) : nullptr);
 	if (!IsValid(FacingTarget) || FacingTarget == Owner || FacingTarget->GetWorld() != Owner->GetWorld())
 	{
 		return;
