@@ -35,6 +35,9 @@ public:
 	void ShowLeaderboard();
 	void HideLeaderboard();
 
+	// 피격 방향 표시 (맞은 본인 클라이언트에서 호출)
+	void ShowDamageIndicator(const FVector& Origin, AActor* Source);
+
 protected:
 	virtual void BeginPlay() override;
 
