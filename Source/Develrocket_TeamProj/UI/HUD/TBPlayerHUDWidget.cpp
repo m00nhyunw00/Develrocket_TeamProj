@@ -70,32 +70,27 @@ void UTBPlayerHUDWidget::ShowPowerPanel()
 	BackgroundSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
 	BackgroundSlot->SetOffsets(FMargin(0.0f));
 
-	auto AddPowerLabel = [this, Panel](FName Name, float Y, float Size, const FLinearColor& Color)
+	PowerDamageText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PowerDamageText"));
+	FSlateFontInfo Font = PowerDamageText->GetFont();
+	if (PowerPanelFont)
 	{
-		UTextBlock* Label = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
-		FSlateFontInfo Font = Label->GetFont();
-		if (PowerPanelFont)
-		{
-			Font.FontObject = PowerPanelFont;
-			Font.TypefaceFontName = NAME_None;
-		}
-		Font.Size = Size;
-		Label->SetFont(Font);
-		Label->SetColorAndOpacity(FSlateColor(Color));
-		UCanvasPanelSlot* LabelSlot = Panel->AddChildToCanvas(Label);
-		LabelSlot->SetPosition(FVector2D(83.0f, Y));
-		LabelSlot->SetAutoSize(true);
-		return Label;
-	};
-
-	PowerDamageText = AddPowerLabel(TEXT("PowerDamageText"), 25.0f, 25.0f, FLinearColor(0.93f, 0.76f, 0.43f));
-	PowerPointsText = AddPowerLabel(TEXT("PowerPointsText"), 53.0f, 18.0f, FLinearColor(0.91f, 0.87f, 0.77f));
-	SetPower(0.0f, 1.0f);
+		Font.FontObject = PowerPanelFont;
+		Font.TypefaceFontName = NAME_None;
+	}
+	Font.Size = 25.0f;
+	PowerDamageText->SetFont(Font);
+	PowerDamageText->SetColorAndOpacity(FSlateColor(FLinearColor(0.93f, 0.76f, 0.43f)));
+	UCanvasPanelSlot* LabelSlot = Panel->AddChildToCanvas(PowerDamageText);
+	LabelSlot->SetAnchors(FAnchors(0.0f, 0.5f));
+	LabelSlot->SetAlignment(FVector2D(0.0f, 0.5f));
+	LabelSlot->SetPosition(FVector2D(83.0f, 0.0f));
+	LabelSlot->SetAutoSize(true);
+	SetPowerDamageMultiplier(1.0f);
 }
 
-void UTBPlayerHUDWidget::SetPower(float Points, float DamageMultiplier)
+void UTBPlayerHUDWidget::SetPowerDamageMultiplier(float DamageMultiplier)
 {
-	if (!PowerDamageText || !PowerPointsText)
+	if (!PowerDamageText)
 	{
 		return;
 	}
@@ -106,9 +101,6 @@ void UTBPlayerHUDWidget::SetPower(float Points, float DamageMultiplier)
 	PowerDamageText->SetText(FText::Format(
 		NSLOCTEXT("TBPowerHUD", "DamageBonus", "피해 +{0}%"),
 		FText::AsNumber((DamageMultiplier - 1.0f) * 100.0f, &NumberOptions)));
-	PowerPointsText->SetText(FText::Format(
-		NSLOCTEXT("TBPowerHUD", "PowerPoints", "혈력 {0}"),
-		FText::AsNumber(Points, &NumberOptions)));
 }
 
 void UTBPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)

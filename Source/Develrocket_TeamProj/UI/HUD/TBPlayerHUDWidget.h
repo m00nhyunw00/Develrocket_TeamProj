@@ -27,7 +27,7 @@ public:
 	UTBPlayerHUDWidget(const FObjectInitializer& ObjectInitializer);
 
 	void ShowPowerPanel();
-	void SetPower(float Points, float DamageMultiplier);
+	void SetPowerDamageMultiplier(float DamageMultiplier);
 	void SetHealth(float CurrentHealth, float MaxHealth);
 	void SetCrosshairSpread(float Spread);
 	void NotifyShotFired();
@@ -69,6 +69,4 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> PowerDamageText;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> PowerPointsText;
 };

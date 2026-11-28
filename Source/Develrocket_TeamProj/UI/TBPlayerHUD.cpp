@@ -328,7 +328,7 @@ void ATBPlayerHUD::RefreshPowerHUD()
 {
     if (const ATBPlayerState* PlayerState = BoundPowerPlayerState.Get(); PlayerState && HUDWidget)
     {
-        HUDWidget->SetPower(PlayerState->GetPowerPoints(), PlayerState->GetPowerDamageMultiplier());
+        HUDWidget->SetPowerDamageMultiplier(PlayerState->GetPowerDamageMultiplier());
     }
 }
 
