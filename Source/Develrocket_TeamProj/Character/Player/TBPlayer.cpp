@@ -512,7 +512,13 @@ bool ATBPlayer::GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) 
 		return false;
 	}
 
-	return PS->GetAttackDamage(AttackId, OutDamage);
+	if (!PS->GetAttackDamage(AttackId, OutDamage))
+	{
+		return false;
+	}
+
+	OutDamage *= PS->GetPowerDamageMultiplier();
+	return true;
 }
 
 bool ATBPlayer::ApplyHitscanDamage(const FHitResult& HitResult, float Damage)

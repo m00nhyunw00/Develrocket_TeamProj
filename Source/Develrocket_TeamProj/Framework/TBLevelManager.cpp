@@ -261,7 +261,7 @@ void ATBLevelManager::TryRespawnPlayer(TWeakObjectPtr<APlayerController> Control
 	}
 }
 
-void ATBLevelManager::RecordMonsterKill(ATBPlayerState& Killer, int32 KillRewardScore)
+void ATBLevelManager::RecordMonsterKill(ATBPlayerState& Killer, int32 KillRewardScore, float PowerReward)
 {
 	if (!HasAuthority() || !bMatchStarted || Killer.IsInactive())
 	{
@@ -269,6 +269,7 @@ void ATBLevelManager::RecordMonsterKill(ATBPlayerState& Killer, int32 KillReward
 	}
 
 	Killer.AddMatchScore(KillRewardScore >= 0 ? KillRewardScore : PointsPerMonsterKill);
+	Killer.AddPowerPoints(PowerReward);
 }
 
 void ATBLevelManager::RetryMatchSpawn()

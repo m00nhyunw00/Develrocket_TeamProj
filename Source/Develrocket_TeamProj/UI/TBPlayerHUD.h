@@ -15,6 +15,7 @@ class UTBInteractionComponent;
 class UTBLobbyReadyWidget;
 class UTBLeaderboardWidget;
 class UTBClassSelectWidget;
+class ATBPlayerState;
 
 struct FOnAttributeChangeData;
 
@@ -84,6 +85,7 @@ protected:
 private:
 	void HandleAttributeChanged(const FOnAttributeChangeData& Data);
 	void RefreshResourceHUD();
+	void RefreshPowerHUD();
 	void HandleSkillCooldownTagChanged(const FGameplayTag Tag, int32 NewCount);
 	void RefreshSkillCooldownHUD();
 	void NotifyShotFired();
@@ -91,6 +93,7 @@ private:
 	void HandleFocusedActorChanged(AActor* NewFocus);
 
 	TWeakObjectPtr<UAbilitySystemComponent> BoundASC;
+	TWeakObjectPtr<ATBPlayerState> BoundPowerPlayerState;
 
 	TArray<TPair<FGameplayAttribute, FDelegateHandle>> AttributeBindings;
 	TArray<TPair<FGameplayTag, FDelegateHandle>> SkillCooldownBindings;

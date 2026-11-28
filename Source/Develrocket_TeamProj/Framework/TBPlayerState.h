@@ -51,6 +51,15 @@ public:
 	void AddMatchKill(int32 Points);
 	void AddMatchDeath();
 	void AddMatchScore(int32 Points);
+	void AddPowerPoints(float Points);
+
+	UFUNCTION(BlueprintPure, Category = "Combat|Power")
+	float GetPowerPoints() const { return PowerPoints; }
+
+	UFUNCTION(BlueprintPure, Category = "Combat|Power")
+	float GetPowerDamageMultiplier() const;
+
+	FSimpleMulticastDelegate OnPowerPointsChanged;
 
 	// 초기 데이터 적용 ----------------------
 
@@ -175,6 +184,13 @@ protected:
 private:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Match", meta = (AllowPrivateAccess = "true"))
 	FTBMatchStats MatchStats;
+
+	// Pawn 교체 후에도 유지되는 매치 내 강화 점수
+	UFUNCTION()
+	void OnRep_PowerPoints();
+
+	UPROPERTY(ReplicatedUsing = OnRep_PowerPoints)
+	float PowerPoints = 0.0f;
 
 	// 반복 초기화에 따른 자원 재설정 및 중복 부여 방지
 	bool bGameplayDataInitialized = false;

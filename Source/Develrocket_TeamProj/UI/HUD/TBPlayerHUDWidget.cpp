@@ -1,5 +1,12 @@
 #include "UI/HUD/TBPlayerHUDWidget.h"
 
+#include "Blueprint/WidgetTree.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
+#include "Components/Image.h"
+#include "Components/TextBlock.h"
+#include "Engine/Font.h"
+#include "Engine/Texture2D.h"
 #include "UI/HUD/TBSkillBarWidget.h"
 #include "UI/HUD/TBLowHealthOverlayWidget.h"
 #include "UI/HUD/TBCrosshairWidget.h"
@@ -8,6 +15,93 @@
 #include "UI/HUD/TBHitMarkerWidget.h"
 #include "UI/Interact/TBInteractPromptWidget.h"
 #include "UI/HUD/TBDamageIndicatorWidget.h"
+#include "UObject/ConstructorHelpers.h"
+
+UTBPlayerHUDWidget::UTBPlayerHUDWidget(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	static const ConstructorHelpers::FObjectFinder<UTexture2D> Texture(
+		TEXT("/Game/_Game/Blueprints/UI/Textures/T_PowerHUD_Panel.T_PowerHUD_Panel"));
+	static const ConstructorHelpers::FObjectFinder<UFont> Font(
+		TEXT("/Game/_Game/Blueprints/UI/Fonts/NotoSerifKR-Bold_Font.NotoSerifKR-Bold_Font"));
+	PowerPanelTexture = Texture.Object;
+	PowerPanelFont = Font.Object;
+}
+
+void UTBPlayerHUDWidget::ShowPowerPanel()
+{
+	if (PowerDamageText || !WidgetTree || !PowerPanelTexture)
+	{
+		return;
+	}
+
+	const UCanvasPanelSlot* SkillSlot = SkillBar ? Cast<UCanvasPanelSlot>(SkillBar->Slot) : nullptr;
+	UCanvasPanel* Canvas = SkillSlot ? Cast<UCanvasPanel>(SkillBar->GetParent()) : Cast<UCanvasPanel>(WidgetTree->RootWidget);
+	if (!Canvas)
+	{
+		return;
+	}
+
+	UCanvasPanel* Panel = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("PowerPanel"));
+	Panel->SetVisibility(ESlateVisibility::HitTestInvisible);
+	UCanvasPanelSlot* PanelSlot = Canvas->AddChildToCanvas(Panel);
+	PanelSlot->SetSize(FVector2D(310.0f, 103.0f));
+	if (SkillSlot && SkillSlot->GetAnchors().Minimum == SkillSlot->GetAnchors().Maximum)
+	{
+		SkillBar->ForceLayoutPrepass();
+		const FVector2D SkillSize = SkillSlot->GetAutoSize() ? SkillBar->GetDesiredSize() : SkillSlot->GetSize();
+		const FVector2D SkillAlignment = SkillSlot->GetAlignment();
+		PanelSlot->SetAnchors(SkillSlot->GetAnchors());
+		PanelSlot->SetAlignment(FVector2D(1.0f, 0.5f));
+		PanelSlot->SetPosition(SkillSlot->GetPosition() + FVector2D(
+			-SkillSize.X * SkillAlignment.X - 10.0f, SkillSize.Y * (0.5f - SkillAlignment.Y)));
+		PanelSlot->SetZOrder(SkillSlot->GetZOrder());
+	}
+	else
+	{
+		PanelSlot->SetAnchors(FAnchors(1.0f, 1.0f));
+		PanelSlot->SetAlignment(FVector2D(1.0f, 1.0f));
+		PanelSlot->SetPosition(FVector2D(-210.0f, -16.0f));
+	}
+
+	UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("PowerPanelBackground"));
+	Background->SetBrushFromTexture(PowerPanelTexture);
+	UCanvasPanelSlot* BackgroundSlot = Panel->AddChildToCanvas(Background);
+	BackgroundSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+	BackgroundSlot->SetOffsets(FMargin(0.0f));
+
+	PowerDamageText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PowerDamageText"));
+	FSlateFontInfo Font = PowerDamageText->GetFont();
+	if (PowerPanelFont)
+	{
+		Font.FontObject = PowerPanelFont;
+		Font.TypefaceFontName = NAME_None;
+	}
+	Font.Size = 25.0f;
+	PowerDamageText->SetFont(Font);
+	PowerDamageText->SetColorAndOpacity(FSlateColor(FLinearColor(0.93f, 0.76f, 0.43f)));
+	UCanvasPanelSlot* LabelSlot = Panel->AddChildToCanvas(PowerDamageText);
+	LabelSlot->SetAnchors(FAnchors(0.0f, 0.5f));
+	LabelSlot->SetAlignment(FVector2D(0.0f, 0.5f));
+	LabelSlot->SetPosition(FVector2D(83.0f, 0.0f));
+	LabelSlot->SetAutoSize(true);
+	SetPowerDamageMultiplier(1.0f);
+}
+
+void UTBPlayerHUDWidget::SetPowerDamageMultiplier(float DamageMultiplier)
+{
+	if (!PowerDamageText)
+	{
+		return;
+	}
+
+	const FNumberFormattingOptions NumberOptions = FNumberFormattingOptions()
+		.SetMinimumFractionalDigits(1)
+		.SetMaximumFractionalDigits(1);
+	PowerDamageText->SetText(FText::Format(
+		NSLOCTEXT("TBPowerHUD", "DamageBonus", "피해 +{0}%"),
+		FText::AsNumber((DamageMultiplier - 1.0f) * 100.0f, &NumberOptions)));
+}
 
 void UTBPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {

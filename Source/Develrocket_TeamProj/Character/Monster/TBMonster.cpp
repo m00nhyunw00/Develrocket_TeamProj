@@ -270,6 +270,7 @@ double ATBMonster::GetMeleeDistanceSquaredTo(const AActor& Target) const
 void ATBMonster::ApplyMonsterStats(const FTBMonsterStatsRow& Stats)
 {
 	KillRewardScore = Stats.KillRewardScore;
+	PowerReward = Stats.PowerReward;
 	const float MaxBlood = FMath::Max(1.0f, Stats.MaxBlood);
 	AbilitySystemComponent->SetNumericAttributeBase(UTBMonsterAttributeSet::GetMaxBloodAttribute(), MaxBlood);
 	AbilitySystemComponent->SetNumericAttributeBase(UTBMonsterAttributeSet::GetMaxStaggerAttribute(), FMath::Max(0.0f, Stats.MaxStagger));
@@ -484,7 +485,8 @@ void ATBMonster::Die(AActor* DamageSource)
 		if (ATBLevelManager* LevelManager = Cast<ATBLevelManager>(
 			UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass())))
 		{
-			LevelManager->RecordMonsterKill(*Killer, KillRewardScore);
+			const float AwardedPower = IsSummonedMonster() ? 0.0f : PowerReward;
+			LevelManager->RecordMonsterKill(*Killer, KillRewardScore, AwardedPower);
 		}
 	}
 }
@@ -592,6 +594,7 @@ void ATBMonster::OnPoolActivated_Implementation()
 		return;
 	}
 	KillRewardScore = INDEX_NONE;
+	PowerReward = 0.0f;
 	MonsterAttributes->SetStagger(0.0f);
 	MonsterAttributes->SetIncomingDamage(0.0f);
 	MonsterAttributes->SetBlood(MonsterAttributes->GetMaxBlood());

@@ -38,6 +38,7 @@ void ATBPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATBPlayerState, MatchStats);
+	DOREPLIFETIME_CONDITION(ATBPlayerState, PowerPoints, COND_OwnerOnly);
 	DOREPLIFETIME(ATBPlayerState, SelectedClassData);
 }
 
@@ -61,6 +62,12 @@ void ATBPlayerState::AddMatchDeath()
 	}
 
 	++MatchStats.Deaths;
+	constexpr float PowerRetentionOnDeath = 0.30f;
+	if (PowerPoints > 0.0f)
+	{
+		PowerPoints *= PowerRetentionOnDeath;
+		OnPowerPointsChanged.Broadcast();
+	}
 	ForceNetUpdate();
 }
 
@@ -73,6 +80,38 @@ void ATBPlayerState::AddMatchScore(int32 Points)
 
 	MatchStats.MatchScore += Points;
 	ForceNetUpdate();
+}
+
+void ATBPlayerState::AddPowerPoints(float Points)
+{
+	if (!HasAuthority() || !FMath::IsFinite(Points) || Points <= 0.0f)
+	{
+		return;
+	}
+
+	const float NewPowerPoints = PowerPoints + Points;
+	if (!FMath::IsFinite(NewPowerPoints) || NewPowerPoints == PowerPoints)
+	{
+		return;
+	}
+
+	PowerPoints = NewPowerPoints;
+	OnPowerPointsChanged.Broadcast();
+	ForceNetUpdate();
+}
+
+void ATBPlayerState::OnRep_PowerPoints()
+{
+	OnPowerPointsChanged.Broadcast();
+}
+
+float ATBPlayerState::GetPowerDamageMultiplier() const
+{
+	constexpr float DamageGrowth = 0.08f;
+	constexpr float PowerPointsScale = 3.0f;
+	constexpr float MaxDamageBonus = 0.50f;
+	const float DamageBonus = DamageGrowth * FMath::Loge(1.0f + PowerPoints / PowerPointsScale);
+	return 1.0f + FMath::Min(DamageBonus, MaxDamageBonus);
 }
 
 void ATBPlayerState::InitializeGameplayData()

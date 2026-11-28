@@ -40,6 +40,8 @@ void ATBPlayerHUD::BeginPlay()
         return;
     }
 
+    const bool bHasLevelManager = UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass()) != nullptr;
+
     // HUD 생성
     if (HUDWidgetClass)
     {
@@ -48,6 +50,10 @@ void ATBPlayerHUD::BeginPlay()
         if (HUDWidget)
         {
             HUDWidget->AddToViewport();
+            if (bHasLevelManager)
+            {
+                HUDWidget->ShowPowerPanel();
+            }
             
             // 슬롯별 표시 키 설정
             HUDWidget->SetSkill(0, nullptr, FText::FromString(TEXT("Q")));
@@ -68,7 +74,7 @@ void ATBPlayerHUD::BeginPlay()
     }
     
     // 대기 화면 : LevelManager가 있는 맵 안에서만
-    if (MatchWaitWidgetClass && UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass()))
+    if (MatchWaitWidgetClass && bHasLevelManager)
     {
         if (UTBMatchWaitWidget* WaitWidget = CreateWidget<UTBMatchWaitWidget>(PC, MatchWaitWidgetClass))
         {
@@ -110,7 +116,7 @@ void ATBPlayerHUD::BeginPlay()
         BindAbilitySystem(PS->GetAbilitySystemComponent());
     }
     
-    if (UGameplayStatics::GetActorOfClass(this, ATBLevelManager::StaticClass()))
+    if (bHasLevelManager)
     {
         LeaderboardWidget = CreateWidget<UTBLeaderboardWidget>(
             PC, LeaderboardWidgetClass ? LeaderboardWidgetClass.Get() : UTBLeaderboardWidget::StaticClass());
@@ -188,12 +194,18 @@ void ATBPlayerHUD::BindAbilitySystem(UAbilitySystemComponent* InASC)
     if (BoundASC.Get() == InASC)
     {
         RefreshResourceHUD();
+        RefreshPowerHUD();
         RefreshSkillCooldownHUD();
         return;
     }
 
     UnbindAbilitySystem();
     BoundASC = InASC;
+    if (ATBPlayerState* PlayerState = Cast<ATBPlayerState>(InASC->GetOwner()))
+    {
+        BoundPowerPlayerState = PlayerState;
+        PlayerState->OnPowerPointsChanged.AddUObject(this, &ThisClass::RefreshPowerHUD);
+    }
     
     // 체력 및 탄약 속성 구독
     const FGameplayAttribute Attributes[] =
@@ -232,6 +244,7 @@ void ATBPlayerHUD::BindAbilitySystem(UAbilitySystemComponent* InASC)
 
     // 연결 직후 현재 값 표시
     RefreshResourceHUD();
+    RefreshPowerHUD();
 }
 
 void ATBPlayerHUD::HandleAttributeChanged(const FOnAttributeChangeData& Data)
@@ -311,6 +324,14 @@ FMath::RoundToInt(Attributes->GetLoadedBlood()),
         bCanReload);
 }
 
+void ATBPlayerHUD::RefreshPowerHUD()
+{
+    if (const ATBPlayerState* PlayerState = BoundPowerPlayerState.Get(); PlayerState && HUDWidget)
+    {
+        HUDWidget->SetPowerDamageMultiplier(PlayerState->GetPowerDamageMultiplier());
+    }
+}
+
 void ATBPlayerHUD::NotifyShotFired()
 {
     if (HUDWidget)
@@ -352,6 +373,12 @@ void ATBPlayerHUD::RefreshLeaderboard()
 
 void ATBPlayerHUD::UnbindAbilitySystem()
 {
+    if (ATBPlayerState* PlayerState = BoundPowerPlayerState.Get())
+    {
+        PlayerState->OnPowerPointsChanged.RemoveAll(this);
+    }
+    BoundPowerPlayerState.Reset();
+
     if (UAbilitySystemComponent* ASC = BoundASC.Get())
     {
         for (const auto& Binding : AttributeBindings)

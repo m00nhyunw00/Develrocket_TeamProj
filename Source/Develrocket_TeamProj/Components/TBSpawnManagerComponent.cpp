@@ -16,6 +16,39 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogTBSpawnPool, Log, All);
 
+namespace
+{
+	struct FSpawnPlayerView
+	{
+		FVector PawnLocation;
+		FVector Eye;
+		FVector Forward;
+		FVector Right;
+	};
+
+	bool IsSpawnVisible(const UWorld& World, const FSpawnPlayerView& View, const FVector& Location,
+		float Radius, float HalfHeight, const FCollisionQueryParams& Query)
+	{
+		// 서버의 시야각 근사에 화면 가장자리와 시점 동기화 여유 포함
+		static const double MinViewDot = FMath::Cos(FMath::DegreesToRadians(75.0));
+		const FVector HeadOffset(0.0, 0.0, HalfHeight * 0.85);
+		const FVector SideOffset = View.Right * (Radius * 0.85);
+		const FVector Samples[] = {
+			Location, Location + HeadOffset, Location - HeadOffset, Location + SideOffset, Location - SideOffset
+		};
+		for (const FVector& Sample : Samples)
+		{
+			const FVector Direction = (Sample - View.Eye).GetSafeNormal();
+			if (FVector::DotProduct(View.Forward, Direction) >= MinViewDot
+				&& !World.LineTraceTestByChannel(View.Eye, Sample, ECC_Visibility, Query))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
 UTBSpawnManagerComponent::UTBSpawnManagerComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -278,6 +311,35 @@ bool UTBSpawnManagerComponent::FindSpawnTransform(const FTBSpawnPoolConfig& Entr
 	const FName CollisionProfile = Capsule ? Capsule->GetCollisionProfileName() : Entry.SpawnCollisionProfile;
 	const FCollisionShape Shape = FCollisionShape::MakeCapsule(Radius, HalfHeight);
 	FCollisionQueryParams Query(SCENE_QUERY_STAT(TBPoolFloorSpawn), false);
+	FCollisionQueryParams VisibilityQuery(SCENE_QUERY_STAT(TBPoolSpawnVisibility), false);
+	TArray<FSpawnPlayerView, TInlineAllocator<4>> PlayerViews;
+	const bool bCheckMonsterVisibility = Entry.ActorClass->IsChildOf<ATBMonster>();
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		const APlayerController* Controller = It->Get();
+		const APawn* Player = IsValid(Controller) ? Controller->GetPawn() : nullptr;
+		if (!IsValid(Player)) continue;
+
+		FVector Eye = Player->GetPawnViewLocation();
+		FRotator Rotation = Controller->GetControlRotation();
+		if (bCheckMonsterVisibility && Controller->IsLocalController())
+		{
+			Controller->GetPlayerViewPoint(Eye, Rotation);
+		}
+		PlayerViews.Add({Player->GetActorLocation(), Eye, Rotation.Vector(), FRotationMatrix(Rotation).GetUnitAxis(EAxis::Y)});
+		VisibilityQuery.AddIgnoredActor(Player);
+	}
+	if (bCheckMonsterVisibility)
+	{
+		// 다른 풀 액터가 잠깐 가리는 위치에서 몬스터가 나타나는 상황 방지
+		for (const FTBSpawnPoolRuntime& Pool : PoolOwner->RuntimeSpawnPools)
+		{
+			for (const TObjectPtr<AActor>& Actor : Pool.ActiveActors)
+			{
+				if (IsValid(Actor)) VisibilityQuery.AddIgnoredActor(Actor);
+			}
+		}
+	}
 
 	for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
 	{
@@ -290,10 +352,9 @@ bool UTBSpawnManagerComponent::FindSpawnTransform(const FTBSpawnPoolConfig& Entr
 		if (FVector::DistSquared2D(Hit.ImpactPoint, NavLocation.Location) > FMath::Square(25.0f) || FMath::Abs(Hit.ImpactPoint.Z - NavLocation.Location.Z) > 50.0f) continue;
 		const FVector Location = NavLocation.Location + FVector(0.0, 0.0, HalfHeight + 3.0f);
 		bool bTooClose = false;
-		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		for (const FSpawnPlayerView& View : PlayerViews)
 		{
-			const APawn* Player = It->IsValid() ? (*It)->GetPawn() : nullptr;
-			if (IsValid(Player) && FVector::DistSquared2D(Location, Player->GetActorLocation()) < FMath::Square(1500.0f)) { bTooClose = true; break; }
+			if (FVector::DistSquared2D(Location, View.PawnLocation) < FMath::Square(1500.0f)) { bTooClose = true; break; }
 		}
 		for (const FTBSpawnPoolRuntime& Pool : PoolOwner->RuntimeSpawnPools)
 		{
@@ -314,6 +375,10 @@ bool UTBSpawnManagerComponent::FindSpawnTransform(const FTBSpawnPoolConfig& Entr
 				Query, FCollisionResponseParams(Capsule->GetCollisionResponseToChannels()))
 			: World->OverlapAnyTestByProfile(Location, FQuat::Identity, CollisionProfile, Shape, Query);
 		if (bBlocked) continue;
+		if (bCheckMonsterVisibility && PlayerViews.ContainsByPredicate([&](const FSpawnPlayerView& View)
+		{
+			return IsSpawnVisible(*World, View, Location, Radius, HalfHeight, VisibilityQuery);
+		})) continue;
 		const FVector Direction = FloorBounds.GetCenter() - Location;
 		OutTransform = FTransform(FRotator(0.0f, Direction.Rotation().Yaw, 0.0f), Location);
 		return true;

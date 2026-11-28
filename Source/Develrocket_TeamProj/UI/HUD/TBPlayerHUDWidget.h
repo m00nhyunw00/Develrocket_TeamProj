@@ -12,6 +12,8 @@ class UTBLowHealthOverlayWidget;
 class UTBSkillBarWidget;
 class UTBInteractPromptWidget;
 class UTBDamageIndicatorWidget;
+class UFont;
+class UTextBlock;
 
 /**
  *
@@ -22,6 +24,10 @@ class DEVELROCKET_TEAMPROJ_API UTBPlayerHUDWidget : public UUserWidget
 	GENERATED_BODY()
 	
 public:
+	UTBPlayerHUDWidget(const FObjectInitializer& ObjectInitializer);
+
+	void ShowPowerPanel();
+	void SetPowerDamageMultiplier(float DamageMultiplier);
 	void SetHealth(float CurrentHealth, float MaxHealth);
 	void SetCrosshairSpread(float Spread);
 	void NotifyShotFired();
@@ -52,4 +58,15 @@ protected:
 	TObjectPtr<UTBInteractPromptWidget> InteractPrompt;
 	UPROPERTY(meta=(BindWidgetOptional))
 	TObjectPtr<UTBDamageIndicatorWidget> DamageIndicator;
+
+private:
+	UPROPERTY()
+	TObjectPtr<UTexture2D> PowerPanelTexture;
+
+	UPROPERTY()
+	TObjectPtr<UFont> PowerPanelFont;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> PowerDamageText;
+
 };

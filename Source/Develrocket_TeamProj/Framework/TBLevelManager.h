@@ -74,7 +74,7 @@ public:
 
 	void RecordPlayerDeath(ATBPlayerState& Victim, ATBPlayerState* Killer);
 	void QueuePlayerRespawn(ATBPlayer& DeadPawn, FActiveGameplayEffectHandle DeathEffect);
-	void RecordMonsterKill(ATBPlayerState& Killer, int32 KillRewardScore);
+	void RecordMonsterKill(ATBPlayerState& Killer, int32 KillRewardScore, float PowerReward);
 
 	// 서버에서 호출. 리스폰할 캐릭터 클래스의 캡슐을 기준으로 위치 탐색.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="City|Player Spawn")
