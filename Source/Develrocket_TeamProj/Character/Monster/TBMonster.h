@@ -41,6 +41,9 @@ struct FTBMonsterStatsRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "-1", ToolTip = "-1 uses the level manager's default monster kill score. 0 disables the reward."))
 	int32 KillRewardScore = INDEX_NONE;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reward", meta = (ClampMin = "0.0"))
+	float PowerReward = 0.0f;
 };
 
 UENUM(BlueprintType)
@@ -176,6 +179,7 @@ private:
 	bool bGameplayDataInitialized = false;
 	float MeleeDamage = 20.0f;
 	int32 KillRewardScore = INDEX_NONE;
+	float PowerReward = 0.0f;
 	bool bDeathHandled = false;
 	bool bReturnedToPool = false;
 	bool bPausedBrainForStagger = false;
