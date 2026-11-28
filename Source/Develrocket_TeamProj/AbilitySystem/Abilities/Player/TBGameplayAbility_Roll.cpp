@@ -1,6 +1,7 @@
 #include "AbilitySystem/Abilities/Player/TBGameplayAbility_Roll.h"
 
 #include "Abilities/Tasks/AbilityTask_ApplyRootMotionConstantForce.h"
+#include "AbilitySystemComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/RootMotionSource.h"
@@ -23,7 +24,7 @@ UTBGameplayAbility_Roll::UTBGameplayAbility_Roll()
 void UTBGameplayAbility_Roll::OnActionCommitted()
 {
 	Super::OnActionCommitted();
-	
+
 	ACharacter* Character = Cast<ACharacter>(GetAvatarActorFromActorInfo());
 	UCharacterMovementComponent* Movement = Character ? Character->GetCharacterMovement() : nullptr;
 
@@ -35,9 +36,16 @@ void UTBGameplayAbility_Roll::OnActionCommitted()
 		return;
 	}
 	
-	// 구르기 방향
-	FVector Direction = Character->GetActorForwardVector();
+	FVector Direction = Movement->GetCurrentAcceleration();
 	Direction.Z = 0.0;
+
+	// 방향키 입력이 없으면 정면으로 구르기
+	if (Direction.IsNearlyZero())
+	{
+		Direction = Character->GetActorForwardVector();
+		Direction.Z = 0.0;
+	}
+
 	Direction = Direction.GetSafeNormal();
 
 	if (Direction.IsNearlyZero())
@@ -45,6 +53,11 @@ void UTBGameplayAbility_Roll::OnActionCommitted()
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 		return;
 	}
+	
+	RollingCharacter = Character;
+	bSavedUseControllerRotationYaw = Character->bUseControllerRotationYaw;
+	Character->bUseControllerRotationYaw = false;
+	Character->SetActorRotation(FRotator(0.0, Direction.Rotation().Yaw, 0.0));
 
 	// 충돌 여부와 관계없이 같은 시간 동안 일정한 속도 적용
 	const float RollSpeed = RollDistance / RollDuration;
@@ -52,13 +65,12 @@ void UTBGameplayAbility_Roll::OnActionCommitted()
 	UAbilityTask_ApplyRootMotionConstantForce* Task =
 		UAbilityTask_ApplyRootMotionConstantForce::ApplyRootMotionConstantForce(
 			this, TEXT("Roll"), Direction, RollSpeed, RollDuration,
-			false,
+			false, 
 			nullptr,
 			ERootMotionFinishVelocityMode::SetVelocity,
-			FVector::ZeroVector,
+			FVector::ZeroVector, 
 			0.0f,
 			true);
-		
 
 	if (!Task)
 	{
@@ -67,4 +79,33 @@ void UTBGameplayAbility_Roll::OnActionCommitted()
 	}
 	
 	Task->ReadyForActivation();
+}
+
+void UTBGameplayAbility_Roll::RestoreBodyRotation()
+{
+	ACharacter* Character = RollingCharacter.Get();
+	RollingCharacter.Reset();
+
+	if (!Character)
+	{
+		return;
+	}
+	
+	const UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (ASC && ASC->HasMatchingGameplayTag(TBGameplayTags::State_Dead))
+	{
+		return;
+	}
+	
+	Character->bUseControllerRotationYaw = bSavedUseControllerRotationYaw;
+}
+
+void UTBGameplayAbility_Roll::EndAbility(const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo,
+	const FGameplayAbilityActivationInfo ActivationInfo,
+	bool bReplicateEndAbility, bool bWasCancelled)
+{
+	RestoreBodyRotation();
+
+	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
