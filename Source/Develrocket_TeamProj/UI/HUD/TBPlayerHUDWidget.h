@@ -11,6 +11,7 @@ class UTBHitMarkerWidget;
 class UTBLowHealthOverlayWidget;
 class UTBSkillBarWidget;
 class UTBInteractPromptWidget;
+class UTBDamageIndicatorWidget;
 
 /**
  *
@@ -31,7 +32,8 @@ public:
 	void SetSkillCooldownRemaining(int32 Index, float RemainingSeconds);
 	void ShowInteractPrompt(const FText& Key, const FText& Prompt);
 	void HideInteractPrompt();
-	
+	void AddDamageIndicator(const FVector& Origin, AActor* Source);
+
 protected:
 	//부품 조립을 위한 값
 	UPROPERTY(meta=(BindWidget))
@@ -48,4 +50,6 @@ protected:
 	TObjectPtr<UTBSkillBarWidget> SkillBar;
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UTBInteractPromptWidget> InteractPrompt;
+	UPROPERTY(meta=(BindWidgetOptional))
+	TObjectPtr<UTBDamageIndicatorWidget> DamageIndicator;
 };

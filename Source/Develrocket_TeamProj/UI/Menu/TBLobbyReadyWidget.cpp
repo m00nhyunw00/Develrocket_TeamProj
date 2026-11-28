@@ -1,6 +1,7 @@
 ﻿#include "UI/Menu/TBLobbyReadyWidget.h"
 
 #include "Components/TextBlock.h"
+#include "Data/TBCharacterClassData.h"
 #include "Framework/TBLobbyManager.h"
 #include "GameFramework/PlayerState.h"
 #include "Kismet/GameplayStatics.h"
@@ -61,10 +62,15 @@ void UTBLobbyReadyWidget::Refresh()
 			continue;
 		}
 
+		const FString ClassName = Entry.ClassData
+			? Entry.ClassData->DisplayName.ToString()
+			: TEXT("직업 미선택");
+
 		++Number;
-		ListString += FString::Printf(TEXT("%d. %s    %s\n"),
+		ListString += FString::Printf(TEXT("%d. %s  [%s]    %s\n"),
 			Number,
 			*PlayerState->GetPlayerName(),
+			*ClassName,
 			Entry.bReady ? TEXT("준비완료") : TEXT("대기 중"));
 	}
 

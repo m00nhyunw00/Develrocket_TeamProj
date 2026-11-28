@@ -45,6 +45,10 @@ public:
 	UFUNCTION(Client, Reliable)
 	void ClientRevealBloodPulseHits(const TArray<FTBBloodPulseHit>& Hits);
 
+	// 피격 방향 표시용: 맞은 본인에게만 공격 원점 전달 (연출이므로 Unreliable)
+	UFUNCTION(Client, Unreliable)
+	void ClientNotifyDamageTaken(FVector_NetQuantize Origin, AActor* DamageSource);
+
 	// 빙의 및 네트워크 초기화 ----------------------
 
 	// 서버 빙의 및 클라이언트의 PlayerState·Controller 갱신 처리
@@ -194,9 +198,10 @@ protected:
 	virtual void BeginPlay() override;
 	virtual bool CanReceiveAttack(float Damage) const override;
 	virtual TSubclassOf<UGameplayEffect> GetAttackDamageEffect() const override;
+	virtual void OnAttackApplied(float Damage, AActor* DamageSource) override;
 
 	// 세 공격 방식에서 공유하는 플레이어 피해 전달
-	bool ApplyAttackDamage(const FHitResult& HitResult, float Damage);
+	bool ApplyAttackDamage(const FHitResult& HitResult, float Damage, bool bRangedAttack = false);
 
 	// 로컬 어빌리티 입력 전달 ----------------------
 
@@ -315,6 +320,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> PauseAction;
 
+	// 로비 직업 선택 팝업 열기 (로비가 아니면 HUD에 위젯이 없어 무시됨)
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> ClassSelectAction;
+
 private:
 	void UpdateBloodPulseVisual();
 
@@ -350,7 +359,9 @@ private:
 
 	// 이동·시점 입력 처리 ----------------------
 
+	// 이동 입력 유지 중 취소 구간 확인 및 이동 처리
 	void InputMove(const FInputActionValue& Value);
+
 	void InputLook(const FInputActionValue& Value);
 
 	// 점프 입력 처리 ----------------------
@@ -396,6 +407,7 @@ private:
 
 	void InputInteractStarted();
 	void InputPauseStarted();
+	void InputClassSelectStarted();
 
 	// 카메라 반동 계산 및 실행 상태 ----------------------
 

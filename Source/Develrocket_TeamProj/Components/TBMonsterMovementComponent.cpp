@@ -140,7 +140,7 @@ void UTBMonsterMovementComponent::PhysicsRotation(float DeltaTime)
 {
 	const ATBMonster* Monster = Cast<ATBMonster>(CharacterOwner);
 	const UTBRotationComponent* AttackRotation = Monster ? Monster->GetAttackRotationComponent() : nullptr;
-	if (AttackRotation && AttackRotation->IsRotatingTowardAbilityTarget())
+	if (AttackRotation && AttackRotation->IsTrackingHunterTarget())
 	{
 		return;
 	}

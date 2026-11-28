@@ -304,6 +304,27 @@ bool ATBPlayer::ApplyDamage(float Damage, AActor* DamageSource)
     return ReceiveAttackHit_Implementation(Damage, DamageSource, FHitResult());
 }
 
+// [서버] 피해 GE 적용 성공 직후 호출됨 (ATBCharacterBase::ReceiveAttackHit_Implementation)
+void ATBPlayer::OnAttackApplied(float Damage, AActor* DamageSource)
+{
+    Super::OnAttackApplied(Damage, DamageSource);
+
+    if (IsValid(DamageSource) && DamageSource != this)
+    {
+        ClientNotifyDamageTaken(DamageSource->GetActorLocation(), DamageSource);
+    }
+}
+
+// [맞은 클라이언트] HUD로 전달만 하고, 각도 계산은 위젯이 매 프레임 수행
+void ATBPlayer::ClientNotifyDamageTaken_Implementation(FVector_NetQuantize Origin, AActor* DamageSource)
+{
+    APlayerController* PC = GetController<APlayerController>();
+    if (ATBPlayerHUD* PlayerHUD = PC ? PC->GetHUD<ATBPlayerHUD>() : nullptr)
+    {
+        PlayerHUD->ShowDamageIndicator(Origin, DamageSource);
+    }
+}
+
 void ATBPlayer::ResetInputForDraining()
 {
 	// 이전 점프·앉기 요청 해제
@@ -496,7 +517,7 @@ bool ATBPlayer::GetAttackDamage(const FGameplayTag& AttackId, float& OutDamage) 
 
 bool ATBPlayer::ApplyHitscanDamage(const FHitResult& HitResult, float Damage)
 {
-	return !IsActionBlocked() && ApplyAttackDamage(HitResult, Damage);
+	return !IsActionBlocked() && ApplyAttackDamage(HitResult, Damage, true);
 }
 
 bool ATBPlayer::ApplyMeleeDamage(const FHitResult& HitResult, float Damage)
@@ -506,10 +527,10 @@ bool ATBPlayer::ApplyMeleeDamage(const FHitResult& HitResult, float Damage)
 
 bool ATBPlayer::ApplyProjectileDamage(const FHitResult& HitResult, float Damage)
 {
-	return ApplyAttackDamage(HitResult, Damage);
+	return ApplyAttackDamage(HitResult, Damage, true);
 }
 
-bool ATBPlayer::ApplyAttackDamage(const FHitResult& HitResult, float Damage)
+bool ATBPlayer::ApplyAttackDamage(const FHitResult& HitResult, float Damage, bool bRangedAttack)
 {
 	if (!HasAuthority() || IsDead() || !FMath::IsFinite(Damage) || Damage <= 0.0f)
 	{
@@ -535,7 +556,8 @@ bool ATBPlayer::ApplyAttackDamage(const FHitResult& HitResult, float Damage)
 	}
 
 	// 명중 시 PS에서 다시 조회하지 않고 전달받은 피해량 사용
-	return ITBHitInterface::Execute_ReceiveAttackHit(Target, Damage, this, HitResult);
+	return bRangedAttack ? DispatchRangedAttackHit(*Target, Damage, this, HitResult)
+		: ITBHitInterface::Execute_ReceiveAttackHit(Target, Damage, this, HitResult);
 }
 
 // 빙의 및 네트워크 초기화 ----------------------
@@ -689,6 +711,11 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	{
 		EnhancedInput->BindAction(PauseAction, ETriggerEvent::Started, this, &ATBPlayer::InputPauseStarted);
 	}
+
+	if (ClassSelectAction)
+	{
+		EnhancedInput->BindAction(ClassSelectAction, ETriggerEvent::Started, this, &ATBPlayer::InputClassSelectStarted);
+	}
 	
 	if (LeaderboardAction)
 	{
@@ -704,7 +731,7 @@ void ATBPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 	if (SecondaryAction)
 	{
-		EnhancedInput->BindAction(SecondaryAction, ETriggerEvent::Started, this, &ATBPlayer::StartSecond#### aryAction);
+		EnhancedInput->BindAction(SecondaryAction, ETriggerEvent::Started, this, &ATBPlayer::StartSecondaryAction);
 
 		EnhancedInput->BindAction(SecondaryAction, ETriggerEvent::Completed, this, &ATBPlayer::StopSecondaryAction);
 
@@ -871,13 +898,30 @@ void ATBPlayer::UpdateCameraHeight()
 
 void ATBPlayer::InputMove(const FInputActionValue& Value)
 {
-	// Controller 부재 또는 이동 제한 상태에서 이동 입력 차단
-	if (!Controller || IsMovementBlocked())
+	// 로컬 플레이어의 유효한 이동 입력만 처리
+	if (!Controller || !IsLocallyControlled() || IsActionBlocked())
 	{
 		return;
 	}
 
 	const FVector2D Input = Value.Get<FVector2D>();
+
+	if (Input.IsNearlyZero())
+	{
+		return;
+	}
+
+	// 이동키 유지 중에도 취소 허용 구간을 확인하고 동작 전환 요청
+	if (UTBAbilitySystemComponent* ASC = GetTBAbilitySystemComponent())
+	{
+		ASC->RequestActionTransition(FGameplayTag(), true);
+	}
+
+	// 스킬의 이동 제한 해제 여부는 취소 요청 이후 확인
+	if (IsMovementBlocked())
+	{
+		return;
+	}
 
 	// 시점의 상하 기울기를 제외한 좌우 회전으로 수평 이동 방향 계산
 	const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
@@ -1295,6 +1339,20 @@ void ATBPlayer::InputPauseStarted()
 	if (ATBPlayerHUD* HUD = Cast<ATBPlayerHUD>(PC->GetHUD()))
 	{
 		HUD->TogglePauseMenu();
+	}
+}
+
+void ATBPlayer::InputClassSelectStarted()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	if (ATBPlayerHUD* HUD = Cast<ATBPlayerHUD>(PC->GetHUD()))
+	{
+		HUD->OpenClassSelect();
 	}
 }
 

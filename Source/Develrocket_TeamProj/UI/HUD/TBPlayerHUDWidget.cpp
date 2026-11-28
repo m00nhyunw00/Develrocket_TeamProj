@@ -7,6 +7,7 @@
 #include "UI/HUD/TBAmmoWidget.h"
 #include "UI/HUD/TBHitMarkerWidget.h"
 #include "UI/Interact/TBInteractPromptWidget.h"
+#include "UI/HUD/TBDamageIndicatorWidget.h"
 
 void UTBPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
 {
@@ -96,6 +97,14 @@ void UTBPlayerHUDWidget::HideInteractPrompt()
 	if (InteractPrompt)
 	{
 		InteractPrompt->HidePrompt();
+	}
+}
+
+void UTBPlayerHUDWidget::AddDamageIndicator(const FVector& Origin, AActor* Source)
+{
+	if (DamageIndicator)
+	{
+		DamageIndicator->AddIndicator(Origin, Source);
 	}
 }
 

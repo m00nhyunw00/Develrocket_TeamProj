@@ -9,6 +9,7 @@
 #include "AbilitySystem/Attributes/TBMonsterAttributeSet.h"
 #include "AbilitySystem/Abilities/Monster/TBGameplayAbility_Monster_Stagger.h"
 #include "AbilitySystem/Abilities/Monster/VampireHunter/TBGameplayAbility_VampireHunter_Sword.h"
+#include "AbilitySystem/Abilities/Monster/VampireHunter/TBGameplayAbility_VampireHunter_Dodge.h"
 #include "BrainComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Character/Player/TBPlayer.h"
@@ -195,7 +196,8 @@ void ATBMonster::InitializeGameplayData()
 	AbilitySystemComponent->AddCharacterAbilities(StartupAbilities);
 	if (GetMonsterBehavior() == ETBMonsterBehavior::Hunter)
 	{
-		AbilitySystemComponent->AddCharacterAbilities({UTBGameplayAbility_VampireHunter_Sword::StaticClass()});
+		AbilitySystemComponent->AddCharacterAbilities({UTBGameplayAbility_VampireHunter_Sword::StaticClass(),
+			UTBGameplayAbility_VampireHunter_Dodge::StaticClass()});
 		if (SkillSet)
 		{
 			TArray<TSubclassOf<UGameplayAbility>> HunterAbilities;

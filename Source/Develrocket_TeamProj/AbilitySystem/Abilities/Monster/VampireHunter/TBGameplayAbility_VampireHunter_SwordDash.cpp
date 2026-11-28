@@ -10,6 +10,7 @@
 #include "Character/Monster/TBMonster.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/TBHunterCombatComponent.h"
+#include "Components/TBMeleeTraceComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/RootMotionSource.h"
 #include "GameplayEffect.h"
@@ -22,7 +23,6 @@ UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_SwordDashCooldown, "Cooldown.Hunter.SwordDash"
 
 namespace
 {
-const FName TargetActorKey(TEXT("TargetActor"));
 const FName SwordDashMotionName(TEXT("HunterSwordDash"));
 constexpr double MaxTargetHeightDifference = 125.0;
 }
@@ -101,7 +101,8 @@ void UTBGameplayAbility_VampireHunter_SwordDash::ActivateAbility(FGameplayAbilit
 	const AActor* Target = TriggerEventData ? TriggerEventData->Target.Get() : nullptr;
 	if (!Target && Blackboard)
 	{
-		Target = Cast<AActor>(Blackboard->GetValueAsObject(TargetActorKey));
+		static const FName SwordDashTargetKey(TEXT("TargetActor"));
+		Target = Cast<AActor>(Blackboard->GetValueAsObject(SwordDashTargetKey));
 	}
 
 	if (!CanUseAgainst(Hunter, Target))
@@ -110,8 +111,27 @@ void UTBGameplayAbility_VampireHunter_SwordDash::ActivateAbility(FGameplayAbilit
 		return;
 	}
 
+	UTBMeleeTraceComponent* Trace = Hunter->GetMeleeTraceComponent();
+	if (!Trace || !Trace->PrepareAttack(Hunter->GetMeleeTraceMesh()))
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+	ActiveTrace = Trace;
+	TraceHitHandle = Trace->OnHit.AddUObject(this, &ThisClass::HandleMeleeHit);
 	DashTarget = Target;
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+}
+
+void UTBGameplayAbility_VampireHunter_SwordDash::HandleMeleeHit(const FHitResult& Hit)
+{
+	ATBMonster* Hunter = Cast<ATBMonster>(GetAvatarActorFromActorInfo());
+	float Damage = 0.f;
+	if (IsActive() && IsValid(Hunter) && DashTarget.IsValid() && Hit.GetActor() == DashTarget.Get()
+		&& Hunter->GetAttackDamage(TBGameplayTags::Ability_Combat_Melee, Damage))
+	{
+		Hunter->ApplyMeleeDamage(Hit, Damage);
+	}
 }
 
 void UTBGameplayAbility_VampireHunter_SwordDash::OnActionCommitted()
@@ -140,16 +160,16 @@ void UTBGameplayAbility_VampireHunter_SwordDash::OnActionCommitted()
 	StunTask->ReadyForActivation();
 }
 
-void UTBGameplayAbility_VampireHunter_SwordDash::DashFromMontageNotify(const UAnimSequenceBase* Animation)
+void UTBGameplayAbility_VampireHunter_SwordDash::DashFromMontageNotify(const UAnimSequenceBase* Animation,
+	const UTBAnimNotify_HunterSwordDash& Notify)
 {
 	const UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
-	if (!IsActive() || bDashTriggered || !Animation || Animation != ThirdPersonMontage.Get()
+	if (!IsActive() || !Animation || Animation != ThirdPersonMontage.Get()
 		|| !ASC || ASC->GetAnimatingAbility() != this || ASC->GetCurrentMontage() != ThirdPersonMontage.Get())
 	{
 		return;
 	}
 
-	bDashTriggered = true;
 	ATBMonster* Hunter = Cast<ATBMonster>(GetAvatarActorFromActorInfo());
 	const AActor* Target = DashTarget.Get();
 	if (!CanDashToward(Hunter, Target))
@@ -160,7 +180,26 @@ void UTBGameplayAbility_VampireHunter_SwordDash::DashFromMontageNotify(const UAn
 	AAIController* Controller = Cast<AAIController>(Hunter->GetController());
 	const FVector Offset = Target->GetActorLocation() - Hunter->GetActorLocation();
 	const FVector Direction = Offset.GetSafeNormal2D();
-	const double Distance = FMath::Min(Offset.Size2D() - GetStopDistance(*Hunter, *Target), static_cast<double>(MaxDashDistance));
+	const FAnimNotifyEvent* CurrentEvent = ThirdPersonMontage->Notifies.FindByPredicate([&Notify](const FAnimNotifyEvent& Event)
+	{
+		return Event.Notify.Get() == &Notify;
+	});
+	int32 RemainingDashes = 1;
+	if (CurrentEvent)
+	{
+		const bool bDedicatedServer = Hunter->GetNetMode() == NM_DedicatedServer;
+		for (const FAnimNotifyEvent& Event : ThirdPersonMontage->Notifies)
+		{
+			if (Event.GetTriggerTime() > CurrentEvent->GetTriggerTime()
+				&& Event.Notify && Event.Notify->IsA<UTBAnimNotify_HunterSwordDash>()
+				&& (!bDedicatedServer || Event.bTriggerOnDedicatedServer))
+			{
+				++RemainingDashes;
+			}
+		}
+	}
+	const double AvailableDistance = Offset.Size2D() - GetStopDistance(*Hunter, *Target);
+	const double Distance = FMath::Min(AvailableDistance / RemainingDashes, static_cast<double>(MaxDashDistance));
 	if (!Controller || Direction.IsNearlyZero() || Distance <= UE_KINDA_SMALL_NUMBER)
 	{
 		return;
@@ -175,19 +214,26 @@ void UTBGameplayAbility_VampireHunter_SwordDash::DashFromMontageNotify(const UAn
 	}
 
 	Hunter->SetActorRotation(Direction.Rotation());
-	bDashInProgress = true;
+	if (UAbilityTask_ApplyRootMotionMoveToForce* PreviousDashTask = ActiveDashTask.Get())
+	{
+		PreviousDashTask->EndTask();
+	}
+	const float Duration = static_cast<float>(Distance / DashSpeed);
 	auto* DashTask = UAbilityTask_ApplyRootMotionMoveToForce::ApplyRootMotionMoveToForce(this, SwordDashMotionName,
-		Hunter->GetActorLocation() + DashOffset, static_cast<float>(Distance / DashSpeed), false, MOVE_Walking, true,
+		Hunter->GetActorLocation() + DashOffset, Duration, false, MOVE_Walking, true,
 		nullptr, ERootMotionFinishVelocityMode::SetVelocity, FVector::ZeroVector, 0.f);
+	ActiveDashTask = DashTask;
 	DashTask->OnTimedOut.AddDynamic(this, &ThisClass::OnDashFinished);
 	DashTask->OnTimedOutAndDestinationReached.AddDynamic(this, &ThisClass::OnDashFinished);
 	DashTask->ReadyForActivation();
+	bStartedMotionTrail = true;
+	Hunter->GetHunterCombatComponent()->MulticastStartMotionTrail(Duration);
 }
 
 void UTBGameplayAbility_VampireHunter_SwordDash::HandleActionMontageCompleted()
 {
 	bMontageCompleted = true;
-	if (!bDashInProgress)
+	if (!ActiveDashTask.IsValid())
 	{
 		Super::HandleActionMontageCompleted();
 	}
@@ -195,10 +241,23 @@ void UTBGameplayAbility_VampireHunter_SwordDash::HandleActionMontageCompleted()
 
 void UTBGameplayAbility_VampireHunter_SwordDash::OnDashFinished()
 {
-	bDashInProgress = false;
+	ActiveDashTask.Reset();
+	StopMotionTrail();
 	if (bMontageCompleted)
 	{
 		Super::HandleActionMontageCompleted();
+	}
+}
+
+void UTBGameplayAbility_VampireHunter_SwordDash::StopMotionTrail()
+{
+	if (bStartedMotionTrail)
+	{
+		if (ATBMonster* Hunter = Cast<ATBMonster>(GetAvatarActorFromActorInfo()))
+		{
+			Hunter->GetHunterCombatComponent()->MulticastStopMotionTrail();
+		}
+		bStartedMotionTrail = false;
 	}
 }
 
@@ -211,14 +270,21 @@ void UTBGameplayAbility_VampireHunter_SwordDash::EndAbility(FGameplayAbilitySpec
 	const FGameplayAbilityActorInfo* ActorInfo, FGameplayAbilityActivationInfo ActivationInfo,
 	bool bReplicateEndAbility, bool bWasCancelled)
 {
+	StopMotionTrail();
+	if (UTBMeleeTraceComponent* Trace = ActiveTrace.Get())
+	{
+		Trace->OnHit.Remove(TraceHitHandle);
+		Trace->FinishAttack();
+	}
+	ActiveTrace.Reset();
+	TraceHitHandle.Reset();
 	if (USkeletalMeshComponent* Mesh = NotifyMesh.Get())
 	{
 		Mesh->VisibilityBasedAnimTickOption = static_cast<EVisibilityBasedAnimTickOption>(PreviousVisibilityTickOption);
 	}
 	NotifyMesh.Reset();
 	DashTarget.Reset();
-	bDashTriggered = false;
-	bDashInProgress = false;
+	ActiveDashTask.Reset();
 	bMontageCompleted = false;
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

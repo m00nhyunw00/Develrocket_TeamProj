@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
 #include "GameFramework/PlayerState.h"
+#include "Data/TBClassChangeTypes.h"
 #include "TBPlayerState.generated.h"
 
 struct FGameplayTag;
@@ -14,6 +15,10 @@ class UTBAbilitySystemComponent;
 class UTBAttributeSetBase;
 class UGameplayAbility;
 class UGameplayEffect;
+class UTBCharacterClassData;
+
+DECLARE_MULTICAST_DELEGATE(FOnTBClassDataChanged);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnTBClassChangeResult, ETBClassChangeResult);
 
 USTRUCT(BlueprintType)
 struct FTBMatchStats
@@ -52,6 +57,13 @@ public:
 	void InitializeGameplayData();
 	bool ResetForRespawn(FActiveGameplayEffectHandle DeathEffect);
 	
+	// 서버 전용 : 직업 변경 전 어빌리티 정리 --------------------
+	
+	void ResetGameplayDataForClassChange();
+
+	// [서버] 승인된 직업으로 교체: GAS 정리 + 데이터 교체. 폰을 다시 만들어야 하면 true
+	bool ApplyClassChange(const UTBCharacterClassData* NewClassData);
+
 	// 현재 PlayerState의 사망 관련 이벤트를 한 번만 연결
 	void InitializeDeathEvents();
 
@@ -65,6 +77,27 @@ public:
 	// 기능 태그에 해당하는 플레이어 공격력 조회
 	bool GetAttackDamage(
 		const FGameplayTag& AttackId, float& OutDamage) const;
+	
+	// 선택한 직업이 있으면 그것을, 없으면 기본 직업을 반환
+	const UTBCharacterClassData* GetClassData() const;
+
+	// 로비에서 실제로 고른 직업 (아직 안 골랐으면 nullptr)
+	const UTBCharacterClassData* GetSelectedClassData() const;
+	
+	// 서버 전용: 데이터만 교체. 직업 변경은 ApplyClassChange 사용
+	void SetSelectedClassData(const UTBCharacterClassData* NewClassData);
+	
+	// 리슨 서버 호스트는 OnRep을 받지 않으므로 HUD는 이 이벤트로 갱신
+	FOnTBClassDataChanged OnClassDataChangedEvent;
+
+	// 로비 직업 변경 신청 ----------------------
+	// 흐름: 신청 → LobbyManager 결재 → 승인 시 ApplyClassChange → GameMode 재스폰 → 결과 통보
+
+	// [로컬] 위젯에서 호출
+	void RequestClassChange(const UTBCharacterClassData* ClassData);
+
+	// [로컬] 결재 결과 (위젯이 구독해서 거절 사유 표시)
+	FOnTBClassChangeResult OnClassChangeResult;
 
 protected:
 	// 기본 공격 피해량
@@ -135,6 +168,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "GAS|Death")
 	TSubclassOf<UGameplayEffect> DeathEffectClass;
 	
+	// 1단계 이전용: 기존 직업별 PlayerState BP에 DA를 하나씩 지정
+	UPROPERTY(EditDefaultsOnly, Category = "Class")
+	TObjectPtr<const UTBCharacterClassData> DefaultClassData;
+	
 private:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Match", meta = (AllowPrivateAccess = "true"))
 	FTBMatchStats MatchStats;
@@ -147,6 +184,18 @@ private:
 private:
 	void HandleBloodChanged(const FOnAttributeChangeData& Data);
 	void HandleDeadTagChanged(const FGameplayTag Tag, int32 NewCount);
+	
+	UPROPERTY(ReplicatedUsing = OnRep_SelectedClassData)
+	TObjectPtr<const UTBCharacterClassData> SelectedClassData;
+
+	UFUNCTION()
+	void OnRep_SelectedClassData();
+
+	UFUNCTION(Server, Reliable)
+	void ServerRequestClassChange(const UTBCharacterClassData* ClassData);
+
+	UFUNCTION(Client, Reliable)
+	void ClientClassChangeResult(ETBClassChangeResult Result);
 
 public:
 	// 게임플레이 데이터 초기화 완료 여부
@@ -166,37 +215,18 @@ public:
 		return DeathEffectClass;
 	}
 	
-	// 기본 공격 피해량 조회
-	float GetPrimaryAttackDamage() const
-	{
-		return PrimaryAttackDamage;
-	}
-	
-	// 플레이어 근접 공격 피해량 조회
-	float GetMeleeAttackDamage() const
-	{
-		return MeleeAttackDamage;
-	}
-
-	// 기본 공격 사거리 조회
-	float GetPrimaryAttackRange() const
-	{
-		return PrimaryAttackRange;
-	}
+	// 직업 데이터 기반 조회 (DA 미지정 시 기존 필드 값 사용)
+	float GetPrimaryAttackDamage() const;
+	float GetMeleeAttackDamage() const;
+	float GetPrimaryAttackRange() const;
+	float GetPrimaryAttackInterval() const;
 
 	// 공격 판정 디버그 표시 여부
 	bool ShouldDrawPrimaryAttackTrace() const
 	{
 		return bDrawPrimaryAttackTrace;
 	}
-	
-	float GetPrimaryAttackInterval() const
-	{
-		return PrimaryAttackInterval;
-	}
 
-	TSubclassOf<UGameplayEffect> GetPrimaryAttackCooldownEffectClass() const
-	{
-		return PrimaryAttackCooldownEffectClass;
-	}
+	// 직업 데이터 기반 조회 (DA 미지정 시 PlayerState 값 사용)
+	TSubclassOf<UGameplayEffect> GetPrimaryAttackCooldownEffectClass() const;
 };

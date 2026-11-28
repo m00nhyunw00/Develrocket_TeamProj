@@ -14,6 +14,7 @@ class UTBMatchWaitWidget;
 class UTBInteractionComponent;
 class UTBLobbyReadyWidget;
 class UTBLeaderboardWidget;
+class UTBClassSelectWidget;
 
 struct FOnAttributeChangeData;
 
@@ -34,6 +35,12 @@ public:
 	
 	void ShowLeaderboard();
 	void HideLeaderboard();
+
+	// 직업 선택 팝업 (로비가 아니면 위젯이 없어서 아무것도 안 함)
+	void OpenClassSelect();
+
+	// 피격 방향 표시 (맞은 본인 클라이언트에서 호출)
+	void ShowDamageIndicator(const FVector& Origin, AActor* Source);
 
 protected:
 	virtual void BeginPlay() override;
@@ -64,6 +71,12 @@ protected:
 	
 	UPROPERTY(Transient)
 	TObjectPtr<UTBLeaderboardWidget> LeaderboardWidget;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UTBClassSelectWidget> ClassSelectWidgetClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTBClassSelectWidget> ClassSelectWidget;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "UI", meta=(ClampMin = "0.1", Units = "s"))
 	float LeaderboardRefreshInterval = 0.5f;

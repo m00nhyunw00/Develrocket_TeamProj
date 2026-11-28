@@ -15,6 +15,8 @@ namespace TBGameplayTags
 	
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_PrimaryAttack, "Cooldown.PrimaryAttack");
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_SecondaryAction, "Cooldown.SecondaryAction");
+	UE_DEFINE_GAMEPLAY_TAG(Cooldown_Melee, "Cooldown.Melee");
+	UE_DEFINE_GAMEPLAY_TAG(Cooldown_Mobility, "Cooldown.Mobility");
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_Skill1, "Cooldown.Skill1");
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_Skill2, "Cooldown.Skill2");
 	UE_DEFINE_GAMEPLAY_TAG(Cooldown_MonsterSkill, "Cooldown.MonsterSkill");
@@ -50,8 +52,11 @@ namespace TBGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Attack_Fire, "GameplayCue.Blackwood.Attack.Fire");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Attack_Melee, "GameplayCue.Blackwood.Attack.Melee");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Blackwood_Empowered, "GameplayCue.Blackwood.Empowered");
+	
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Amanai_Attack, "GameplayCue.Amanai.Attack");
-	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Amanai_Attack_PrimaryAttack, "GameplayCue.Amanai.Attack.PrimaryAttack");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Amanai_Attack_HeavyAttack, "GameplayCue.Amanai.Attack.HeavyAttack");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Amanai_Attack_Guard, "GameplayCue.Amanai.Attack.Guard");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Amanai_Attack_Dash, "GameplayCue.Amanai.Attack.Dash");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Amanai_Attack_SwordWave, "GameplayCue.Amanai.Attack.SwordWave");
 	
 	UE_DEFINE_GAMEPLAY_TAG(Event_Combat_Projectile_Launch, "Event.Combat.Projectile.Launch");

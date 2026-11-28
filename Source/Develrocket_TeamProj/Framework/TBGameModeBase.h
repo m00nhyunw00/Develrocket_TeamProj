@@ -1,0 +1,22 @@
+﻿#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/GameModeBase.h"
+#include "TBGameModeBase.generated.h"
+
+// 폰 클래스를 PlayerState의 직업 데이터에서 결정하는 공통 GameMode
+UCLASS()
+class DEVELROCKET_TEAMPROJ_API ATBGameModeBase : public AGameModeBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual UClass* GetDefaultPawnClassForController_Implementation(AController* InController) override;
+
+	// 로그인 시 로비에서 고른 직업 복원 (폰 스폰 전)
+	virtual FString InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId,
+		const FString& Options, const FString& Portal = TEXT("")) override;
+
+	// [서버] 현재 직업 데이터로 제자리 재스폰 (기존 폰은 제거)
+	void RespawnPlayerInPlace(APlayerController* PlayerController);
+};

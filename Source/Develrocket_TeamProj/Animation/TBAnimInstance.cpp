@@ -1,7 +1,120 @@
 #include "TBAnimInstance.h"
 
+#include "Animation/AnimInstanceProxy.h"
+#include "Character/Monster/TBMonster.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/TBHunterCombatComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+
+namespace
+{
+const FName RifleMuzzleSocket(TEXT("weapon_r_muzzle"));
+const FName UpperSpineBone(TEXT("spine_04"));
+constexpr float RifleAimBlendSpeed = 14.f;
+constexpr double MaxRifleAimCorrection = FMath::DegreesToRadians(50.0);
+
+FTransform GetComponentBoneTransform(const FCompactPose& Pose, FCompactPoseBoneIndex Bone)
+{
+	FTransform Transform = Pose[Bone];
+	for (FCompactPoseBoneIndex Parent = Pose.GetParentBoneIndex(Bone); Parent.IsValid(); Parent = Pose.GetParentBoneIndex(Parent))
+	{
+		Transform *= Pose[Parent];
+	}
+	return Transform;
+}
+
+class FTBAnimInstanceProxy final : public FAnimInstanceProxy
+{
+public:
+	explicit FTBAnimInstanceProxy(UAnimInstance* Instance) : FAnimInstanceProxy(Instance) {}
+
+protected:
+	virtual void PreUpdate(UAnimInstance* Instance, float DeltaSeconds) override
+	{
+		FAnimInstanceProxy::PreUpdate(Instance, DeltaSeconds);
+
+		const ATBMonster* Hunter = Cast<ATBMonster>(Instance->TryGetPawnOwner());
+		const USkeletalMeshComponent* Mesh = Instance->GetSkelMeshComponent();
+		if (!Hunter || Hunter->GetMonsterBehavior() != ETBMonsterBehavior::Hunter || !Mesh
+			|| Hunter->GetHunterCombatComponent()->GetPhase() != ETBHunterPhase::Rifle)
+		{
+			AimWeight = 0.f;
+			return;
+		}
+
+		const bool bHasAim = Hunter->GetHunterCombatComponent()->TryGetRifleAimLocation(AimWorldLocation);
+		AimWeight = FMath::FInterpTo(AimWeight, bHasAim ? 1.f : 0.f, DeltaSeconds, RifleAimBlendSpeed);
+		if (AimWeight <= UE_KINDA_SMALL_NUMBER) return;
+
+		SpineIndex = Mesh->GetBoneIndex(UpperSpineBone);
+		MuzzleBoneIndex = Mesh->GetBoneIndex(Mesh->GetSocketBoneName(RifleMuzzleSocket));
+		if (SpineIndex == INDEX_NONE || MuzzleBoneIndex == INDEX_NONE || !Mesh->DoesSocketExist(RifleMuzzleSocket))
+		{
+			AimWeight = 0.f;
+			return;
+		}
+		MuzzleInBoneSpace = Mesh->GetSocketTransform(RifleMuzzleSocket, RTS_ParentBoneSpace);
+	}
+
+	virtual bool Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InRootNode) override
+	{
+		if (AimWeight <= UE_KINDA_SMALL_NUMBER) return false;
+		EvaluateAnimationNode_WithRoot(Output, InRootNode);
+
+		const FBoneContainer& Bones = Output.Pose.GetBoneContainer();
+		const FCompactPoseBoneIndex Spine = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(SpineIndex));
+		const FCompactPoseBoneIndex Muzzle = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(MuzzleBoneIndex));
+		if (!Spine.IsValid() || !Muzzle.IsValid()) return true;
+
+		FCompactPoseBoneIndex Ancestor = Muzzle;
+		while (Ancestor.IsValid() && Ancestor != Spine) Ancestor = Output.Pose.GetParentBoneIndex(Ancestor);
+		if (Ancestor != Spine) return true;
+
+		const FTransform SpineInComponent = GetComponentBoneTransform(Output.Pose, Spine);
+		const FTransform MuzzleInComponent = MuzzleInBoneSpace * GetComponentBoneTransform(Output.Pose, Muzzle);
+		const FVector MuzzleOffset = MuzzleInComponent.GetLocation() - SpineInComponent.GetLocation();
+		const FVector TargetOffset = GetComponentTransform().InverseTransformPosition(AimWorldLocation) - SpineInComponent.GetLocation();
+		// 총구 소켓의 -X가 유효한 총열 전방
+		const FVector BarrelForward = -MuzzleInComponent.GetUnitAxis(EAxis::X);
+		const double Projection = FVector::DotProduct(MuzzleOffset, BarrelForward);
+		const double Discriminant = FMath::Square(Projection) + TargetOffset.SizeSquared() - MuzzleOffset.SizeSquared();
+		if (Discriminant <= 0.0) return true;
+
+		// 회전축부터 표적까지의 거리와 같은 지점을 총구 직선 위에서 계산
+		const double DistanceAlongBarrel = FMath::Sqrt(Discriminant) - Projection;
+		if (DistanceAlongBarrel <= 0.0) return true;
+		const FVector BarrelPoint = MuzzleOffset + BarrelForward * DistanceAlongBarrel;
+		const FQuat Correction = FQuat::FindBetweenVectors(BarrelPoint, TargetOffset);
+		const double Angle = Correction.GetAngle();
+		const double Weight = AimWeight * FMath::Min(1.0, MaxRifleAimCorrection / FMath::Max(Angle, UE_SMALL_NUMBER));
+		const FQuat ComponentDelta = FQuat::Slerp(FQuat::Identity, Correction, Weight);
+
+		const FCompactPoseBoneIndex Parent = Output.Pose.GetParentBoneIndex(Spine);
+		const FQuat ParentRotation = Parent.IsValid() ? GetComponentBoneTransform(Output.Pose, Parent).GetRotation() : FQuat::Identity;
+		FTransform& SpineLocal = Output.Pose[Spine];
+		SpineLocal.SetRotation((ParentRotation.Inverse() * ComponentDelta * ParentRotation * SpineLocal.GetRotation()).GetNormalized());
+		return true;
+	}
+
+private:
+	FVector AimWorldLocation = FVector::ZeroVector;
+	FTransform MuzzleInBoneSpace = FTransform::Identity;
+	int32 SpineIndex = INDEX_NONE;
+	int32 MuzzleBoneIndex = INDEX_NONE;
+	float AimWeight = 0.f;
+};
+}
+
+FAnimInstanceProxy* UTBAnimInstance::CreateAnimInstanceProxy()
+{
+	return new FTBAnimInstanceProxy(this);
+}
+
+void UTBAnimInstance::DestroyAnimInstanceProxy(FAnimInstanceProxy* InProxy)
+{
+	delete InProxy;
+}
 
 void UTBAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
