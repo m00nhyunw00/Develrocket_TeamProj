@@ -59,6 +59,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combat|Power")
 	float GetPowerDamageMultiplier() const;
 
+	FSimpleMulticastDelegate OnPowerPointsChanged;
+
 	// 초기 데이터 적용 ----------------------
 
 	void InitializeGameplayData();
@@ -184,7 +186,10 @@ private:
 	FTBMatchStats MatchStats;
 
 	// Pawn 교체 후에도 유지되는 매치 내 강화 점수
-	UPROPERTY(Replicated)
+	UFUNCTION()
+	void OnRep_PowerPoints();
+
+	UPROPERTY(ReplicatedUsing = OnRep_PowerPoints)
 	float PowerPoints = 0.0f;
 
 	// 반복 초기화에 따른 자원 재설정 및 중복 부여 방지

@@ -63,7 +63,11 @@ void ATBPlayerState::AddMatchDeath()
 
 	++MatchStats.Deaths;
 	constexpr float PowerRetentionOnDeath = 0.30f;
-	PowerPoints *= PowerRetentionOnDeath;
+	if (PowerPoints > 0.0f)
+	{
+		PowerPoints *= PowerRetentionOnDeath;
+		OnPowerPointsChanged.Broadcast();
+	}
 	ForceNetUpdate();
 }
 
@@ -92,7 +96,13 @@ void ATBPlayerState::AddPowerPoints(float Points)
 	}
 
 	PowerPoints = NewPowerPoints;
+	OnPowerPointsChanged.Broadcast();
 	ForceNetUpdate();
+}
+
+void ATBPlayerState::OnRep_PowerPoints()
+{
+	OnPowerPointsChanged.Broadcast();
 }
 
 float ATBPlayerState::GetPowerDamageMultiplier() const
